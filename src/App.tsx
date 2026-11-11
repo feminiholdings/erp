@@ -141,60 +141,66 @@ import { initGlobalClickSound, playSuccessSound, playErrorSound } from './utils/
 
 const MODULE_META: Record<
   ERPModuleId,
-  { label: string; shortMobileLabel: string; icon: React.ComponentType<{ className?: string }> }
+  { label: string; shortMobileLabel: string; oneWordLabel: string; icon: React.ComponentType<{ className?: string }> }
 > = {
-  overview: { label: 'Executive Overview', shortMobileLabel: 'Overview', icon: LayoutDashboard },
-  retail_pos: { label: 'Retail Counter POS', shortMobileLabel: 'Retail POS', icon: Store },
-  sales_pos: { label: 'B2B Wholesale & Sales POS', shortMobileLabel: 'Sales POS', icon: Briefcase },
-  inventory: { label: 'Inventory & Auto-SKU', shortMobileLabel: 'Inventory', icon: Package },
-  branches_transfers: { label: 'Branches & Transfers', shortMobileLabel: 'Branches', icon: Building2 },
-  geo_pricing: { label: 'Geo-Location Pricing', shortMobileLabel: 'Geo-Price', icon: MapPin },
-  partners: { label: 'Suppliers, Retailers & Logistics', shortMobileLabel: 'Partners', icon: Users },
-  documents_credit: { label: 'Docs, Receipts & Credit Notes', shortMobileLabel: 'Docs', icon: FileText },
-  compliance: { label: 'Regulatory & Excise Stamps', shortMobileLabel: 'Compliance', icon: ShieldCheck },
-  hr_rbac: { label: 'HR & Role Provisioning', shortMobileLabel: 'HR & Roles', icon: UserPlus },
-  payroll: { label: 'Staff Payroll & Compensation', shortMobileLabel: 'Payroll', icon: Coins },
-  audit_security: { label: 'User Monitoring & Security Logs', shortMobileLabel: 'Security', icon: Activity },
-  customer_portal: { label: 'Customer Online Portal', shortMobileLabel: 'Online Store', icon: ShoppingBag },
-  outlets_restaurants: { label: 'Hospitality, Kitchen & Bars', shortMobileLabel: 'Outlets', icon: UtensilsCrossed },
-  external_customers: { label: 'External Customers (Sales)', shortMobileLabel: 'Customers', icon: Users },
-  delivery_management: { label: 'Delivery & Dispatch Operations', shortMobileLabel: 'Deliveries', icon: Truck },
-  internal_inbox: { label: 'Internal Inbox & Dept Chat', shortMobileLabel: 'Inbox Chat', icon: Inbox },
+  overview: { label: 'Executive Overview', shortMobileLabel: 'Overview', oneWordLabel: 'Overview', icon: LayoutDashboard },
+  retail_pos: { label: 'Retail Counter POS', shortMobileLabel: 'Retail POS', oneWordLabel: 'Retail', icon: Store },
+  sales_pos: { label: 'B2B Wholesale & Sales POS', shortMobileLabel: 'Sales POS', oneWordLabel: 'Wholesale', icon: Briefcase },
+  inventory: { label: 'Inventory & Auto-SKU', shortMobileLabel: 'Inventory', oneWordLabel: 'Inventory', icon: Package },
+  branches_transfers: { label: 'Branches & Transfers', shortMobileLabel: 'Branches', oneWordLabel: 'Branches', icon: Building2 },
+  geo_pricing: { label: 'Geo-Location Pricing', shortMobileLabel: 'Geo-Price', oneWordLabel: 'Pricing', icon: MapPin },
+  partners: { label: 'Suppliers, Retailers & Logistics', shortMobileLabel: 'Partners', oneWordLabel: 'Partners', icon: Users },
+  documents_credit: { label: 'Docs, Receipts & Credit Notes', shortMobileLabel: 'Docs', oneWordLabel: 'Documents', icon: FileText },
+  compliance: { label: 'Regulatory & Excise Stamps', shortMobileLabel: 'Compliance', oneWordLabel: 'Compliance', icon: ShieldCheck },
+  hr_rbac: { label: 'HR & Role Provisioning', shortMobileLabel: 'HR & Roles', oneWordLabel: 'Staff', icon: UserPlus },
+  payroll: { label: 'Staff Payroll & Compensation', shortMobileLabel: 'Payroll', oneWordLabel: 'Payroll', icon: Coins },
+  audit_security: { label: 'User Monitoring & Security Logs', shortMobileLabel: 'Security', oneWordLabel: 'Security', icon: Activity },
+  customer_portal: { label: 'Customer Online Portal', shortMobileLabel: 'Online Store', oneWordLabel: 'Storefront', icon: ShoppingBag },
+  outlets_restaurants: { label: 'Hospitality, Kitchen & Bars', shortMobileLabel: 'Outlets', oneWordLabel: 'Outlets', icon: UtensilsCrossed },
+  external_customers: { label: 'External Customers (Sales)', shortMobileLabel: 'Customers', oneWordLabel: 'Customers', icon: Users },
+  delivery_management: { label: 'Delivery & Dispatch Operations', shortMobileLabel: 'Deliveries', oneWordLabel: 'Deliveries', icon: Truck },
+  internal_inbox: { label: 'Internal Inbox & Dept Chat', shortMobileLabel: 'Inbox Chat', oneWordLabel: 'Inbox', icon: Inbox },
 };
 
 const ERP_DEPARTMENTS: {
   id: string;
   title: string;
+  oneWordTitle: string;
   icon: React.ComponentType<{ className?: string }>;
   modules: ERPModuleId[];
 }[] = [
   {
     id: 'executive',
     title: 'Executive & Governance',
+    oneWordTitle: 'Executive',
     icon: ShieldCheck,
     modules: ['overview', 'hr_rbac', 'payroll', 'compliance', 'geo_pricing'],
   },
   {
     id: 'sales',
     title: 'Sales & Commercial POS',
+    oneWordTitle: 'Sales',
     icon: Store,
     modules: ['retail_pos', 'sales_pos', 'external_customers', 'documents_credit'],
   },
   {
     id: 'inventory',
     title: 'Inventory, Depots & Logistics',
+    oneWordTitle: 'Inventory',
     icon: Package,
     modules: ['inventory', 'branches_transfers', 'partners', 'delivery_management'],
   },
   {
     id: 'hospitality',
     title: 'Hospitality & Branch Outlets',
+    oneWordTitle: 'Outlets',
     icon: UtensilsCrossed,
     modules: ['outlets_restaurants'],
   },
   {
     id: 'security',
     title: 'Security, Fingerprint & Audit Logs',
+    oneWordTitle: 'Security',
     icon: Activity,
     modules: ['audit_security'],
   },
@@ -4375,21 +4381,21 @@ export default function App() {
                         }
                         className="w-full p-3 bg-slate-100 hover:bg-slate-200 flex items-center justify-between cursor-pointer transition select-none"
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-6 h-6 rounded-lg bg-[#0A006E]/10 text-[#0A006E] flex items-center justify-center shrink-0">
-                            <DeptIcon className="w-3.5 h-3.5" />
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 shadow-xs">
+                            <DeptIcon className="w-6 h-6 stroke-[2.4]" />
                           </div>
-                          <span className="text-xs font-montserrat font-black text-[#0A006E] tracking-wide truncate">
-                            {dept.title} ({deptAllowedModules.length})
+                          <span className="text-sm font-montserrat font-black text-[#0A006E] tracking-wide truncate">
+                            {dept.oneWordTitle} ({deptAllowedModules.length})
                           </span>
                           {hasActiveModule && (
-                            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-[#34D186]/20 text-[#1E9E60] border border-[#34D186]/40 shrink-0">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#34D186]/20 text-[#1E9E60] border border-[#34D186]/40 shrink-0">
                               Active
                             </span>
                           )}
                         </div>
                         <ChevronRight
-                          className={`w-4 h-4 text-[#0A006E] transition-transform duration-200 ${
+                          className={`w-5 h-5 text-[#0A006E] transition-transform duration-200 ${
                             isOpen ? 'rotate-90' : ''
                           }`}
                         />
@@ -4408,24 +4414,24 @@ export default function App() {
                                   handleSelectModule(modId);
                                   setMobileDrawerOpen(false);
                                 }}
-                                className={`w-full p-2.5 rounded-xl flex items-center gap-3 border-2 text-left cursor-pointer transition ${
+                                className={`w-full p-3 rounded-2xl flex items-center gap-3.5 border-2 text-left cursor-pointer transition ${
                                   isActive
                                     ? 'bg-[#0A006E] border-[#0A006E] text-white shadow-md'
                                     : 'bg-white border-slate-200 hover:border-[#0A006E] text-slate-800'
                                 }`}
                               >
                                 <div
-                                  className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
                                     isActive ? 'bg-[#FFDE00] text-[#0A006E]' : 'bg-[#F0F2F0] text-[#0A006E]'
                                   }`}
                                 >
-                                  <IconComp className="w-4 h-4 stroke-[2.2]" />
+                                  <IconComp className="w-6 h-6 stroke-[2.4]" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <div className={`text-xs font-montserrat font-black truncate ${
+                                  <div className={`text-sm font-montserrat font-black truncate ${
                                     isActive ? 'text-white' : 'text-slate-900'
                                   }`}>
-                                    {MODULE_META[modId].label}
+                                    {MODULE_META[modId].oneWordLabel}
                                   </div>
                                 </div>
                               </button>
@@ -4590,23 +4596,23 @@ export default function App() {
                       onClick={() =>
                         setOpenDepartments((prev) => ({ ...prev, [dept.id]: !prev[dept.id] }))
                       }
-                      className="w-full px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 flex items-center justify-between cursor-pointer transition select-none"
+                      className="w-full px-3.5 py-3 bg-slate-100 hover:bg-slate-200 flex items-center justify-between cursor-pointer transition select-none"
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-6 h-6 rounded-lg bg-[#0A006E]/10 text-[#0A006E] flex items-center justify-center shrink-0">
-                          <DeptIcon className="w-3.5 h-3.5" />
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 shadow-xs">
+                          <DeptIcon className="w-6 h-6 stroke-[2.4]" />
                         </div>
-                        <span className="text-xs font-montserrat font-black text-[#0A006E] tracking-wide truncate">
-                          {dept.title} ({deptAllowedModules.length})
+                        <span className="text-sm font-montserrat font-black text-[#0A006E] tracking-wide truncate">
+                          {dept.oneWordTitle} ({deptAllowedModules.length})
                         </span>
                         {hasActiveModule && (
-                          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-[#34D186]/20 text-[#1E9E60] border border-[#34D186]/40 shrink-0">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#34D186]/20 text-[#1E9E60] border border-[#34D186]/40 shrink-0">
                             Active
                           </span>
                         )}
                       </div>
                       <ChevronRight
-                        className={`w-4 h-4 text-[#0A006E] transition-transform duration-200 ${
+                        className={`w-5 h-5 text-[#0A006E] transition-transform duration-200 ${
                           isOpen ? 'rotate-90' : ''
                         }`}
                       />
@@ -4621,23 +4627,23 @@ export default function App() {
                             <button
                               key={modId}
                               onClick={() => handleSelectModule(modId)}
-                              className={`group w-full min-h-[48px] px-3 py-2 rounded-xl text-xs font-montserrat flex items-center gap-3 transition-all cursor-pointer whitespace-nowrap border-2 ${
+                              className={`group w-full min-h-[52px] px-3.5 py-2.5 rounded-2xl text-sm font-montserrat flex items-center gap-3.5 transition-all cursor-pointer whitespace-nowrap border-2 ${
                                 isActive
                                   ? 'bg-[#0A006E] text-white border-[#0A006E] font-black shadow-md'
                                   : 'bg-white text-slate-800 border-slate-200 hover:border-[#0A006E] hover:bg-[#FFDE00]/20 font-bold shadow-2xs'
                               }`}
                             >
                               <div
-                                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110 ${
+                                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110 ${
                                   isActive
                                     ? 'bg-[#FFDE00] text-[#0A006E] shadow-xs'
                                     : 'bg-[#F0F2F0] text-[#0A006E] group-hover:bg-[#0A006E] group-hover:text-[#FFDE00]'
                                 }`}
                               >
-                                <IconComp className="w-4 h-4 stroke-[2.2]" />
+                                <IconComp className="w-6 h-6 stroke-[2.4]" />
                               </div>
-                              <span className="truncate text-xs">
-                                {MODULE_META[modId].label}
+                              <span className="truncate text-sm font-montserrat font-black">
+                                {MODULE_META[modId].oneWordLabel}
                               </span>
                             </button>
                           );

@@ -1742,6 +1742,7 @@ export const InventoryModule: React.FC<{
   onLogStockIncident?: (incident: DamageSpoilageIncident) => Promise<void>;
   onOpenOnboardItems?: () => void;
   transfers: StockTransfer[];
+  onNavigateModule?: (modId: any) => void;
 }> = ({
   currentUser,
   products,
@@ -1755,6 +1756,7 @@ export const InventoryModule: React.FC<{
   onLogStockIncident,
   onOpenOnboardItems,
   transfers,
+  onNavigateModule,
 }) => {
   const pendingTransfersCount = transfers.filter((t) => t.status === 'Pending Authorization').length;
   const isInventoryPerson =

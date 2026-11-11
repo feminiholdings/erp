@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import {
+  Wine,
   LayoutDashboard,
   Store,
   Briefcase,
@@ -74,19 +75,19 @@ const MODULE_NAV_DEFINITIONS: Record<
     icon: React.ComponentType<{ className?: string }>;
   }
 > = {
-  overview: { label: 'Executive Overview', shortLabel: 'Dashboard', icon: LayoutDashboard },
-  retail_pos: { label: 'Retail Counter POS', shortLabel: 'Retail POS', icon: Store },
-  sales_pos: { label: 'B2B Wholesale POS', shortLabel: 'Sales POS', icon: Briefcase },
+  overview: { label: 'Executive Overview', shortLabel: 'Overview', icon: LayoutDashboard },
+  retail_pos: { label: 'Retail Counter POS', shortLabel: 'Retail', icon: Store },
+  sales_pos: { label: 'B2B Wholesale POS', shortLabel: 'Wholesale', icon: Briefcase },
   inventory: { label: 'Inventory (IPS/LPS)', shortLabel: 'Inventory', icon: Package },
   branches_transfers: { label: 'Branches & Transfers', shortLabel: 'Branches', icon: Building2 },
-  geo_pricing: { label: 'Geo-Location Pricing', shortLabel: 'Geo-Price', icon: MapPin },
+  geo_pricing: { label: 'Geo-Location Pricing', shortLabel: 'Pricing', icon: MapPin },
   partners: { label: 'Partners & Logistics', shortLabel: 'Partners', icon: Users },
-  documents_credit: { label: 'Docs & Credit Notes', shortLabel: 'Docs', icon: FileText },
+  documents_credit: { label: 'Docs & Credit Notes', shortLabel: 'Documents', icon: FileText },
   compliance: { label: 'Regulatory & Excise', shortLabel: 'Compliance', icon: ShieldCheck },
-  hr_rbac: { label: 'HR & Role Provisioning', shortLabel: 'HR & Roles', icon: UserPlus },
+  hr_rbac: { label: 'HR & Role Provisioning', shortLabel: 'Staff', icon: UserPlus },
   payroll: { label: 'Staff Payroll & PAYE/NSSF', shortLabel: 'Payroll', icon: Coins },
   audit_security: { label: 'Security & Audit Logs', shortLabel: 'Security', icon: Activity },
-  customer_portal: { label: 'Customer Online Store', shortLabel: 'Online Store', icon: ShoppingBag },
+  customer_portal: { label: 'Customer Online Store', shortLabel: 'Storefront', icon: ShoppingBag },
   outlets_restaurants: { label: 'Branch Outlets & Restaurants', shortLabel: 'Outlets', icon: UtensilsCrossed },
   external_customers: { label: 'External Customers', shortLabel: 'Customers', icon: UserCircle },
   delivery_management: { label: 'Delivery & Dispatch Operations', shortLabel: 'Deliveries', icon: Truck },
@@ -667,6 +668,174 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
       </nav>
 
       {/* =====================================================================
+          MOBILE BOTTOM NAVIGATION BAR (< md) — AUTHENTICATED SESSION
+          CURVED WITH SINGLE WAVE TOP EDGE & LARGE ANIMATED CENTER ICON
+          ===================================================================== */}
+      <nav
+        aria-label="Mobile ERP Bottom Navigation"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0A006E] text-white shadow-[0_-8px_30px_rgba(10,0,110,0.4)] px-2 py-1 select-none"
+      >
+        {/* Single Wave Top Edge */}
+        <div className="absolute left-0 right-0 -top-6 w-full leading-none pointer-events-none z-10">
+          <svg
+            viewBox="0 0 500 50"
+            preserveAspectRatio="none"
+            className="w-full h-6 block drop-shadow-[0_-4px_8px_rgba(10,0,110,0.25)]"
+          >
+            <path d="M0,51 L500,51 L500,35 C350,5 150,55 0,22 Z" fill="#0A006E" />
+            <path
+              d="M0,22 C150,55 350,5 500,45"
+              fill="none"
+              stroke="#FFDE00"
+              strokeWidth="4"
+              strokeLinecap="round"
+            />
+          </svg>
+        </div>
+
+        <div className="relative z-20 flex items-center justify-around h-14 max-w-md mx-auto">
+          {/* 1. Overview */}
+          <button
+            type="button"
+            onClick={() => {
+              onSelectModule('overview');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className={`flex flex-col items-center justify-center gap-0.5 px-2 py-1 transition cursor-pointer active:scale-95 ${
+              activeModule === 'overview' ? 'text-[#FFDE00]' : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            <div
+              className={`p-1 rounded-xl transition ${
+                activeModule === 'overview' ? 'bg-white/20 text-[#FFDE00]' : ''
+              }`}
+            >
+              <LayoutDashboard className="w-6 h-6 stroke-[2.4]" />
+            </div>
+            <span
+              className={`text-[10px] font-montserrat font-black ${
+                activeModule === 'overview' ? 'text-[#FFDE00]' : 'text-slate-200'
+              }`}
+            >
+              Overview
+            </span>
+          </button>
+
+          {/* 2. Retail POS / Sales */}
+          <button
+            type="button"
+            onClick={() => {
+              const posMod = allowedModules.includes('retail_pos')
+                ? 'retail_pos'
+                : allowedModules.includes('sales_pos')
+                ? 'sales_pos'
+                : 'inventory';
+              onSelectModule(posMod);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className={`flex flex-col items-center justify-center gap-0.5 px-2 py-1 transition cursor-pointer active:scale-95 ${
+              activeModule === 'retail_pos' || activeModule === 'sales_pos'
+                ? 'text-[#FFDE00]'
+                : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            <div
+              className={`p-1 rounded-xl transition ${
+                activeModule === 'retail_pos' || activeModule === 'sales_pos'
+                  ? 'bg-white/20 text-[#FFDE00]'
+                  : ''
+              }`}
+            >
+              <Store className="w-6 h-6 stroke-[2.4]" />
+            </div>
+            <span
+              className={`text-[10px] font-montserrat font-black ${
+                activeModule === 'retail_pos' || activeModule === 'sales_pos'
+                  ? 'text-[#FFDE00]'
+                  : 'text-slate-200'
+              }`}
+            >
+              POS
+            </span>
+          </button>
+
+          {/* 3. CENTER: LARGE ANIMATED CENTER ICON (YELLOW BACKGROUND) */}
+          <div className="relative flex flex-col items-center shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsMobileModulesSheetOpen((prev) => !prev)}
+              title="Open ERP Module Directory"
+              aria-label="Open ERP Module Directory"
+              className="relative -top-5 w-15 h-15 rounded-full bg-[#FFDE00] text-[#0A006E] border-4 border-white shadow-2xl flex items-center justify-center transition-transform active:scale-95 cursor-pointer ring-4 ring-[#FFDE00]/50 group"
+            >
+              {/* Continuous glowing ping animation ring */}
+              <span className="absolute inset-0 rounded-full bg-[#FFDE00] animate-ping opacity-40 pointer-events-none" />
+              <div className="relative z-10 group-hover:rotate-12 transition-transform duration-300">
+                <Wine className="w-7.5 h-7.5 stroke-[2.7] text-[#0A006E] animate-pulse" />
+              </div>
+            </button>
+            <span className="relative -top-4 text-[10px] font-montserrat font-black text-[#FFDE00]">
+              Modules
+            </span>
+          </div>
+
+          {/* 4. Internal Inbox */}
+          <button
+            type="button"
+            onClick={() => {
+              onSelectModule('internal_inbox');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className={`relative flex flex-col items-center justify-center gap-0.5 px-2 py-1 transition cursor-pointer active:scale-95 ${
+              activeModule === 'internal_inbox' ? 'text-[#FFDE00]' : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            <div
+              className={`relative p-1 rounded-xl transition ${
+                activeModule === 'internal_inbox' ? 'bg-white/20 text-[#FFDE00]' : ''
+              }`}
+            >
+              <Inbox className="w-6 h-6 stroke-[2.4]" />
+              {unreadInboxCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-mono-tabular font-black flex items-center justify-center border-2 border-[#0A006E]">
+                  {unreadInboxCount > 99 ? '99+' : unreadInboxCount}
+                </span>
+              )}
+            </div>
+            <span
+              className={`text-[10px] font-montserrat font-black ${
+                activeModule === 'internal_inbox' ? 'text-[#FFDE00]' : 'text-slate-200'
+              }`}
+            >
+              Inbox
+            </span>
+          </button>
+
+          {/* 5. Barcode Scanner / Storefront */}
+          <button
+            type="button"
+            onClick={() => {
+              if (onOpenPhoneScanner) {
+                onOpenPhoneScanner();
+              } else if (onOpenCustomerPortal) {
+                onOpenCustomerPortal();
+              } else {
+                onSelectModule('inventory');
+              }
+            }}
+            className="flex flex-col items-center justify-center gap-0.5 px-2 py-1 text-slate-300 hover:text-white transition cursor-pointer active:scale-95"
+          >
+            <div className="p-1 rounded-xl">
+              <Smartphone className="w-6 h-6 stroke-[2.4] text-white" />
+            </div>
+            <span className="text-[10px] font-montserrat font-black text-slate-200">
+              Scan
+            </span>
+          </button>
+        </div>
+      </nav>
+
+      {/* =====================================================================
           QUICK SKU PRICE & STOCK CHECK MODAL / POPOVER
           ===================================================================== */}
       {isQuickSkuSearchOpen && (
@@ -905,7 +1074,7 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
               </button>
             </div>
 
-            <div className="p-4 overflow-y-auto grid grid-cols-3 gap-2.5">
+            <div className="p-4 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-2.5">
               {visibleNavItems.map((item) => {
                 const isActive = activeModule === item.id;
                 return (
@@ -917,16 +1086,18 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
                       onSelectModule(item.id);
                       window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
-                    className={`p-3 rounded-2xl border flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
+                    className={`p-3 rounded-2xl border flex items-center gap-3 text-left transition cursor-pointer ${
                       isActive
                         ? 'bg-[#0A006E] text-white border-[#0A006E] ring-2 ring-[#FFDE00]'
                         : 'bg-slate-50 hover:bg-slate-100 text-slate-800 border-slate-200'
                     }`}
                   >
-                    <span className={isActive ? 'text-[#FFDE00]' : 'text-[#0A006E]'}>
-                      {React.createElement(item.icon, { className: 'w-5 h-5' })}
-                    </span>
-                    <span className="text-[11px] font-montserrat font-bold leading-tight truncate max-w-full">
+                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+                      isActive ? 'bg-[#FFDE00] text-[#0A006E]' : 'bg-[#0A006E]/10 text-[#0A006E]'
+                    }`}>
+                      {React.createElement(item.icon, { className: 'w-6 h-6 stroke-[2.4]' })}
+                    </div>
+                    <span className="text-xs font-montserrat font-black leading-tight truncate">
                       {item.shortLabel}
                     </span>
                   </button>
