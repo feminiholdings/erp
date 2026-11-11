@@ -4,10 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "build": "node scripts/build-erp.mjs && NODE_ENV=production next build",
+    "build": "rm -rf .next && node scripts/build-erp.mjs && cross-env NODE_ENV=production next build",
     "start": "next start",
     "lint": "tsc -p tsconfig.erp.json --noEmit && tsc --noEmit",
-    "clean": "next clean"
+    "clean": "rm -rf .next"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -15,6 +15,7 @@
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cross-env": "^10.1.0",
     "firebase": "^13.1.0",
     "html5-qrcode": "^2.3.8",
     "jspdf": "^4.2.1",
