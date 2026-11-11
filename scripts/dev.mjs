@@ -7,7 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 
 // Parse CLI flags safely so `--host 0.0.0.0` (Vite-style) is translated to `-H 0.0.0.0` (Next.js-style)
-let port = process.env.DEFAULT_APP_PORT || '3000';
+let port = process.env.PORT || process.env.DEFAULT_APP_PORT || '3000';
 let host = '0.0.0.0';
 
 const rawArgs = process.argv.slice(2);
