@@ -1451,70 +1451,7 @@ export const OverviewModule: React.FC<{
         </div>
       </div>
 
-      {/* Inter-Department & Operations Workflow Hub */}
-      <div className="bg-[#F3F4F6] border-2 border-slate-300 rounded-2xl p-6 shadow-md space-y-5">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#0A006E] text-[#FFDE00] text-[11px] font-montserrat font-black uppercase tracking-wider mb-2 shadow-xs">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              Fully Wired &amp; Synchronized ERP Database (erp-db-1)
-            </div>
-            <h2 className="text-xl sm:text-2xl font-montserrat font-black italic text-[#0A006E]">
-              Inter-Department &amp; Operations Workflow Hub
-            </h2>
-            <p className="text-xs text-slate-700 mt-1 max-w-3xl leading-relaxed font-medium">
-              All 13 departments are unified in real-time. Sales transactions instantly deduct inventory, log financial ledger entries, update customer CRM records, credit staff sales performance, and synchronize kitchen/bar outlets.
-            </p>
-          </div>
-          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 shrink-0">
-            <button
-              onClick={() => onNavigateModule?.('retail_pos')}
-              className="h-10 px-4 inline-flex items-center justify-center bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] border-2 border-[#0A006E] rounded-xl text-xs font-montserrat font-black cursor-pointer shadow-md transition whitespace-nowrap active:scale-95"
-            >
-              Open POS
-            </button>
-            <button
-              onClick={() => onNavigateModule?.('inventory')}
-              className="h-10 px-4 inline-flex items-center justify-center bg-white hover:bg-slate-50 text-[#0A006E] border-2 border-[#0A006E] rounded-xl text-xs font-montserrat font-black cursor-pointer transition shadow-xs whitespace-nowrap active:scale-95"
-            >
-              Inventory Hub
-            </button>
-            <button
-              onClick={() => onNavigateModule?.('outlets_restaurants')}
-              className="h-10 px-4 inline-flex items-center justify-center bg-white hover:bg-slate-50 text-[#0A006E] border-2 border-[#0A006E] rounded-xl text-xs font-montserrat font-black cursor-pointer transition shadow-xs whitespace-nowrap active:scale-95"
-            >
-              Restaurant &amp; Bar
-            </button>
-          </div>
-        </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-1">
-          {[
-            { label: 'Retail & Wholesale POS', mod: 'retail_pos', desc: 'Auto stock & ledger' },
-            { label: 'Inventory & CSV', mod: 'inventory', desc: 'Bonded stock & SKU' },
-            { label: 'Finance & P&L', mod: 'overview', desc: 'Real-time ledger' },
-            { label: 'Kitchen & Bar', mod: 'outlets_restaurants', desc: 'Table & outlet sync' },
-            { label: 'HR & 6-Digit PIN', mod: 'hr_rbac', desc: 'Staff & payroll' },
-            { label: 'CRM & Partners', mod: 'partners', desc: 'Customer accounts' },
-          ].map((item, idx) => (
-            <div
-              key={idx}
-              onClick={() => onNavigateModule?.(item.mod)}
-              className="bg-white hover:bg-slate-50 border border-slate-300 hover:border-[#0A006E] rounded-xl p-3 cursor-pointer transition flex flex-col justify-between shadow-2xs hover:shadow-sm"
-            >
-              <div>
-                <div className="text-[11px] font-montserrat font-black text-[#0A006E] truncate">
-                  {item.label}
-                </div>
-                <div className="text-[10px] text-slate-500 mt-0.5">{item.desc}</div>
-              </div>
-              <div className="text-[10px] text-emerald-700 font-bold mt-2 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Synced
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
 
       {/* Manager Action Queue: Pending Inventory-Initiated Stock Transfer Authorizations */}
       {(currentUser.role === 'Admin' || currentUser.role === 'Branch Manager') &&
