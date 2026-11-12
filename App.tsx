@@ -45,6 +45,8 @@ import {
   Clock,
   Coins,
   Truck,
+  FileSpreadsheet,
+  Inbox,
 } from 'lucide-react';
 import {
   db,
@@ -77,11 +79,13 @@ import {
   DamageSpoilageIncident,
   BusinessUnit,
   RestaurantInventoryItem,
+  HrDeductionCatalogItem,
+  InternalChatMessage,
 } from './types';
 import {
   getDeviceFingerprint,
   ROLE_PERMISSIONS,
-  MASTER_IMPORTED_INVENTORY,
+  isSampleSkuRecord,
   formatKes,
   getEffectiveUserModules,
 } from './erpUtils';
@@ -108,6 +112,7 @@ import {
 } from './components/ErpModulesPart2';
 import { RestaurantOutletManagement } from './components/RestaurantOutletManagement';
 import { DocumentPrintModal } from './components/DocumentPrintModal';
+import { CustomerOrderDetailsModal } from './components/CustomerOrderDetailsModal';
 import { ExternalCustomersModule } from './components/ExternalCustomersModule';
 import { ThermalPayslipModal } from './components/ThermalPayslipModal';
 import { OnboardItemsModal } from './components/OnboardItemsModal';
@@ -123,65 +128,79 @@ import { DeliveryManagementModule } from './components/DeliveryManagementModule'
 import { Header } from './components/Header';
 import { PhoneScannerCompanion } from './components/PhoneScannerCompanion';
 import { GoogleIcon } from './components/icons/GoogleIcon';
+import { KraReturnsExportModal } from './components/KraReturnsExportModal';
+import { KraReturnScheduleType } from './utils/kraReturnsExport';
+import {
+  InternalInboxModule,
+  computeUnreadInboxSummary,
+} from './components/InternalInboxModule';
+import { DesktopInboxArrivalPopup } from './components/DesktopInboxArrivalPopup';
 import { hashPin, isPinHashed, verifyPin, hashPassword, verifyPassword } from './utils/security';
 import { broadcastProductScanned } from './utils/productScanBroadcast';
 import { initGlobalClickSound, playSuccessSound, playErrorSound } from './utils/audioBeep';
 
 const MODULE_META: Record<
   ERPModuleId,
-  { label: string; shortMobileLabel: string; icon: React.ComponentType<{ className?: string }> }
+  { label: string; shortMobileLabel: string; oneWordLabel: string; icon: React.ComponentType<{ className?: string }> }
 > = {
-  overview: { label: 'Executive Overview', shortMobileLabel: 'Overview', icon: LayoutDashboard },
-  retail_pos: { label: 'Retail Counter POS', shortMobileLabel: 'Retail POS', icon: Store },
-  sales_pos: { label: 'B2B Wholesale & Sales POS', shortMobileLabel: 'Sales POS', icon: Briefcase },
-  inventory: { label: 'Inventory & Auto-SKU', shortMobileLabel: 'Inventory', icon: Package },
-  branches_transfers: { label: 'Branches & Transfers', shortMobileLabel: 'Branches', icon: Building2 },
-  geo_pricing: { label: 'Geo-Location Pricing', shortMobileLabel: 'Geo-Price', icon: MapPin },
-  partners: { label: 'Suppliers, Retailers & Logistics', shortMobileLabel: 'Partners', icon: Users },
-  documents_credit: { label: 'Docs, Receipts & Credit Notes', shortMobileLabel: 'Docs', icon: FileText },
-  compliance: { label: 'Regulatory & Excise Stamps', shortMobileLabel: 'Compliance', icon: ShieldCheck },
-  hr_rbac: { label: 'HR & Role Provisioning', shortMobileLabel: 'HR & Roles', icon: UserPlus },
-  payroll: { label: 'Staff Payroll & Compensation', shortMobileLabel: 'Payroll', icon: Coins },
-  audit_security: { label: 'User Monitoring & Security Logs', shortMobileLabel: 'Security', icon: Activity },
-  customer_portal: { label: 'Customer Online Portal', shortMobileLabel: 'Online Store', icon: ShoppingBag },
-  outlets_restaurants: { label: 'Hospitality, Kitchen & Bars', shortMobileLabel: 'Outlets', icon: UtensilsCrossed },
-  external_customers: { label: 'External Customers (Sales)', shortMobileLabel: 'Customers', icon: Users },
-  delivery_management: { label: 'Delivery & Dispatch Operations', shortMobileLabel: 'Deliveries', icon: Truck },
+  overview: { label: 'Executive Overview', shortMobileLabel: 'Overview', oneWordLabel: 'Overview', icon: LayoutDashboard },
+  retail_pos: { label: 'Retail Counter POS', shortMobileLabel: 'Retail POS', oneWordLabel: 'Retail', icon: Store },
+  sales_pos: { label: 'B2B Wholesale & Sales POS', shortMobileLabel: 'Sales POS', oneWordLabel: 'Wholesale', icon: Briefcase },
+  inventory: { label: 'Inventory & Auto-SKU', shortMobileLabel: 'Inventory', oneWordLabel: 'Inventory', icon: Package },
+  branches_transfers: { label: 'Branches & Transfers', shortMobileLabel: 'Branches', oneWordLabel: 'Branches', icon: Building2 },
+  geo_pricing: { label: 'Geo-Location Pricing', shortMobileLabel: 'Geo-Price', oneWordLabel: 'Pricing', icon: MapPin },
+  partners: { label: 'Suppliers, Retailers & Logistics', shortMobileLabel: 'Partners', oneWordLabel: 'Partners', icon: Users },
+  documents_credit: { label: 'Docs, Receipts & Credit Notes', shortMobileLabel: 'Docs', oneWordLabel: 'Documents', icon: FileText },
+  compliance: { label: 'Regulatory & Excise Stamps', shortMobileLabel: 'Compliance', oneWordLabel: 'Compliance', icon: ShieldCheck },
+  hr_rbac: { label: 'HR & Role Provisioning', shortMobileLabel: 'HR & Roles', oneWordLabel: 'Staff', icon: UserPlus },
+  payroll: { label: 'Staff Payroll & Compensation', shortMobileLabel: 'Payroll', oneWordLabel: 'Payroll', icon: Coins },
+  audit_security: { label: 'User Monitoring & Security Logs', shortMobileLabel: 'Security', oneWordLabel: 'Security', icon: Activity },
+  customer_portal: { label: 'Customer Online Portal', shortMobileLabel: 'Online Store', oneWordLabel: 'Storefront', icon: ShoppingBag },
+  outlets_restaurants: { label: 'Hospitality, Kitchen & Bars', shortMobileLabel: 'Outlets', oneWordLabel: 'Outlets', icon: UtensilsCrossed },
+  external_customers: { label: 'External Customers (Sales)', shortMobileLabel: 'Customers', oneWordLabel: 'Customers', icon: Users },
+  delivery_management: { label: 'Delivery & Dispatch Operations', shortMobileLabel: 'Deliveries', oneWordLabel: 'Deliveries', icon: Truck },
+  internal_inbox: { label: 'Internal Inbox & Dept Chat', shortMobileLabel: 'Inbox Chat', oneWordLabel: 'Inbox', icon: Inbox },
 };
 
 const ERP_DEPARTMENTS: {
   id: string;
   title: string;
+  oneWordTitle: string;
   icon: React.ComponentType<{ className?: string }>;
   modules: ERPModuleId[];
 }[] = [
   {
     id: 'executive',
     title: 'Executive & Governance',
+    oneWordTitle: 'Executive',
     icon: ShieldCheck,
     modules: ['overview', 'hr_rbac', 'payroll', 'compliance', 'geo_pricing'],
   },
   {
     id: 'sales',
     title: 'Sales & Commercial POS',
+    oneWordTitle: 'Sales',
     icon: Store,
     modules: ['retail_pos', 'sales_pos', 'external_customers', 'documents_credit'],
   },
   {
     id: 'inventory',
     title: 'Inventory, Depots & Logistics',
+    oneWordTitle: 'Inventory',
     icon: Package,
     modules: ['inventory', 'branches_transfers', 'partners', 'delivery_management'],
   },
   {
     id: 'hospitality',
     title: 'Hospitality & Branch Outlets',
+    oneWordTitle: 'Outlets',
     icon: UtensilsCrossed,
     modules: ['outlets_restaurants'],
   },
   {
     id: 'security',
     title: 'Security, Fingerprint & Audit Logs',
+    oneWordTitle: 'Security',
     icon: Activity,
     modules: ['audit_security'],
   },
@@ -419,16 +438,18 @@ export default function App() {
       return NAIROBI_GEO_REGIONS;
     }
   });
-  const [sampleCatalogEnabled, setSampleCatalogEnabled] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem('vaairo_load_sample_catalog') === 'true';
-  });
   const [firestoreProducts, setFirestoreProducts] = useState<Product[]>(() => {
     try {
-      const isWiped = typeof window !== 'undefined' ? localStorage.getItem('vaairo_inventory_wiped_flag') !== 'false' : true;
-      if (isWiped) return [];
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('vaairo_load_sample_catalog');
+        if (localStorage.getItem('vaairo_inventory_wiped_flag') === 'true') {
+          return [];
+        }
+      }
       const saved = localStorage.getItem('erp_products_local_override');
-      return saved ? JSON.parse(saved) : [];
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed.filter((p) => !isSampleSkuRecord(p)) : [];
     } catch {
       return [];
     }
@@ -489,6 +510,38 @@ export default function App() {
       return [];
     }
   });
+  const [hrDeductionCatalog, setHrDeductionCatalog] = useState<HrDeductionCatalogItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('erp_hr_deduction_catalog');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [internalChatMessages, setInternalChatMessages] = useState<InternalChatMessage[]>(() => {
+    try {
+      const saved = localStorage.getItem('erp_internal_chat_backup');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [inboxReadTick, setInboxReadTick] = useState(0);
+  const [requestedInboxThreadId, setRequestedInboxThreadId] = useState<string | null>(null);
+  const [activeInboxThreadId, setActiveInboxThreadId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('erp_active_inbox_thread');
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (activeInboxThreadId) {
+      localStorage.setItem('erp_active_inbox_thread', activeInboxThreadId);
+    } else {
+      localStorage.removeItem('erp_active_inbox_thread');
+    }
+  }, [activeInboxThreadId]);
   const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>(() => {
     try {
       const saved = localStorage.getItem('erp_business_units');
@@ -531,7 +584,24 @@ export default function App() {
   const [isBannerDismissed, setIsBannerDismissed] = useState(false);
 
   // Active User Session State
-  const [currentUser, setCurrentUser] = useState<StaffMember | null>(null);
+  const [currentUser, setCurrentUser] = useState<StaffMember | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('erp_current_user');
+        if (saved) return JSON.parse(saved);
+      } catch {}
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('erp_current_user', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('erp_current_user');
+      localStorage.removeItem('erp_active_inbox_thread');
+    }
+  }, [currentUser]);
   const [showOnboarding, setShowOnboarding] = useState(() => {
     return typeof window !== 'undefined' && !localStorage.getItem('vaairo_onboarding_completed');
   });
@@ -668,13 +738,21 @@ export default function App() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<TransactionDoc | null>(null);
+  const [inspectingOrderTx, setInspectingOrderTx] = useState<TransactionDoc | null>(null);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
   const [isOnboardModalOpen, setIsOnboardModalOpen] = useState(false);
   const [isAccessMatrixOpen, setIsAccessMatrixOpen] = useState(false);
+  const [isKraReturnsModalOpen, setIsKraReturnsModalOpen] = useState(false);
+  const [kraReturnsDefaultTab, setKraReturnsDefaultTab] = useState<KraReturnScheduleType>('VAT3_SALES_SEC_B');
   const [isNativeWrappersModalOpen, setIsNativeWrappersModalOpen] = useState(false);
   const [userFeatureModalStaff, setUserFeatureModalStaff] = useState<StaffMember | null>(null);
   const [isUserFeatureModalOpen, setIsUserFeatureModalOpen] = useState(false);
+
+  const handleOpenKraReturns = (defaultTab?: KraReturnScheduleType) => {
+    setKraReturnsDefaultTab(defaultTab || 'VAT3_SALES_SEC_B');
+    setIsKraReturnsModalOpen(true);
+  };
   const [customRoleMatrix, setCustomRoleMatrix] = useState<Record<StaffRole, ERPModuleId[]> | undefined>(() => {
     try {
       const saved = localStorage.getItem('erp_custom_role_matrix');
@@ -686,9 +764,19 @@ export default function App() {
 
   useEffect(() => {
     const handleOpenWrappers = () => setIsNativeWrappersModalOpen(true);
+    const handleInboxReadUpdated = () => setInboxReadTick((t) => t + 1);
     window.addEventListener('vaairo-open-native-wrappers', handleOpenWrappers);
-    return () => window.removeEventListener('vaairo-open-native-wrappers', handleOpenWrappers);
+    window.addEventListener('vaairo-inbox-read-updated', handleInboxReadUpdated);
+    return () => {
+      window.removeEventListener('vaairo-open-native-wrappers', handleOpenWrappers);
+      window.removeEventListener('vaairo-inbox-read-updated', handleInboxReadUpdated);
+    };
   }, []);
+
+  const inboxSummary = useMemo(() => {
+    void inboxReadTick;
+    return computeUnreadInboxSummary(internalChatMessages, currentUser);
+  }, [internalChatMessages, currentUser, inboxReadTick]);
   const [toastStatus, setToastStatus] = useState<{
     type: 'success' | 'error';
     title: string;
@@ -707,11 +795,14 @@ export default function App() {
     }, 4500);
   };
 
-  // Products catalog: directly returns real database products from Firestore (erp-db-1)
+  // Products catalog: strictly returns real database products from Firestore (erp-db-1) with zero sample SKUs
   const products = useMemo<Product[]>(() => {
-    // When real products exist in Firestore (from CSV upload or manual creation), return them directly
-    if (firestoreProducts.length > 0) {
-      return firestoreProducts.map((p) => {
+    if (firestoreProducts.length === 0) {
+      return [];
+    }
+    return firestoreProducts
+      .filter((p) => !isSampleSkuRecord(p))
+      .map((p) => {
         const isReal = Boolean(p.hasRealBarcode || p.barcode);
         return {
           ...p,
@@ -721,21 +812,7 @@ export default function App() {
           isScanned: Boolean(p.isScanned || isReal),
         };
       });
-    }
-
-    // If database is empty and sample catalog is not explicitly opted into, return 0 SKUs
-    if (!sampleCatalogEnabled) {
-      return [];
-    }
-
-    // Only if sample preview is explicitly toggled by user, provide sample reference items
-    const isZeroStock = typeof window === 'undefined' || localStorage.getItem('vaairo_inventory_zero_stock') !== 'false';
-    return MASTER_IMPORTED_INVENTORY.map((baseItem) => ({
-      ...baseItem,
-      totalBottles: isZeroStock ? 0 : (baseItem.totalBottles ?? 0),
-      branchStockSummary: isZeroStock ? JSON.stringify({}) : (baseItem.branchStockSummary || JSON.stringify({})),
-    }));
-  }, [firestoreProducts, sampleCatalogEnabled]);
+  }, [firestoreProducts]);
 
   // Derive latest finalized payroll record for current user session
   const currentUserLatestPayrollRecord = useMemo<PayrollRecord | null>(() => {
@@ -781,6 +858,11 @@ export default function App() {
     }
     return transactions;
   }, [transactions, isBranchManager, branchManagerBranchId, branchManagerBranchName]);
+
+  const liveInspectingOrder = useMemo<TransactionDoc | null>(() => {
+    if (!inspectingOrderTx) return null;
+    return transactions.find((t) => t.id === inspectingOrderTx.id) || inspectingOrderTx;
+  }, [inspectingOrderTx, transactions]);
 
   const scopedTransfers = useMemo(() => {
     if (isBranchManager && branchManagerBranchId) {
@@ -1041,9 +1123,19 @@ export default function App() {
     const unsubProducts = subscribeWithFallback<Product>(
       'products',
       (list) => {
-        setFirestoreProducts(list);
+        const sampleDocs = list.filter((p) => isSampleSkuRecord(p));
+        if (sampleDocs.length > 0) {
+          sampleDocs.forEach((sp) => {
+            deleteDoc(doc(db, 'products', sp.id)).catch(() => {});
+          });
+        }
+        const cleanList = list.filter((p) => !isSampleSkuRecord(p));
+        setFirestoreProducts(cleanList);
         try {
-          localStorage.setItem('erp_products_local_override', JSON.stringify(list));
+          localStorage.setItem('erp_products_local_override', JSON.stringify(cleanList));
+          if (cleanList.length > 0) {
+            localStorage.setItem('vaairo_inventory_wiped_flag', 'false');
+          }
         } catch {}
       },
       'products'
@@ -1125,6 +1217,17 @@ export default function App() {
       'payroll_runs'
     );
 
+    const unsubHrDeductionCatalog = subscribeWithFallback<HrDeductionCatalogItem>(
+      'hr_deduction_catalog',
+      (list) => {
+        setHrDeductionCatalog(list);
+        try {
+          localStorage.setItem('erp_hr_deduction_catalog', JSON.stringify(list));
+        } catch {}
+      },
+      'hr_deduction_catalog'
+    );
+
     const unsubBusinessUnits = subscribeWithFallback<BusinessUnit>(
       'business_units',
       (list) => {
@@ -1164,6 +1267,17 @@ export default function App() {
       'restaurant_inventory'
     );
 
+    const unsubInternalChat = subscribeWithFallback<InternalChatMessage>(
+      'internal_chat_messages',
+      (list) => {
+        setInternalChatMessages(list);
+        try {
+          localStorage.setItem('erp_internal_chat_backup', JSON.stringify(list));
+        } catch {}
+      },
+      'internal_chat_messages'
+    );
+
     return () => {
       unsubStaff();
       unsubBranches();
@@ -1176,8 +1290,10 @@ export default function App() {
       unsubCompliance();
       unsubAudit();
       unsubPayrollRuns();
+      unsubHrDeductionCatalog();
       unsubBusinessUnits();
       unsubRestaurantInventory();
+      unsubInternalChat();
     };
   }, []);
 
@@ -1228,7 +1344,6 @@ export default function App() {
   ) => {
     const baseProd =
       products.find((p) => p.id === productId) ||
-      MASTER_IMPORTED_INVENTORY.find((p) => p.id === productId) ||
       firestoreProducts.find((p) => p.id === productId);
 
     const now = new Date().toISOString();
@@ -2115,12 +2230,82 @@ export default function App() {
     }
   };
 
+  const handleProcessCustomerDeliveryUpdate = async (
+    txId: string,
+    updates: Partial<TransactionDoc>
+  ): Promise<boolean> => {
+    try {
+      const existingTx = transactions.find((t) => t.id === txId);
+      setTransactions((prev) => {
+        const next = prev.map((t) => (t.id === txId ? { ...t, ...updates } : t));
+        try {
+          localStorage.setItem('erp_transactions_backup', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+
+      if (inspectingOrderTx && inspectingOrderTx.id === txId) {
+        setInspectingOrderTx((prev) => (prev ? { ...prev, ...updates } : prev));
+      }
+
+      try {
+        await setDoc(doc(db, 'transactions', txId), cleanFirestoreData(updates), { merge: true });
+      } catch (err) {
+        console.warn('[Firestore] Delivery update saved locally, cloud sync pending:', err);
+      }
+
+      const orderNumber = existingTx?.docNumber || txId;
+      const customerLabel = existingTx?.customerName || 'Customer';
+
+      if (updates.deliveryStatus === 'Out for Delivery') {
+        triggerToast(
+          'success',
+          `Order ${orderNumber} Dispatched`,
+          `Assigned to ${updates.assignedRiderName || 'Dispatch Rider'} for delivery to ${customerLabel}.`
+        );
+      } else if (updates.deliveryStatus === 'Delivered') {
+        triggerToast(
+          'success',
+          `Order ${orderNumber} Delivered & Fulfilled`,
+          `Completed customer delivery for ${customerLabel}.`
+        );
+      } else {
+        triggerToast(
+          'success',
+          `Order ${orderNumber} Updated`,
+          `Delivery status updated for ${customerLabel}.`
+        );
+      }
+
+      if (currentUser) {
+        await recordAuditLog(
+          currentUser.name,
+          currentUser.role,
+          currentUser.email,
+          `Order Delivery ${updates.deliveryStatus || 'Update'} (${orderNumber})`,
+          'Delivery & Dispatch Operations',
+          `Processed delivery for ${customerLabel} (${orderNumber}): status=${updates.deliveryStatus || existingTx?.deliveryStatus || 'Updated'}${updates.assignedRiderName ? `, rider=${updates.assignedRiderName}` : ''}`,
+          existingTx?.branchName || currentUser.branchName,
+          'Info'
+        );
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Failed to process delivery update:', error);
+      triggerToast('error', 'Delivery Update Failed', 'Could not update customer order delivery status.');
+      return false;
+    }
+  };
+
   const handleCreateProduct = async (prodDraft: Omit<Product, 'id' | 'createdAt'>) => {
     const id = `prod-${Date.now()}`;
     const fullProd: Product = cleanFirestoreData({
       ...prodDraft,
-      barcode: prodDraft.isOnboarded ? prodDraft.barcode : undefined,
-      caseBarcode: prodDraft.isOnboarded ? prodDraft.caseBarcode : undefined,
+      barcode: prodDraft.barcode || undefined,
+      caseBarcode: prodDraft.caseBarcode || undefined,
+      isOnboarded: true,
+      status: prodDraft.status || 'Active',
       id,
       createdAt: new Date().toISOString(),
     });
@@ -2130,6 +2315,8 @@ export default function App() {
       const next = [fullProd, ...prev.filter((p) => p.id !== id)];
       try {
         localStorage.setItem('erp_products_local_override', JSON.stringify(next));
+        localStorage.setItem('vaairo_inventory_wiped_flag', 'false');
+        localStorage.setItem('vaairo_inventory_zero_stock', 'false');
       } catch {}
       return next;
     });
@@ -2194,7 +2381,7 @@ export default function App() {
     try {
       const prod =
         products.find((p) => p.id === productId) ||
-        MASTER_IMPORTED_INVENTORY.find((p) => p.id === productId);
+        firestoreProducts.find((p) => p.id === productId);
       if (!prod) return { success: false, message: 'Product not found in system.' };
 
       let branchMap: Record<string, number> = {};
@@ -2562,9 +2749,9 @@ export default function App() {
 
   const handleCreateStockTransfer = async (
     trDraft: Omit<StockTransfer, 'id' | 'createdAt'>,
-    updatedProd: { productId: string; newBranchStockJson: string }
+    updatedProd?: { productId: string; newBranchStockJson: string }
   ) => {
-    const id = `trf-${Date.now()}`;
+    const id = `trf-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const fullTr: StockTransfer = cleanFirestoreData({
       ...trDraft,
       id,
@@ -2579,9 +2766,11 @@ export default function App() {
       return next;
     });
 
-    await persistProductState(updatedProd.productId, {
-      branchStockSummary: updatedProd.newBranchStockJson,
-    });
+    if (updatedProd) {
+      await persistProductState(updatedProd.productId, {
+        branchStockSummary: updatedProd.newBranchStockJson,
+      });
+    }
 
     try {
       await setDoc(doc(db, 'stock_transfers', id), fullTr);
@@ -2589,23 +2778,226 @@ export default function App() {
       console.warn('[Firestore] Transfer saved locally, cloud sync pending:', error);
     }
 
-    triggerToast(
-      'success',
-      `Transfer ${fullTr.transferNo} Dispatched`,
-      `${fullTr.quantityBottles} btls of ${fullTr.sku} → ${fullTr.toBranchName}.`
-    );
+    if (fullTr.status === 'Pending Authorization') {
+      triggerToast(
+        'success',
+        `Transfer ${fullTr.transferNo} Awaiting Manager Auth`,
+        `${fullTr.quantityBottles} btls of ${fullTr.sku} queued for Manager authorization (${fullTr.fromBranchName} → ${fullTr.toBranchName}).`
+      );
+    } else {
+      triggerToast(
+        'success',
+        `Transfer ${fullTr.transferNo} Dispatched`,
+        `${fullTr.quantityBottles} btls of ${fullTr.sku} → ${fullTr.toBranchName}.`
+      );
+    }
+
     if (currentUser) {
       await recordAuditLog(
         currentUser.name,
         currentUser.role,
         currentUser.email,
-        `Stock Transfer ${fullTr.transferNo}`,
+        fullTr.status === 'Pending Authorization'
+          ? `Initiated Stock Transfer ${fullTr.transferNo} (Pending Auth)`
+          : `Stock Transfer ${fullTr.transferNo}`,
         'Branches & Transfers',
-        `Transferred ${fullTr.quantityBottles} btls of ${fullTr.sku} from ${fullTr.fromBranchName} to ${fullTr.toBranchName}`,
+        fullTr.status === 'Pending Authorization'
+          ? `Inventory initiated transfer of ${fullTr.quantityBottles} btls of ${fullTr.sku} from ${fullTr.fromBranchName} to ${fullTr.toBranchName} — awaiting Manager authorization`
+          : `Transferred ${fullTr.quantityBottles} btls of ${fullTr.sku} from ${fullTr.fromBranchName} to ${fullTr.toBranchName}`,
         fullTr.fromBranchName,
         'Financial'
       );
     }
+
+    return fullTr;
+  };
+
+  const handleSendInternalChatMessage = async (
+    draft: Omit<InternalChatMessage, 'id' | 'createdAt'>
+  ) => {
+    const id = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const fullMsg: InternalChatMessage = cleanFirestoreData({
+      ...draft,
+      id,
+      createdAt: new Date().toISOString(),
+    });
+
+    setInternalChatMessages((prev) => {
+      const next = [...prev.filter((m) => m.id !== id), fullMsg];
+      try {
+        localStorage.setItem('erp_internal_chat_backup', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    try {
+      await setDoc(doc(db, 'internal_chat_messages', id), fullMsg);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'internal_chat_messages');
+    }
+
+    if (currentUser && draft.messageType !== 'TEXT') {
+      await recordAuditLog(
+        currentUser.name,
+        currentUser.role,
+        currentUser.email,
+        draft.messageType === 'INVOICE_TRANSFER'
+          ? `Inbox Invoice Transfer (${draft.invoiceTransfer?.docNumber || ''})`
+          : `Inbox Stock Request (${draft.stockTransferRequest?.sku || ''})`,
+        'Internal Inbox & Dept Chat',
+        draft.body.slice(0, 460),
+        currentUser.branchName,
+        'Info'
+      );
+    }
+  };
+
+  const handleUpdateInternalChatMessage = async (
+    messageId: string,
+    updates: Partial<InternalChatMessage>
+  ) => {
+    const existing = internalChatMessages.find((m) => m.id === messageId);
+    if (!existing) return;
+
+    const merged: InternalChatMessage = cleanFirestoreData({
+      ...existing,
+      ...updates,
+    });
+
+    setInternalChatMessages((prev) => {
+      const next = prev.map((m) => (m.id === messageId ? merged : m));
+      try {
+        localStorage.setItem('erp_internal_chat_backup', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    try {
+      await setDoc(doc(db, 'internal_chat_messages', messageId), merged, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'internal_chat_messages');
+    }
+  };
+
+  const handleAuthorizeStockTransfer = async (transferId: string) => {
+    if (!currentUser || (currentUser.role !== 'Admin' && currentUser.role !== 'Branch Manager')) {
+      triggerToast('error', 'Authorization Restricted', 'Only Admin or Branch Manager can authorize stock transfers.');
+      return;
+    }
+    const tr = transfers.find((t) => t.id === transferId);
+    if (!tr || tr.status !== 'Pending Authorization') return;
+
+    const prod = products.find((p) => p.id === tr.productId);
+    let nextBranchStockJson: string | undefined;
+    if (prod) {
+      let branchStock: Record<string, number> = {};
+      try {
+        branchStock = prod.branchStockSummary ? JSON.parse(prod.branchStockSummary) : {};
+      } catch {
+        branchStock = {};
+      }
+      const currentFrom =
+        branchStock[tr.fromBranchId] ??
+        Math.floor(prod.totalBottles / Math.max(1, branches.length));
+      const actualDeduct = Math.min(Math.max(0, currentFrom), tr.quantityBottles);
+      branchStock[tr.fromBranchId] = Math.max(0, currentFrom - actualDeduct);
+      nextBranchStockJson = JSON.stringify(branchStock);
+    }
+
+    const nowIso = new Date().toISOString();
+    const updatedTr: StockTransfer = cleanFirestoreData({
+      ...tr,
+      status: 'Dispatched',
+      authorizedBy: currentUser.name,
+      authorizedByRole: currentUser.role,
+      authorizedAt: nowIso,
+    });
+
+    setTransfers((prev) => {
+      const next = prev.map((t) => (t.id === transferId ? updatedTr : t));
+      try {
+        localStorage.setItem('erp_transfers_backup', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    if (prod && nextBranchStockJson) {
+      await persistProductState(prod.id, {
+        branchStockSummary: nextBranchStockJson,
+      });
+    }
+
+    try {
+      await setDoc(doc(db, 'stock_transfers', transferId), updatedTr, { merge: true });
+    } catch (error) {
+      console.warn('[Firestore] Transfer authorization saved locally, cloud sync pending:', error);
+    }
+
+    triggerToast(
+      'success',
+      `Transfer ${tr.transferNo} Authorized & Dispatched`,
+      `Authorized ${tr.quantityBottles} btls of ${tr.productName} (${tr.fromBranchName} → ${tr.toBranchName}).`
+    );
+
+    await recordAuditLog(
+      currentUser.name,
+      currentUser.role,
+      currentUser.email,
+      `Authorized Stock Transfer ${tr.transferNo}`,
+      'Branches & Transfers',
+      `Manager authorized transfer initiated by ${tr.initiatedBy}: ${tr.quantityBottles} btls of ${tr.sku} from ${tr.fromBranchName} to ${tr.toBranchName}`,
+      tr.fromBranchName,
+      'Financial'
+    );
+  };
+
+  const handleRejectStockTransfer = async (transferId: string) => {
+    if (!currentUser || (currentUser.role !== 'Admin' && currentUser.role !== 'Branch Manager')) {
+      triggerToast('error', 'Authorization Restricted', 'Only Admin or Branch Manager can reject stock transfers.');
+      return;
+    }
+    const tr = transfers.find((t) => t.id === transferId);
+    if (!tr || tr.status !== 'Pending Authorization') return;
+
+    const nowIso = new Date().toISOString();
+    const updatedTr: StockTransfer = cleanFirestoreData({
+      ...tr,
+      status: 'Rejected',
+      rejectedBy: `${currentUser.name} (${currentUser.role})`,
+      rejectedAt: nowIso,
+      rejectionReason: 'Declined during Manager transfer review',
+    });
+
+    setTransfers((prev) => {
+      const next = prev.map((t) => (t.id === transferId ? updatedTr : t));
+      try {
+        localStorage.setItem('erp_transfers_backup', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    try {
+      await setDoc(doc(db, 'stock_transfers', transferId), updatedTr, { merge: true });
+    } catch (error) {
+      console.warn('[Firestore] Transfer rejection saved locally, cloud sync pending:', error);
+    }
+
+    triggerToast(
+      'success',
+      `Transfer ${tr.transferNo} Rejected`,
+      `Declined transfer request for ${tr.quantityBottles} btls of ${tr.productName}. Source stock unchanged.`
+    );
+
+    await recordAuditLog(
+      currentUser.name,
+      currentUser.role,
+      currentUser.email,
+      `Rejected Stock Transfer ${tr.transferNo}`,
+      'Branches & Transfers',
+      `Manager rejected transfer initiated by ${tr.initiatedBy}: ${tr.quantityBottles} btls of ${tr.sku} (${tr.fromBranchName} → ${tr.toBranchName})`,
+      tr.fromBranchName,
+      'Security'
+    );
   };
 
   const handleReceiveStockTransfer = async (transferId: string) => {
@@ -3002,7 +3394,6 @@ export default function App() {
       localStorage.setItem('vaairo_inventory_wiped_flag', 'true');
       localStorage.removeItem('vaairo_load_sample_catalog');
       localStorage.removeItem('erp_products_local_override');
-      setSampleCatalogEnabled(false);
 
       // Query and delete all documents in products collection from Firestore
       const snap = await getDocs(collection(db, 'products')).catch(() => null);
@@ -3066,7 +3457,6 @@ export default function App() {
       localStorage.setItem('vaairo_inventory_zero_stock', 'true');
       localStorage.removeItem('vaairo_load_sample_catalog');
       localStorage.removeItem('erp_products_local_override');
-      setSampleCatalogEnabled(false);
 
       const snap = await getDocs(collection(db, 'products')).catch(() => null);
       let wipedCount = 0;
@@ -3088,19 +3478,6 @@ export default function App() {
     } catch (error) {
       console.error('Wipe failed:', error);
       triggerToast('error', 'Wipe Failed', 'Could not complete inventory wipe.');
-    }
-  };
-
-  const handleToggleSampleCatalog = (enable: boolean) => {
-    setSampleCatalogEnabled(enable);
-    if (enable) {
-      localStorage.setItem('vaairo_load_sample_catalog', 'true');
-      localStorage.setItem('vaairo_inventory_wiped_flag', 'false');
-      triggerToast('success', 'Sample Catalog Loaded', 'Loaded 2,976 sample reference products.');
-    } else {
-      localStorage.setItem('vaairo_load_sample_catalog', 'false');
-      localStorage.setItem('vaairo_inventory_wiped_flag', 'true');
-      triggerToast('success', 'Sample Catalog Removed', 'Returned to clean 0 SKU inventory.');
     }
   };
 
@@ -3211,6 +3588,75 @@ export default function App() {
         `Disbursed net KES ${fullRun.totalDisbursed.toLocaleString()} across ${fullRun.totalEmployees} employees`,
         currentUser.branchName,
         'Financial'
+      );
+    }
+  };
+
+  const handleCreateCatalogDeduction = async (
+    draft: Omit<HrDeductionCatalogItem, 'id' | 'createdAt'>
+  ) => {
+    const id = `hrded-${Date.now()}`;
+    const fullItem: HrDeductionCatalogItem = cleanFirestoreData({
+      ...draft,
+      id,
+      createdBy: draft.createdBy || currentUser?.name || 'HR',
+      createdAt: new Date().toISOString(),
+    });
+
+    setHrDeductionCatalog((prev) => {
+      const next = [fullItem, ...prev.filter((c) => c.id !== id)];
+      try {
+        localStorage.setItem('erp_hr_deduction_catalog', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    try {
+      await setDoc(doc(db, 'hr_deduction_catalog', id), fullItem);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'hr_deduction_catalog');
+    }
+
+    if (currentUser) {
+      await recordAuditLog(
+        currentUser.name,
+        currentUser.role,
+        currentUser.email,
+        `Created HR Deduction Item: ${fullItem.name}`,
+        'HR & Access Control',
+        `Added custom HR deduction item "${fullItem.name}" (${fullItem.code}) under ${fullItem.category}`,
+        currentUser.branchName,
+        'Info'
+      );
+    }
+  };
+
+  const handleDeleteCatalogDeduction = async (itemId: string) => {
+    const existing = hrDeductionCatalog.find((c) => c.id === itemId);
+    setHrDeductionCatalog((prev) => {
+      const next = prev.filter((c) => c.id !== itemId);
+      try {
+        localStorage.setItem('erp_hr_deduction_catalog', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    try {
+      await deleteDoc(doc(db, 'hr_deduction_catalog', itemId));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'hr_deduction_catalog');
+    }
+
+    if (currentUser && existing) {
+      await recordAuditLog(
+        currentUser.name,
+        currentUser.role,
+        currentUser.email,
+        `Removed HR Deduction Item: ${existing.name}`,
+        'HR & Access Control',
+        `Removed custom HR deduction item "${existing.name}" (${existing.code}) from company catalog`,
+        currentUser.branchName,
+        'Info'
       );
     }
   };
@@ -3442,7 +3888,7 @@ export default function App() {
           products={products}
           branches={branches}
           regions={regions}
-          onPlaceOnlineOrder={(draft) => handleCommitTransaction(draft, [])}
+          onPlaceOnlineOrder={(draft, products) => handleCommitTransaction(draft, products)}
           onPreviewDoc={(d) => setPreviewDoc(d)}
           onBackToErpLogin={() => setStandaloneCustomerPortal(false)}
         />
@@ -3556,6 +4002,7 @@ export default function App() {
         mobileDrawerOpen={mobileDrawerOpen}
         onToggleMobileDrawer={() => setMobileDrawerOpen(!mobileDrawerOpen)}
         onOpenNativeWrappers={() => setIsNativeWrappersModalOpen(true)}
+        unreadInboxCount={inboxSummary.totalBadgeCount}
       />
 
       {/* Cloud Firestore Setup Notice Banner */}
@@ -3591,12 +4038,12 @@ export default function App() {
         </aside>
       )}
 
-      {/* Mobile Full-Screen Hamburger Drawer (Consolidates Client Website, User Profile, Lock Terminal, & All ERP Modules) */}
+      {/* Mobile Full-Screen Hamburger Drawer (Consolidates Client Website, User Profile, Lock Terminal, Internal Inbox & All ERP Modules) */}
       {mobileDrawerOpen && (
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex flex-col bg-white overflow-hidden animate-in fade-in sm:hidden"
+          className="fixed inset-0 z-50 flex flex-col bg-white overflow-hidden animate-in fade-in md:hidden"
         >
           {/* Mobile Drawer Header */}
           <div className="bg-[#0A006E] text-white p-4 flex items-center justify-between border-b-2 border-[#FFDE00] shrink-0">
@@ -3808,6 +4255,63 @@ export default function App() {
               </button>
             </div>
 
+            {/* Quick Action: Internal Inbox & Department Chat (Mobile Hamburger Menu — Red when unread notifications exist) */}
+            <button
+              type="button"
+              onClick={() => {
+                handleSelectModule('internal_inbox');
+                setMobileDrawerOpen(false);
+              }}
+              className={`w-full p-3.5 rounded-2xl border-2 flex items-center justify-between cursor-pointer shadow-xs transition active:scale-98 ${
+                inboxSummary.totalBadgeCount > 0
+                  ? 'bg-red-600 hover:bg-red-700 text-white border-red-700'
+                  : activeModule === 'internal_inbox'
+                    ? 'bg-[#0A006E] text-white border-[#FFDE00]'
+                    : 'bg-[#0A006E] hover:bg-[#150099] text-white border-[#0A006E]'
+              }`}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div
+                  className={`relative w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                    inboxSummary.totalBadgeCount > 0
+                      ? 'bg-white text-red-600'
+                      : 'bg-[#FFDE00] text-[#0A006E]'
+                  }`}
+                >
+                  <Inbox className="w-5 h-5 stroke-[2.4]" />
+                  {inboxSummary.totalBadgeCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 rounded-full bg-red-700 text-white text-[10px] font-mono-tabular font-black flex items-center justify-center border-2 border-white">
+                      {inboxSummary.totalBadgeCount > 99 ? '99+' : inboxSummary.totalBadgeCount}
+                    </span>
+                  )}
+                </div>
+                <div className="text-left min-w-0">
+                  <div
+                    className={`text-xs font-montserrat font-black leading-tight ${
+                      inboxSummary.totalBadgeCount > 0 ? 'text-white' : 'text-[#FFDE00]'
+                    }`}
+                  >
+                    Internal Inbox &amp; Dept Chat
+                    {inboxSummary.totalBadgeCount > 0
+                      ? ` (${inboxSummary.totalBadgeCount} New)`
+                      : ''}
+                  </div>
+                  <div
+                    className={`text-[10px] font-medium truncate ${
+                      inboxSummary.totalBadgeCount > 0 ? 'text-red-100' : 'text-slate-200'
+                    }`}
+                  >
+                    Transfer invoices &amp; request stock transfers by person
+                  </div>
+                </div>
+              </div>
+              <ChevronRight
+                className={`w-5 h-5 shrink-0 ${
+                  inboxSummary.totalBadgeCount > 0 ? 'text-white' : 'text-[#FFDE00]'
+                }`}
+              />
+            </button>
+
             {/* Quick Action: Onboard Items & Barcode Scanner for Branch Managers & Admin */}
             {(currentUser.role === 'Branch Manager' || currentUser.role === 'Admin' || currentUser.role === 'Inventory Controller') && (
               <button
@@ -3828,6 +4332,37 @@ export default function App() {
                     </div>
                     <div className="text-[10px] text-slate-900 font-medium">
                       Activate available stock &amp; branch assets
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-[#0A006E]" />
+              </button>
+            )}
+
+            {/* Quick Action: KRA Returns Spreadsheet Download for Admin, Accountant, HR, Branch/Sales Manager */}
+            {(currentUser.role === 'Admin' ||
+              currentUser.role === 'Accountant' ||
+              currentUser.role === 'HR' ||
+              currentUser.role === 'Branch Manager' ||
+              currentUser.role === 'Sales Manager') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileDrawerOpen(false);
+                  handleOpenKraReturns(currentUser.role === 'HR' ? 'PAYE_P10_SEC_B' : 'VAT3_SALES_SEC_B');
+                }}
+                className="w-full p-3 rounded-2xl bg-white hover:bg-slate-50 text-[#0A006E] border-2 border-[#0A006E] flex items-center justify-between cursor-pointer shadow-xs transition active:scale-98"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shadow-xs">
+                    <FileSpreadsheet className="w-5 h-5 stroke-[2.2]" />
+                  </div>
+                  <div className="text-left">
+                    <div className="text-xs font-montserrat font-black leading-tight text-[#0A006E]">
+                      KRA Returns Spreadsheets (.xlsx / .csv)
+                    </div>
+                    <div className="text-[10px] text-slate-600 font-medium">
+                      Download VAT3, PAYE P10, Housing Levy &amp; TOT
                     </div>
                   </div>
                 </div>
@@ -3876,21 +4411,21 @@ export default function App() {
                         }
                         className="w-full p-3 bg-slate-100 hover:bg-slate-200 flex items-center justify-between cursor-pointer transition select-none"
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-6 h-6 rounded-lg bg-[#0A006E]/10 text-[#0A006E] flex items-center justify-center shrink-0">
-                            <DeptIcon className="w-3.5 h-3.5" />
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 shadow-xs">
+                            <DeptIcon className="w-6 h-6 stroke-[2.4]" />
                           </div>
-                          <span className="text-xs font-montserrat font-black text-[#0A006E] tracking-wide truncate">
-                            {dept.title} ({deptAllowedModules.length})
+                          <span className="text-sm font-montserrat font-black text-[#0A006E] tracking-wide truncate">
+                            {dept.oneWordTitle} ({deptAllowedModules.length})
                           </span>
                           {hasActiveModule && (
-                            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-[#34D186]/20 text-[#1E9E60] border border-[#34D186]/40 shrink-0">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#34D186]/20 text-[#1E9E60] border border-[#34D186]/40 shrink-0">
                               Active
                             </span>
                           )}
                         </div>
                         <ChevronRight
-                          className={`w-4 h-4 text-[#0A006E] transition-transform duration-200 ${
+                          className={`w-5 h-5 text-[#0A006E] transition-transform duration-200 ${
                             isOpen ? 'rotate-90' : ''
                           }`}
                         />
@@ -3909,24 +4444,24 @@ export default function App() {
                                   handleSelectModule(modId);
                                   setMobileDrawerOpen(false);
                                 }}
-                                className={`w-full p-2.5 rounded-xl flex items-center gap-3 border-2 text-left cursor-pointer transition ${
+                                className={`w-full p-3 rounded-2xl flex items-center gap-3.5 border-2 text-left cursor-pointer transition ${
                                   isActive
                                     ? 'bg-[#0A006E] border-[#0A006E] text-white shadow-md'
                                     : 'bg-white border-slate-200 hover:border-[#0A006E] text-slate-800'
                                 }`}
                               >
                                 <div
-                                  className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
                                     isActive ? 'bg-[#FFDE00] text-[#0A006E]' : 'bg-[#F0F2F0] text-[#0A006E]'
                                   }`}
                                 >
-                                  <IconComp className="w-4 h-4 stroke-[2.2]" />
+                                  <IconComp className="w-6 h-6 stroke-[2.4]" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <div className={`text-xs font-montserrat font-black truncate ${
+                                  <div className={`text-sm font-montserrat font-black truncate ${
                                     isActive ? 'text-white' : 'text-slate-900'
                                   }`}>
-                                    {MODULE_META[modId].label}
+                                    {MODULE_META[modId].oneWordLabel}
                                   </div>
                                 </div>
                               </button>
@@ -4091,23 +4626,23 @@ export default function App() {
                       onClick={() =>
                         setOpenDepartments((prev) => ({ ...prev, [dept.id]: !prev[dept.id] }))
                       }
-                      className="w-full px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 flex items-center justify-between cursor-pointer transition select-none"
+                      className="w-full px-3.5 py-3 bg-slate-100 hover:bg-slate-200 flex items-center justify-between cursor-pointer transition select-none"
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-6 h-6 rounded-lg bg-[#0A006E]/10 text-[#0A006E] flex items-center justify-center shrink-0">
-                          <DeptIcon className="w-3.5 h-3.5" />
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 shadow-xs">
+                          <DeptIcon className="w-6 h-6 stroke-[2.4]" />
                         </div>
-                        <span className="text-xs font-montserrat font-black text-[#0A006E] tracking-wide truncate">
-                          {dept.title} ({deptAllowedModules.length})
+                        <span className="text-sm font-montserrat font-black text-[#0A006E] tracking-wide truncate">
+                          {dept.oneWordTitle} ({deptAllowedModules.length})
                         </span>
                         {hasActiveModule && (
-                          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-[#34D186]/20 text-[#1E9E60] border border-[#34D186]/40 shrink-0">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#34D186]/20 text-[#1E9E60] border border-[#34D186]/40 shrink-0">
                             Active
                           </span>
                         )}
                       </div>
                       <ChevronRight
-                        className={`w-4 h-4 text-[#0A006E] transition-transform duration-200 ${
+                        className={`w-5 h-5 text-[#0A006E] transition-transform duration-200 ${
                           isOpen ? 'rotate-90' : ''
                         }`}
                       />
@@ -4122,23 +4657,23 @@ export default function App() {
                             <button
                               key={modId}
                               onClick={() => handleSelectModule(modId)}
-                              className={`group w-full min-h-[48px] px-3 py-2 rounded-xl text-xs font-montserrat flex items-center gap-3 transition-all cursor-pointer whitespace-nowrap border-2 ${
+                              className={`group w-full min-h-[52px] px-3.5 py-2.5 rounded-2xl text-sm font-montserrat flex items-center gap-3.5 transition-all cursor-pointer whitespace-nowrap border-2 ${
                                 isActive
                                   ? 'bg-[#0A006E] text-white border-[#0A006E] font-black shadow-md'
                                   : 'bg-white text-slate-800 border-slate-200 hover:border-[#0A006E] hover:bg-[#FFDE00]/20 font-bold shadow-2xs'
                               }`}
                             >
                               <div
-                                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110 ${
+                                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110 ${
                                   isActive
                                     ? 'bg-[#FFDE00] text-[#0A006E] shadow-xs'
                                     : 'bg-[#F0F2F0] text-[#0A006E] group-hover:bg-[#0A006E] group-hover:text-[#FFDE00]'
                                 }`}
                               >
-                                <IconComp className="w-4 h-4 stroke-[2.2]" />
+                                <IconComp className="w-6 h-6 stroke-[2.4]" />
                               </div>
-                              <span className="truncate text-xs">
-                                {MODULE_META[modId].label}
+                              <span className="truncate text-sm font-montserrat font-black">
+                                {MODULE_META[modId].oneWordLabel}
                               </span>
                             </button>
                           );
@@ -4150,11 +4685,33 @@ export default function App() {
               })}
             </div>
 
+            {/* Quick KRA iTax Returns Spreadsheet Button in Desktop Sidebar */}
+            {(currentUser.role === 'Admin' ||
+              currentUser.role === 'Accountant' ||
+              currentUser.role === 'HR' ||
+              currentUser.role === 'Branch Manager' ||
+              currentUser.role === 'Sales Manager') && (
+              <button
+                type="button"
+                onClick={() =>
+                  handleOpenKraReturns(
+                    currentUser.role === 'HR' ? 'PAYE_P10_SEC_B' : 'VAT3_SALES_SEC_B'
+                  )
+                }
+                className="w-full min-h-[46px] px-3 py-2 rounded-2xl text-xs font-montserrat flex items-center gap-3 transition-all cursor-pointer whitespace-nowrap border-2 border-[#0A006E] bg-white hover:bg-[#34D186]/20 text-[#0A006E] font-black shadow-xs mt-3"
+              >
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 bg-[#0A006E] text-[#34D186]">
+                  <FileSpreadsheet className="w-4 h-4 stroke-[2.3]" />
+                </div>
+                <span className="truncate text-xs">KRA Returns (.xlsx / .csv)</span>
+              </button>
+            )}
+
             {/* Target Access Model Matrix Button */}
             <button
               type="button"
               onClick={() => setIsAccessMatrixOpen(true)}
-              className="w-full min-h-[46px] px-3 py-2 rounded-2xl text-xs font-montserrat flex items-center gap-3 transition-all cursor-pointer whitespace-nowrap border-2 border-[#0A006E] bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] font-black shadow-xs mt-3"
+              className="w-full min-h-[46px] px-3 py-2 rounded-2xl text-xs font-montserrat flex items-center gap-3 transition-all cursor-pointer whitespace-nowrap border-2 border-[#0A006E] bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] font-black shadow-xs mt-2"
             >
               <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 bg-[#0A006E] text-[#FFDE00]">
                 <ShieldCheck className="w-4 h-4 stroke-[2.4]" />
@@ -4182,6 +4739,8 @@ export default function App() {
               branches={scopedBranches}
               regions={scopedRegions}
               partners={scopedPartners}
+              externalCustomers={scopedExternalCustomers}
+              complianceRecords={scopedComplianceRecords}
               transactions={scopedTransactions}
               transfers={scopedTransfers}
               staffList={scopedStaffList}
@@ -4189,7 +4748,12 @@ export default function App() {
               payrollRuns={payrollRuns}
               onOpenPayslip={(record) => setViewingPayslipRecord(record)}
               onPreviewDoc={(d) => setPreviewDoc(d)}
+              onInspectOrder={(d) => setInspectingOrderTx(d)}
+              onAuthorizeStockTransfer={handleAuthorizeStockTransfer}
+              onRejectStockTransfer={handleRejectStockTransfer}
               onOpenOnboardItems={() => setIsOnboardModalOpen(true)}
+              onOpenKraReturns={handleOpenKraReturns}
+              onTriggerToast={triggerToast}
               onNavigateModule={handleSelectModule}
             />
           )}
@@ -4261,8 +4825,7 @@ export default function App() {
               onWipeInventoryToZero={handleWipeInventoryToZero}
               onLogStockIncident={handleLogStockIncident}
               onOpenOnboardItems={() => setIsOnboardModalOpen(true)}
-              sampleCatalogEnabled={sampleCatalogEnabled}
-              onToggleSampleCatalog={handleToggleSampleCatalog}
+              transfers={transfers}
             />
           )}
 
@@ -4279,6 +4842,8 @@ export default function App() {
               onDeleteBranch={handleDeleteBranch}
               onSetMainBranch={handleSetMainBranch}
               onCreateStockTransfer={handleCreateStockTransfer}
+              onAuthorizeStockTransfer={handleAuthorizeStockTransfer}
+              onRejectStockTransfer={handleRejectStockTransfer}
               onReceiveStockTransfer={handleReceiveStockTransfer}
             />
           )}
@@ -4313,6 +4878,8 @@ export default function App() {
               products={products}
               onIssueCreditNote={(cn) => handleCommitTransaction(cn, [])}
               onPreviewDoc={(d) => setPreviewDoc(d)}
+              onInspectOrder={(d) => setInspectingOrderTx(d)}
+              onOpenKraReturns={handleOpenKraReturns}
             />
           )}
 
@@ -4322,7 +4889,14 @@ export default function App() {
               records={scopedComplianceRecords}
               branches={scopedBranches}
               products={products}
+              transactions={scopedTransactions}
+              partners={scopedPartners}
+              externalCustomers={scopedExternalCustomers}
+              staffList={scopedStaffList}
+              payrollRuns={payrollRuns}
+              regions={scopedRegions}
               onCreateCompliance={handleCreateCompliance}
+              onTriggerToast={triggerToast}
             />
           )}
 
@@ -4332,6 +4906,10 @@ export default function App() {
               staffList={scopedStaffList}
               branches={scopedBranches}
               payrollRuns={payrollRuns}
+              initialTab={activeModule === 'payroll' ? 'payroll' : 'roster'}
+              customDeductionCatalog={hrDeductionCatalog}
+              onCreateCatalogDeduction={handleCreateCatalogDeduction}
+              onDeleteCatalogDeduction={handleDeleteCatalogDeduction}
               onCreateStaff={handleCreateStaff}
               onUpdateStaff={handleUpdateStaff}
               onSetStaffStatus={handleSetStaffStatus}
@@ -4343,6 +4921,7 @@ export default function App() {
                 setUserFeatureModalStaff(staff);
                 setIsUserFeatureModalOpen(true);
               }}
+              onOpenKraReturns={handleOpenKraReturns}
               onTriggerToast={triggerToast}
             />
           )}
@@ -4396,12 +4975,54 @@ export default function App() {
               currentUser={currentUser}
               branches={scopedBranches}
               staffList={scopedStaffList}
+              transactions={scopedTransactions}
               onCreateStaff={handleCreateStaff}
+              onInspectCustomerOrder={(tx) => setInspectingOrderTx(tx)}
+              onProcessDeliveryUpdate={handleProcessCustomerDeliveryUpdate}
+              onPreviewDoc={(d) => setPreviewDoc(d)}
+              onTriggerToast={triggerToast}
+            />
+          )}
+
+          {activeModule === 'internal_inbox' && (
+            <InternalInboxModule
+              currentUser={currentUser}
+              staffList={staffList}
+              branches={branches}
+              products={products}
+              transactions={scopedTransactions}
+              transfers={transfers}
+              messages={internalChatMessages}
+              externalSelectedThreadId={requestedInboxThreadId}
+              onExternalThreadHandled={() => setRequestedInboxThreadId(null)}
+              onActiveThreadChange={setActiveInboxThreadId}
+              onSendMessage={handleSendInternalChatMessage}
+              onUpdateMessage={handleUpdateInternalChatMessage}
+              onCreateStockTransfer={handleCreateStockTransfer}
+              onAuthorizeStockTransfer={handleAuthorizeStockTransfer}
+              onRejectStockTransfer={handleRejectStockTransfer}
+              onUpdateTransaction={handleUpdateTransaction}
+              onPreviewDoc={(d) => setPreviewDoc(d)}
+              onInspectOrder={(d) => setInspectingOrderTx(d)}
               onTriggerToast={triggerToast}
             />
           )}
         </main>
       </div>
+
+      {/* Desktop-Only Email-Style Bottom Arrival Popup for Internal Inbox */}
+      {currentUser && (
+        <DesktopInboxArrivalPopup
+          currentUser={currentUser}
+          messages={internalChatMessages}
+          activeModule={activeModule}
+          activeInboxThreadId={activeModule === 'internal_inbox' ? activeInboxThreadId : null}
+          onOpenThread={(threadId) => {
+            setRequestedInboxThreadId(threadId);
+            handleSelectModule('internal_inbox');
+          }}
+        />
+      )}
 
       {/* Universal Desktop Dock & Mobile Ergonomic Bottom Navigation with Wave Top Edge */}
       <DesktopBottomNav
@@ -4438,11 +5059,24 @@ export default function App() {
             triggerToast('error', 'No Finalized Payslip', 'No recent payroll run record found for your account.');
           }
         }}
+        unreadInboxCount={inboxSummary.totalBadgeCount}
         onTriggerToast={(type, title, message) => triggerToast(type, title, message)}
       />
 
       {/* Commercial Print & PDF Modal */}
       <DocumentPrintModal docData={previewDoc} onClose={() => setPreviewDoc(null)} />
+
+      {/* Customer Order Details & Delivery Processing Modal */}
+      {liveInspectingOrder && currentUser && (
+        <CustomerOrderDetailsModal
+          order={liveInspectingOrder}
+          onClose={() => setInspectingOrderTx(null)}
+          staffList={scopedStaffList}
+          currentUser={currentUser}
+          onProcessDeliveryUpdate={handleProcessCustomerDeliveryUpdate}
+          onPreviewDoc={(d) => setPreviewDoc(d)}
+        />
+      )}
 
       {/* Official 80mm/58mm Thermal Payslip Modal */}
       {viewingPayslipRecord && (
@@ -4500,37 +5134,57 @@ export default function App() {
         />
       )}
 
+      {/* KRA iTax Returns Spreadsheet Export Modal */}
+      {isKraReturnsModalOpen && currentUser && (
+        <KraReturnsExportModal
+          isOpen={isKraReturnsModalOpen}
+          onClose={() => setIsKraReturnsModalOpen(false)}
+          currentUser={currentUser}
+          transactions={scopedTransactions}
+          products={products}
+          partners={scopedPartners}
+          externalCustomers={scopedExternalCustomers}
+          staffList={scopedStaffList}
+          payrollRuns={payrollRuns}
+          complianceRecords={scopedComplianceRecords}
+          branches={scopedBranches}
+          regions={scopedRegions}
+          defaultTab={kraReturnsDefaultTab}
+          onTriggerToast={triggerToast}
+        />
+      )}
+
       {/* Inactivity Auto-Logoff Warning Modal */}
       {showInactivityWarning && currentUser && (
-        <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-white rounded-3xl border-2 border-[#0A006E] shadow-2xl max-w-sm w-full p-6 text-center space-y-6">
+        <div className="fixed inset-0 z-[99999] bg-white sm:bg-black/80 sm:backdrop-blur-sm flex items-center justify-center p-0 sm:p-4 animate-in fade-in duration-300">
+          <div className="w-full h-full sm:h-auto sm:max-w-sm sm:w-full bg-white sm:rounded-3xl sm:border-2 sm:border-[#0A006E] sm:shadow-2xl flex flex-col justify-center items-center p-8 sm:p-6 text-center space-y-8 sm:space-y-6">
             <div className="relative flex items-center justify-center">
               {/* Circular Progress */}
-              <svg className="w-24 h-24 transform -rotate-90">
+              <svg className="w-28 h-28 transform -rotate-90">
                 <circle
-                  cx="48"
-                  cy="48"
-                  r="40"
+                  cx="56"
+                  cy="56"
+                  r="48"
                   stroke="currentColor"
                   strokeWidth="8"
                   fill="transparent"
-                  className="text-slate-200"
+                  className="text-slate-100"
                 />
                 <circle
-                  cx="48"
-                  cy="48"
-                  r="40"
+                  cx="56"
+                  cy="56"
+                  r="48"
                   stroke="currentColor"
                   strokeWidth="8"
                   fill="transparent"
-                  strokeDasharray={251.2}
-                  strokeDashoffset={251.2 - (251.2 * (30 - inactivityCountdown)) / 30}
+                  strokeDasharray={301.6}
+                  strokeDashoffset={301.6 - (301.6 * (30 - inactivityCountdown)) / 30}
                   className="text-amber-500 transition-all duration-1000 ease-linear"
                   strokeLinecap="round"
                 />
               </svg>
-              {/* Countdown Numbers */}
-              <div className="absolute text-5xl font-montserrat font-black text-[#0A006E] animate-pulse">
+              {/* Countdown Numbers: Large Plus Jakarta Sans Bold Prompt */}
+              <div className="absolute text-6xl font-jakarta font-black text-[#0A006E] font-mono-tabular tracking-tight animate-pulse drop-shadow-xs">
                 {inactivityCountdown}
               </div>
             </div>
