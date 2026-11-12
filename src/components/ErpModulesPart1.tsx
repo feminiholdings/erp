@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
+  Sparkles,
   Package,
   Building2,
   ArrowLeftRight,
@@ -139,6 +140,7 @@ export const OverviewModule: React.FC<{
 }) => {
   const isAccountant = currentUser.role === 'Accountant';
   const [adminOverviewView, setAdminOverviewView] = useState<'executive' | 'accounting'>('executive');
+  const [adminSimpleView, setAdminSimpleView] = useState(true);
   const scopedBranchId =
     ROLE_PERMISSIONS[currentUser.role].scopeToAssignedBranch ? currentUser.branchId : '';
 
@@ -961,6 +963,218 @@ export const OverviewModule: React.FC<{
 
   return (
     <div className="space-y-6">
+      {currentUser.role === 'Admin' && (
+        <div className="bg-[#0A006E] text-white border-2 border-[#FFDE00] rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#FFDE00] text-[#0A006E] flex items-center justify-center font-black">
+              <Sparkles className="w-5 h-5 stroke-[2.4]" />
+            </div>
+            <div>
+              <div className="font-montserrat font-black text-sm text-[#FFDE00]">
+                Admin Dashboard Mode: {adminSimpleView ? 'Clean Simplified View (Active)' : 'Full Detailed Operations View'}
+              </div>
+              <p className="text-xs text-slate-300 font-medium">
+                {adminSimpleView ? 'Uncluttered summary view with core financial & branch metrics.' : 'Showing full operational workflow hubs, authorization queues, and delivery logs.'}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAdminSimpleView(!adminSimpleView)}
+            className="px-4 py-2 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-xl text-xs font-montserrat font-black cursor-pointer shadow-xs transition shrink-0 whitespace-nowrap"
+          >
+            {adminSimpleView ? 'Switch to Detailed View' : 'Switch to Simple Clean View'}
+          </button>
+        </div>
+      )}
+
+      {currentUser.role === 'Admin' && adminSimpleView && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="text-sm font-montserrat font-black text-[#0A006E] uppercase tracking-wider flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-500" />
+              Admin Quick Command Hub (Tap Any Box to Open)
+            </h3>
+            <span className="text-xs text-slate-500 font-medium">9 Direct Access Modules</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Box 1: Retail POS */}
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('retail_pos')}
+              className="p-5 bg-white hover:bg-slate-50 border-2 border-[#0A006E] rounded-3xl text-left flex items-start gap-4 shadow-sm hover:shadow-md transition cursor-pointer group"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                <ShoppingCart className="w-6 h-6 stroke-[2.4]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-montserrat font-black text-[#0A006E] group-hover:underline">
+                  Retail Counter POS
+                </div>
+                <p className="text-xs text-slate-500 leading-snug pt-1">
+                  Fast counter checkout, barcode scanning &amp; instant receipt printing.
+                </p>
+              </div>
+            </button>
+
+            {/* Box 2: Wholesale POS */}
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('sales_pos')}
+              className="p-5 bg-white hover:bg-slate-50 border-2 border-[#0A006E] rounded-3xl text-left flex items-start gap-4 shadow-sm hover:shadow-md transition cursor-pointer group"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-[#34D186] text-[#0A006E] flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                <Building2 className="w-6 h-6 stroke-[2.4]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-montserrat font-black text-[#0A006E] group-hover:underline">
+                  B2B Wholesale POS
+                </div>
+                <p className="text-xs text-slate-500 leading-snug pt-1">
+                  Bulk commercial invoices, wholesale pricing &amp; distributor orders.
+                </p>
+              </div>
+            </button>
+
+            {/* Box 3: Inventory */}
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('inventory')}
+              className="p-5 bg-white hover:bg-slate-50 border-2 border-[#0A006E] rounded-3xl text-left flex items-start gap-4 shadow-sm hover:shadow-md transition cursor-pointer group"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                <Package className="w-6 h-6 stroke-[2.4]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-montserrat font-black text-[#0A006E] group-hover:underline">
+                  Inventory &amp; Bonded Stock
+                </div>
+                <p className="text-xs text-slate-500 leading-snug pt-1">
+                  IPS/LPS liquor catalog, landed cost, and customs excise stamp tracking.
+                </p>
+              </div>
+            </button>
+
+            {/* Box 4: Financial Ledger */}
+            <button
+              type="button"
+              onClick={() => setAdminOverviewView('accounting')}
+              className="p-5 bg-white hover:bg-slate-50 border-2 border-[#0A006E] rounded-3xl text-left flex items-start gap-4 shadow-sm hover:shadow-md transition cursor-pointer group"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                <BarChart3 className="w-6 h-6 stroke-[2.4]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-montserrat font-black text-[#0A006E] group-hover:underline">
+                  Financial Ledger &amp; P&amp;L
+                </div>
+                <p className="text-xs text-slate-500 leading-snug pt-1">
+                  Revenue, cash flow, M-Pesa settlements, and accounting statements.
+                </p>
+              </div>
+            </button>
+
+            {/* Box 5: Deliveries */}
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('delivery_management')}
+              className="p-5 bg-white hover:bg-slate-50 border-2 border-[#0A006E] rounded-3xl text-left flex items-start gap-4 shadow-sm hover:shadow-md transition cursor-pointer group"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-cyan-600 text-white flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                <Truck className="w-6 h-6 stroke-[2.4]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-montserrat font-black text-[#0A006E] group-hover:underline">
+                  Delivery &amp; Dispatch
+                </div>
+                <p className="text-xs text-slate-500 leading-snug pt-1">
+                  Live customer online orders, rider assignment &amp; delivery tracking.
+                </p>
+              </div>
+            </button>
+
+            {/* Box 6: HR & Staff */}
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('hr_rbac')}
+              className="p-5 bg-white hover:bg-slate-50 border-2 border-[#0A006E] rounded-3xl text-left flex items-start gap-4 shadow-sm hover:shadow-md transition cursor-pointer group"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-purple-600 text-white flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                <Users className="w-6 h-6 stroke-[2.4]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-montserrat font-black text-[#0A006E] group-hover:underline">
+                  HR &amp; Staff Directory
+                </div>
+                <p className="text-xs text-slate-500 leading-snug pt-1">
+                  8-role personnel provisioning, 6-digit PINs, and payroll compensation.
+                </p>
+              </div>
+            </button>
+
+            {/* Box 7: Branches & Transfers */}
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('branches_transfers')}
+              className="p-5 bg-white hover:bg-slate-50 border-2 border-[#0A006E] rounded-3xl text-left flex items-start gap-4 shadow-sm hover:shadow-md transition cursor-pointer group"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-emerald-700 text-white flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                <Building2 className="w-6 h-6 stroke-[2.4]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-montserrat font-black text-[#0A006E] group-hover:underline">
+                  Branches &amp; Transfers
+                </div>
+                <p className="text-xs text-slate-500 leading-snug pt-1">
+                  Inter-depot stock transfers, branch licensing &amp; warehouse hubs.
+                </p>
+              </div>
+            </button>
+
+            {/* Box 8: KRA Returns */}
+            {onOpenKraReturns && (
+              <button
+                type="button"
+                onClick={() => onOpenKraReturns('VAT3_SALES_SEC_B')}
+                className="p-5 bg-white hover:bg-slate-50 border-2 border-[#0A006E] rounded-3xl text-left flex items-start gap-4 shadow-sm hover:shadow-md transition cursor-pointer group"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-[#FFDE00] flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                  <FileSpreadsheet className="w-6 h-6 stroke-[2.4]" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-montserrat font-black text-[#0A006E] group-hover:underline">
+                    KRA iTax Returns (.xlsx)
+                  </div>
+                  <p className="text-xs text-slate-500 leading-snug pt-1">
+                    Automated VAT3, PAYE P10, Housing Levy &amp; excise spreadsheets.
+                  </p>
+                </div>
+              </button>
+            )}
+
+            {/* Box 9: Internal Inbox */}
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('internal_inbox')}
+              className="p-5 bg-white hover:bg-slate-50 border-2 border-[#0A006E] rounded-3xl text-left flex items-start gap-4 shadow-sm hover:shadow-md transition cursor-pointer group"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-red-600 text-white flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                <Inbox className="w-6 h-6 stroke-[2.4]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-montserrat font-black text-[#0A006E] group-hover:underline">
+                  Internal Dept Inbox
+                </div>
+                <p className="text-xs text-slate-500 leading-snug pt-1">
+                  Direct staff chat, invoice transfer requests &amp; team messaging.
+                </p>
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 1. Mobile Only: Native App-Style Action Buttons Grid (ZERO bulky hero covering the screen) */}
       <div className="block sm:hidden space-y-2">
         {/* Mobile App Quick-Action Touch Grid */}
