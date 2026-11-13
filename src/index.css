@@ -353,59 +353,28 @@ div.bg-white.rounded-3xl,
 div.bg-white.rounded-2xl,
 div.bg-white.rounded-xl,
 .hover-card-lift {
-  background-image: linear-gradient(
-    115deg,
-    rgba(255, 255, 255, 0) 38%,
-    rgba(10, 0, 110, 0.035) 47%,
-    rgba(255, 222, 0, 0.14) 50%,
-    rgba(10, 0, 110, 0.035) 53%,
-    rgba(255, 255, 255, 0) 62%
-  );
-  background-size: 260% 100%;
-  animation: silentSurfaceScanner 6.5s linear infinite;
-  box-shadow: 0 10px 26px -4px rgba(10, 0, 110, 0.14), 0 4px 10px -2px rgba(15, 23, 42, 0.08);
-  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.05);
+  transition: box-shadow 0.18s ease, border-color 0.18s ease, background-color 0.15s ease;
 }
 
-/* Yellow Dashboard Hero Banners with Moving Silent Scanner Sweep */
 div.bg-\[\#FFDE00\].hover-card-lift {
   background-color: #FFDE00;
-  background-image: linear-gradient(
-    115deg,
-    rgba(255, 255, 255, 0) 36%,
-    rgba(255, 255, 255, 0.48) 48%,
-    rgba(10, 0, 110, 0.08) 51%,
-    rgba(255, 255, 255, 0.35) 54%,
-    rgba(255, 255, 255, 0) 64%
-  );
-  background-size: 260% 100%;
-  animation: silentSurfaceScanner 5.5s linear infinite;
-  box-shadow: 0 12px 28px -4px rgba(10, 0, 110, 0.18), 0 4px 10px -2px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 1px 3px 0 rgba(10, 0, 110, 0.08);
 }
 
 div.bg-\[\#F0F2F0\].rounded-2xl,
 div.bg-\[\#F0F2F0\].rounded-xl,
 div.bg-slate-50.rounded-2xl,
 div.bg-slate-50.rounded-xl {
-  background-image: linear-gradient(
-    115deg,
-    rgba(255, 255, 255, 0) 38%,
-    rgba(255, 255, 255, 0.75) 48%,
-    rgba(255, 222, 0, 0.12) 51%,
-    rgba(255, 255, 255, 0) 62%
-  );
-  background-size: 260% 100%;
-  animation: silentSurfaceScanner 7s linear infinite;
-  box-shadow: 0 6px 16px -3px rgba(10, 0, 110, 0.09), 0 2px 6px -1px rgba(15, 23, 42, 0.06);
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+  transition: box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
 div.bg-white.rounded-3xl:not(.fixed *):hover,
 div.bg-white.rounded-2xl:not(.fixed *):hover,
 div.bg-white.rounded-xl:not(.fixed *):hover,
 .hover-card-lift:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 18px 36px -6px rgba(10, 0, 110, 0.22), 0 8px 16px -4px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 4px 12px -2px rgba(10, 0, 110, 0.08), 0 1px 3px 0 rgba(15, 23, 42, 0.06);
 }
 
 /* Mobile Bottom Nav Big Center Scanner Button Animation */

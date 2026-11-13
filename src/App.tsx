@@ -5472,30 +5472,27 @@ export default function App() {
 
       {/* Workspace Body: VAAIRO Desktop Left Sidebar + Main Content Canvas */}
       <div className="flex-1 flex">
-        {/* Desktop Sidebar Navigation (Bright Grey #F0F2F0 Background with Big Icons) */}
-        <aside className="hidden md:flex w-72 shrink-0 bg-[#F0F2F0] text-slate-900 flex-col justify-between p-4 border-r border-slate-300 relative overflow-hidden">
-          <div className="space-y-4 relative z-10">
-            {/* Active Role & Branch Summary Box */}
-            <div className="p-4 rounded-2xl bg-white border-2 border-[#0A006E]/15 shadow-xs space-y-1">
-              <div className="text-[11px] font-montserrat font-black text-[#0A006E] uppercase tracking-wider">
+        {/* Desktop Sidebar Navigation */}
+        <aside className="hidden md:flex w-64 shrink-0 bg-[#F8FAFC] text-slate-900 flex-col justify-between p-3.5 border-r border-slate-200 relative overflow-y-auto">
+          <div className="space-y-3 relative z-10">
+            {/* Active Role & Branch Summary */}
+            <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-0.5">
+              <div className="text-[10px] font-montserrat font-bold text-[#0A006E] uppercase tracking-wider">
                 {currentUser.role}
               </div>
-              <div className="text-sm font-montserrat font-black text-[#0A006E] truncate">
+              <div className="text-xs font-montserrat font-black text-slate-900 truncate">
                 {currentUser.name}
               </div>
-              <div className="text-xs text-slate-600 font-semibold truncate">
-                {currentUser.branchName}
-              </div>
-              <div className="text-[10px] text-slate-500 font-mono-tabular pt-1">
-                Auth: {currentUser.authMethod === 'google' ? 'Google OAuth' : '6-Digit PIN'} · {products.length} SKUs
+              <div className="text-[11px] text-slate-500 font-medium truncate">
+                {currentUser.branchName} · {products.length} SKUs
               </div>
             </div>
 
             {/* Departmental Collapsible Sidebar Menus */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between px-2.5 mb-1">
-                <div className="text-[10px] font-montserrat font-black text-[#0A006E] uppercase tracking-wider">
-                  Departmental Navigation ({allowedModules.length} Modules)
+            <div className="space-y-2">
+              <div className="flex items-center justify-between px-1.5">
+                <div className="text-[10px] font-montserrat font-bold text-slate-500 uppercase tracking-wider">
+                  Modules ({allowedModules.length})
                 </div>
                 <button
                   type="button"
@@ -5509,7 +5506,7 @@ export default function App() {
                   }}
                   className="text-[10px] font-montserrat font-bold text-slate-500 hover:text-[#0A006E] transition cursor-pointer"
                 >
-                  {ERP_DEPARTMENTS.some((d) => openDepartments[d.id]) ? 'Collapse All' : 'Expand All'}
+                  {ERP_DEPARTMENTS.some((d) => openDepartments[d.id]) ? 'Collapse' : 'Expand'}
                 </button>
               </div>
 
@@ -5521,36 +5518,36 @@ export default function App() {
                 const DeptIcon = dept.icon;
 
                 return (
-                  <div key={dept.id} className="bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+                  <div key={dept.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden">
                     <button
                       type="button"
                       onClick={() =>
                         setOpenDepartments((prev) => ({ ...prev, [dept.id]: !prev[dept.id] }))
                       }
-                      className="w-full px-3.5 py-3 bg-slate-100 hover:bg-slate-200 flex items-center justify-between cursor-pointer transition select-none"
+                      className={`w-full px-3 py-2 flex items-center justify-between cursor-pointer transition select-none ${
+                        hasActiveModule ? 'bg-slate-100' : 'bg-white hover:bg-slate-50'
+                      }`}
                     >
-                      <div className="flex items-center gap-3.5 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 shadow-xs">
-                          <DeptIcon className="w-6 h-6 stroke-[2.4]" />
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-7 h-7 rounded-lg bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0">
+                          <DeptIcon className="w-4 h-4 stroke-[2.2]" />
                         </div>
-                        <span className="text-sm font-montserrat font-black text-[#0A006E] tracking-wide truncate">
-                          {dept.oneWordTitle} ({deptAllowedModules.length})
+                        <span className="text-xs font-montserrat font-bold text-slate-900 truncate">
+                          {dept.oneWordTitle}
                         </span>
-                        {hasActiveModule && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#34D186]/20 text-[#1E9E60] border border-[#34D186]/40 shrink-0">
-                            Active
-                          </span>
-                        )}
+                        <span className="text-[10px] font-mono-tabular text-slate-400">
+                          {deptAllowedModules.length}
+                        </span>
                       </div>
                       <ChevronRight
-                        className={`w-5 h-5 text-[#0A006E] transition-transform duration-200 ${
+                        className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${
                           isOpen ? 'rotate-90' : ''
                         }`}
                       />
                     </button>
 
                     {isOpen && (
-                      <div className="p-2 space-y-1.5 bg-white border-t border-slate-200">
+                      <div className="p-1.5 space-y-1 bg-white border-t border-slate-100">
                         {deptAllowedModules.map((modId: ERPModuleId) => {
                           const IconComp = MODULE_META[modId].icon;
                           const isActive = activeModule === modId;
@@ -5558,22 +5555,18 @@ export default function App() {
                             <button
                               key={modId}
                               onClick={() => handleSelectModule(modId)}
-                              className={`group w-full min-h-[52px] px-3.5 py-2.5 rounded-2xl text-sm font-montserrat flex items-center gap-3.5 transition-all cursor-pointer whitespace-nowrap border-2 ${
+                              className={`group w-full px-2.5 py-2 rounded-lg text-xs font-montserrat flex items-center gap-2.5 transition-all cursor-pointer whitespace-nowrap ${
                                 isActive
-                                  ? 'bg-[#0A006E] text-white border-[#0A006E] font-black shadow-md'
-                                  : 'bg-white text-slate-800 border-slate-200 hover:border-[#0A006E] hover:bg-[#FFDE00]/20 font-bold shadow-2xs'
+                                  ? 'bg-[#0A006E] text-white font-bold'
+                                  : 'bg-white text-slate-700 hover:bg-slate-100 font-semibold'
                               }`}
                             >
-                              <div
-                                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110 ${
-                                  isActive
-                                    ? 'bg-[#FFDE00] text-[#0A006E] shadow-xs'
-                                    : 'bg-[#F0F2F0] text-[#0A006E] group-hover:bg-[#0A006E] group-hover:text-[#FFDE00]'
+                              <IconComp
+                                className={`w-4 h-4 shrink-0 ${
+                                  isActive ? 'text-[#FFDE00]' : 'text-slate-500 group-hover:text-[#0A006E]'
                                 }`}
-                              >
-                                <IconComp className="w-6 h-6 stroke-[2.4]" />
-                              </div>
-                              <span className="truncate text-sm font-montserrat font-black">
+                              />
+                              <span className="truncate text-xs">
                                 {MODULE_META[modId].oneWordLabel}
                               </span>
                             </button>
@@ -5586,7 +5579,7 @@ export default function App() {
               })}
             </div>
 
-            {/* Quick KRA iTax Returns Spreadsheet Button in Desktop Sidebar */}
+            {/* Quick KRA iTax Returns Spreadsheet Button */}
             {(currentUser.role === 'Admin' ||
               currentUser.role === 'Accountant' ||
               currentUser.role === 'HR' ||
@@ -5599,12 +5592,10 @@ export default function App() {
                     currentUser.role === 'HR' ? 'PAYE_P10_SEC_B' : 'VAT3_SALES_SEC_B'
                   )
                 }
-                className="w-full min-h-[46px] px-3 py-2 rounded-2xl text-xs font-montserrat flex items-center gap-3 transition-all cursor-pointer whitespace-nowrap border-2 border-[#0A006E] bg-white hover:bg-[#34D186]/20 text-[#0A006E] font-black shadow-xs mt-3"
+                className="w-full px-3 py-2 rounded-xl text-xs font-montserrat flex items-center gap-2.5 transition cursor-pointer whitespace-nowrap border border-slate-200 bg-white hover:bg-emerald-50 text-[#0A006E] font-bold"
               >
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 bg-[#0A006E] text-[#34D186]">
-                  <FileSpreadsheet className="w-4 h-4 stroke-[2.3]" />
-                </div>
-                <span className="truncate text-xs">KRA Returns (.xlsx / .csv)</span>
+                <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="truncate">KRA Returns (.xlsx)</span>
               </button>
             )}
 
@@ -5612,27 +5603,16 @@ export default function App() {
             <button
               type="button"
               onClick={() => setIsAccessMatrixOpen(true)}
-              className="w-full min-h-[46px] px-3 py-2 rounded-2xl text-xs font-montserrat flex items-center gap-3 transition-all cursor-pointer whitespace-nowrap border-2 border-[#0A006E] bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] font-black shadow-xs mt-2"
+              className="w-full px-3 py-2 rounded-xl text-xs font-montserrat flex items-center gap-2.5 transition cursor-pointer whitespace-nowrap border border-slate-200 bg-white hover:bg-amber-50 text-[#0A006E] font-bold"
             >
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 bg-[#0A006E] text-[#FFDE00]">
-                <ShieldCheck className="w-4 h-4 stroke-[2.4]" />
-              </div>
-              <span className="truncate text-xs">
-                Access Model Matrix
-              </span>
+              <ShieldCheck className="w-4 h-4 text-[#0A006E] shrink-0" />
+              <span className="truncate">Access Model Matrix</span>
             </button>
-          </div>
-
-          <div className="p-3.5 rounded-2xl bg-white border border-slate-200 text-[11px] text-slate-600 space-y-1 relative z-10 mt-4">
-            <div className="font-montserrat font-black text-[#0A006E]">Device Telemetry Active</div>
-            <div className="font-mono-tabular text-[10px] truncate">
-              {getDeviceFingerprint()}
-            </div>
           </div>
         </aside>
 
-        {/* Main Content Area (Vast White Background #FFFFFF with Bright Grey #F0F2F0 Blocks) */}
-        <main className="flex-1 bg-white p-4 sm:p-6 lg:p-8 pb-32 md:pb-16 overflow-y-auto max-w-7xl mx-auto w-full">
+        {/* Main Content Area */}
+        <main className="flex-1 bg-white p-3.5 sm:p-5 lg:p-6 pb-28 md:pb-14 overflow-y-auto max-w-7xl mx-auto w-full">
           {activeModule === 'overview' && (
             <OverviewModule
               currentUser={currentUser}
