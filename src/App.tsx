@@ -649,6 +649,16 @@ export default function App() {
       search.get('view') === 'shop'
     );
   });
+  const [standalonePos, setStandalonePos] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const path = window.location.pathname.toLowerCase();
+    const search = new URLSearchParams(window.location.search);
+    return (
+      path === '/pos' ||
+      path.startsWith('/pos/') ||
+      search.get('view') === 'pos'
+    );
+  });
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
   const [inactivityCountdown, setInactivityCountdown] = useState(30);
   const inactivityTimerRef = useRef<any>(null);
@@ -4711,6 +4721,100 @@ export default function App() {
   };
 
 
+
+  if (standalonePos) {
+    return (
+      <>
+        <MobileSplashScreen />
+        {showOnboarding && (
+          <MobileOnboarding
+            onComplete={() => {
+              setShowOnboarding(false);
+              localStorage.setItem('vaairo_onboarding_completed', 'true');
+            }}
+          />
+        )}
+        <StatusFeedbackToast status={toastStatus} onDismiss={() => setToastStatus(null)} />
+        <div className="min-h-screen bg-slate-50 flex flex-col">
+          <div className="bg-[#0A006E] text-white px-6 py-3 flex items-center justify-between shadow-md border-b-2 border-[#FFDE00]">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#FFDE00] text-[#0A006E] flex items-center justify-center font-black">
+                POS
+              </div>
+              <div>
+                <div className="font-montserrat font-black text-white text-sm sm:text-base">
+                  VAAIRO Standalone POS Terminal
+                </div>
+                <div className="text-[10px] text-slate-300">
+                  Independent Counter Checkout &amp; M-Pesa Integration
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {currentUser && (
+                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/10 text-xs font-montserrat font-semibold">
+                  <span>Cashier: {currentUser.name}</span>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setStandalonePos(false);
+                  if (typeof window !== 'undefined') {
+                    const url = new URL(window.location.href);
+                    url.pathname = '/';
+                    url.searchParams.delete('view');
+                    window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+                  }
+                }}
+                className="px-4 py-2 bg-[#FFDE00] hover:bg-amber-300 text-[#0A006E] rounded-xl text-xs font-montserrat font-black cursor-pointer shadow-sm transition flex items-center gap-1.5"
+              >
+                <span>Return to ERP Overview</span>
+              </button>
+            </div>
+          </div>
+          <div className="flex-1">
+            <PosViews
+              mode="retail"
+              currentUser={currentUser || ({
+                id: 'staff-pos-guest-01',
+                name: 'Standalone POS Cashier',
+                email: 'pos.terminal@aegisbeverage.co.ke',
+                role: 'Counter Cashier',
+                branchId: branches[0]?.id || 'br-hq-001',
+                branchName: branches[0]?.name || 'HQ - Main Branch',
+                status: 'Active',
+                authMethod: 'pin',
+                createdBy: 'System',
+                createdByRole: 'Admin',
+                createdAt: new Date().toISOString()
+              } as StaffMember)}
+              products={products}
+              branches={branches}
+              regions={regions}
+              partners={partners}
+              businessUnits={businessUnits}
+              restaurantInventory={restaurantInventory}
+              onCommitTransaction={handleCommitTransaction}
+              onPreviewDoc={(d) => setPreviewDoc(d)}
+              onUpdateRestaurantItem={handleUpdateRestaurantItem}
+              onNavigateModule={(mod) => {
+                setStandalonePos(false);
+                if (typeof window !== 'undefined') {
+                  const url = new URL(window.location.href);
+                  url.pathname = '/';
+                  url.searchParams.delete('view');
+                  window.history.replaceState({}, '', url.pathname);
+                }
+                handleSelectModule(mod);
+              }}
+            />
+          </div>
+        </div>
+        <DocumentPrintModal docData={previewDoc} onClose={() => setPreviewDoc(null)} />
+      </>
+    );
+  }
 
   if (!currentUser && standaloneCustomerPortal) {
     return (
