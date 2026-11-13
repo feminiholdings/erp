@@ -37,6 +37,7 @@ export interface StaffMember {
   role: StaffRole;
   authMethod: 'google' | 'pin' | 'email';
   pin?: string;
+  adminViewPin?: string;
   passwordHash?: string;
   branchId: string;
   branchName: string;

@@ -645,7 +645,7 @@ export const ROLE_PERMISSIONS: Record<
     allowedModules: ERPModuleId[];
     canCreateRoles: StaffRole[];
     badgeTitle: string;
-    authRequirement: 'google' | 'pin';
+    authRequirement: 'google' | 'pin' | 'google_or_pin';
     scopeToAssignedBranch: boolean;
   }
 > = {
@@ -662,7 +662,6 @@ export const ROLE_PERMISSIONS: Record<
       'compliance',
       'hr_rbac',
       'audit_security',
-      'customer_portal',
       'outlets_restaurants',
       'delivery_management',
       'internal_inbox',
@@ -685,8 +684,8 @@ export const ROLE_PERMISSIONS: Record<
       'leave_management',
     ],
     canCreateRoles: [],
-    badgeTitle: 'Chief Financial Accountant (Google Auth)',
-    authRequirement: 'google',
+    badgeTitle: 'Chief Financial Accountant (Google / 6-Digit PIN)',
+    authRequirement: 'google_or_pin',
     scopeToAssignedBranch: false,
   },
   HR: {
@@ -718,7 +717,6 @@ export const ROLE_PERMISSIONS: Record<
       'compliance',
       'audit_security',
       'outlets_restaurants',
-      'customer_portal',
       'delivery_management',
       'internal_inbox',
       'leave_management',
@@ -906,14 +904,6 @@ export const ERP_FEATURE_CATALOG: GranularFeatureDefinition[] = [
     moduleId: 'audit_security',
   },
   {
-    key: 'customer_portal',
-    label: 'Customer Online Storefront Portal',
-    category: 'Core Modules',
-    description: 'Public eCommerce portal, web orders, live delivery tracking, and client order placement.',
-    isModule: true,
-    moduleId: 'customer_portal',
-  },
-  {
     key: 'outlets_restaurants',
     label: 'Branch Outlets, Bars & Club Management',
     category: 'Core Modules',
@@ -1043,6 +1033,9 @@ export function getEffectiveUserModules(
   ) {
     effective.push('internal_inbox');
   }
+
+  // Logged-in ERP users must never switch into the standalone customer portal
+  effective = effective.filter((mod) => mod !== 'customer_portal');
 
   return effective;
 }

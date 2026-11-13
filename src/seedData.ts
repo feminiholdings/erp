@@ -12,7 +12,7 @@ import {
 import { db } from './firebase';
 import { GeoRegion, BusinessUnit, RestaurantInventoryItem } from './types';
 import { isSampleSkuRecord } from './erpUtils';
-import { hashPin, isPinHashed } from './utils/security';
+import { hashPin, isPinHashed, encryptPinForAdmin } from './utils/security';
 
 export const NAIROBI_GEO_REGIONS: GeoRegion[] = [
   {
@@ -156,9 +156,9 @@ export const INITIAL_RESTAURANT_INVENTORY: RestaurantInventoryItem[] = [];
 
 export async function ensureOperationalFoundationSeeded(): Promise<void> {
   if (typeof window !== 'undefined') {
-    const alreadySeeded = sessionStorage.getItem('erp_foundation_seeded_session');
+    const alreadySeeded = sessionStorage.getItem('erp_foundation_seeded_session_v2');
     if (alreadySeeded) return;
-    sessionStorage.setItem('erp_foundation_seeded_session', 'true');
+    sessionStorage.setItem('erp_foundation_seeded_session_v2', 'true');
   }
   try {
     // 1. Purge known legacy mock partner IDs
@@ -306,65 +306,40 @@ export async function ensureOperationalFoundationSeeded(): Promise<void> {
       }
     }
 
-    // 6. Ensure authorized Admin records exist (zamodasports@gmail.com, feminiholdings@gmail.com, and veronicanjus@gmail.com)
+    // 6. Enforce single System Administrator (feminiholdings@gmail.com ONLY) and remove any other Admin accounts
     const allStaffSnap = await getDocs(collection(db, 'staff')).catch(() => null);
-    const authorizedAdminEmails = ['zamodasports@gmail.com', 'feminiholdings@gmail.com', 'veronicanjus@gmail.com'];
-    const foundAdminEmails = new Set<string>();
+    const AUTHORIZED_ADMIN_EMAIL = 'feminiholdings@gmail.com';
+    let hasAuthorizedAdmin = false;
 
     if (allStaffSnap && !allStaffSnap.empty) {
       for (const staffDoc of allStaffSnap.docs) {
         const sdata = staffDoc.data();
         const sEmail = (sdata.email || '').toLowerCase().trim();
-        if (sdata.role === 'Admin') {
-          foundAdminEmails.add(sEmail);
+        const isLegacyOtherAdminId =
+          staffDoc.id === 'staff-admin-zamodasports' ||
+          staffDoc.id === 'staff-admin-veronicanjus' ||
+          staffDoc.id === 'staff-admin-moraasdorcah';
+
+        if ((sdata.role === 'Admin' && sEmail !== AUTHORIZED_ADMIN_EMAIL) || isLegacyOtherAdminId) {
+          await deleteDoc(doc(db, 'staff', staffDoc.id)).catch(() => {});
+        } else if (sdata.role === 'Admin' && sEmail === AUTHORIZED_ADMIN_EMAIL) {
+          hasAuthorizedAdmin = true;
         }
       }
     }
 
     const defaultEncryptedPin = await hashPin('123456');
+    const defaultAdminViewPin = encryptPinForAdmin('123456');
 
-    if (!foundAdminEmails.has('zamodasports@gmail.com')) {
-      await setDoc(doc(db, 'staff', 'staff-admin-zamodasports'), {
-        id: 'staff-admin-zamodasports',
-        name: 'Executive System Admin (Zamoda)',
-        email: 'zamodasports@gmail.com',
-        role: 'Admin',
-        authMethod: 'google',
-        pin: defaultEncryptedPin,
-        branchId: targetHqId,
-        branchName: 'HQ - Main Branch',
-        status: 'Active',
-        createdBy: 'System Root',
-        createdByRole: 'Root',
-        createdAt: new Date().toISOString(),
-      }).catch(() => {});
-    }
-
-    if (!foundAdminEmails.has('feminiholdings@gmail.com')) {
+    if (!hasAuthorizedAdmin) {
       await setDoc(doc(db, 'staff', 'staff-admin-feminiholdings'), {
         id: 'staff-admin-feminiholdings',
         name: 'Femini Holdings Executive Admin',
-        email: 'feminiholdings@gmail.com',
+        email: AUTHORIZED_ADMIN_EMAIL,
         role: 'Admin',
         authMethod: 'google',
         pin: defaultEncryptedPin,
-        branchId: targetHqId,
-        branchName: 'HQ - Main Branch',
-        status: 'Active',
-        createdBy: 'System Root',
-        createdByRole: 'Root',
-        createdAt: new Date().toISOString(),
-      }).catch(() => {});
-    }
-
-    if (!foundAdminEmails.has('veronicanjus@gmail.com')) {
-      await setDoc(doc(db, 'staff', 'staff-admin-veronicanjus'), {
-        id: 'staff-admin-veronicanjus',
-        name: 'Veronica (Executive Admin)',
-        email: 'veronicanjus@gmail.com',
-        role: 'Admin',
-        authMethod: 'google',
-        pin: defaultEncryptedPin,
+        adminViewPin: defaultAdminViewPin,
         branchId: targetHqId,
         branchName: 'HQ - Main Branch',
         status: 'Active',
@@ -381,7 +356,11 @@ export async function ensureOperationalFoundationSeeded(): Promise<void> {
         const sdata = sDoc.data();
         if (sdata.pin && !isPinHashed(sdata.pin)) {
           const encryptedPin = await hashPin(sdata.pin);
-          await updateDoc(doc(db, 'staff', sDoc.id), { pin: encryptedPin }).catch(() => {});
+          const adminView = sdata.adminViewPin || encryptPinForAdmin(sdata.pin);
+          await updateDoc(doc(db, 'staff', sDoc.id), {
+            pin: encryptedPin,
+            ...(adminView ? { adminViewPin: adminView } : {}),
+          }).catch(() => {});
         }
       }
     }

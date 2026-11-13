@@ -77,3 +77,44 @@ export async function verifyPassword(enteredPassword: string, storedHash?: strin
   return storedHash === cleanEntered;
 }
 
+const ADMIN_PIN_OBFUSCATION_KEY = 'VAAIRO-ADMIN-PIN-KEY-2026';
+
+/**
+ * Reversible obfuscated encoding for 6-digit staff PINs so only System Admin
+ * can reveal/view a user's login PIN inside the ERP UI while keeping the raw
+ * PIN hidden from plaintext storage and non-Admin roles.
+ */
+export function encryptPinForAdmin(pin: string): string {
+  const clean = pin.trim();
+  if (!/^\d{6}$/.test(clean)) return '';
+  try {
+    const bytes = Array.from(clean).map((ch, idx) =>
+      ch.charCodeAt(0) ^ ADMIN_PIN_OBFUSCATION_KEY.charCodeAt(idx % ADMIN_PIN_OBFUSCATION_KEY.length)
+    );
+    const b64 = btoa(String.fromCharCode(...bytes));
+    return `adm1:${b64}`;
+  } catch {
+    return '';
+  }
+}
+
+export function decryptPinForAdmin(encoded?: string): string | null {
+  if (!encoded) return null;
+  if (/^\d{6}$/.test(encoded.trim())) return encoded.trim();
+  if (!encoded.startsWith('adm1:')) return null;
+  try {
+    const raw = atob(encoded.slice(5));
+    const decoded = Array.from(raw)
+      .map((ch, idx) =>
+        String.fromCharCode(
+          ch.charCodeAt(0) ^ ADMIN_PIN_OBFUSCATION_KEY.charCodeAt(idx % ADMIN_PIN_OBFUSCATION_KEY.length)
+        )
+      )
+      .join('');
+    return /^\d{6}$/.test(decoded) ? decoded : null;
+  } catch {
+    return null;
+  }
+}
+
+

@@ -140,7 +140,14 @@ import {
 } from './components/InternalInboxModule';
 import { DesktopInboxArrivalPopup } from './components/DesktopInboxArrivalPopup';
 import { LeaveManagementPortal } from './components/LeaveManagementPortal';
-import { hashPin, isPinHashed, verifyPin, hashPassword, verifyPassword } from './utils/security';
+import {
+  hashPin,
+  isPinHashed,
+  verifyPin,
+  hashPassword,
+  verifyPassword,
+  encryptPinForAdmin,
+} from './utils/security';
 import { broadcastProductScanned } from './utils/productScanBroadcast';
 import { initGlobalClickSound, playSuccessSound, playErrorSound } from './utils/audioBeep';
 
@@ -272,42 +279,22 @@ const INITIAL_DEFAULT_BRANCHES: Branch[] = [
   },
 ];
 
+const AUTHORIZED_ADMIN_EMAIL = 'feminiholdings@gmail.com';
+
+const isAuthorizedAdminRecord = (staff: Partial<StaffMember>): boolean => {
+  if (staff.role !== 'Admin') return true;
+  return (staff.email || '').trim().toLowerCase() === AUTHORIZED_ADMIN_EMAIL;
+};
+
 const INITIAL_DEFAULT_STAFF: StaffMember[] = [
-  {
-    id: 'staff-admin-zamodasports',
-    name: 'Executive System Admin (Zamoda)',
-    email: 'zamodasports@gmail.com',
-    role: 'Admin',
-    authMethod: 'google',
-    pin: '123456',
-    branchId: 'br-hq-001',
-    branchName: 'HQ - Main Branch',
-    status: 'Active',
-    createdBy: 'System Root',
-    createdByRole: 'Root',
-    createdAt: new Date().toISOString(),
-  },
   {
     id: 'staff-admin-feminiholdings',
     name: 'Femini Holdings Executive Admin',
-    email: 'feminiholdings@gmail.com',
+    email: AUTHORIZED_ADMIN_EMAIL,
     role: 'Admin',
     authMethod: 'google',
     pin: '123456',
-    branchId: 'br-hq-001',
-    branchName: 'HQ - Main Branch',
-    status: 'Active',
-    createdBy: 'System Root',
-    createdByRole: 'Root',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'staff-admin-veronicanjus',
-    name: 'Veronica (Executive Admin)',
-    email: 'veronicanjus@gmail.com',
-    role: 'Admin',
-    authMethod: 'google',
-    pin: '123456',
+    adminViewPin: encryptPinForAdmin('123456'),
     branchId: 'br-hq-001',
     branchName: 'HQ - Main Branch',
     status: 'Active',
@@ -322,6 +309,7 @@ const INITIAL_DEFAULT_STAFF: StaffMember[] = [
     role: 'Accountant',
     authMethod: 'pin',
     pin: '123456',
+    adminViewPin: encryptPinForAdmin('123456'),
     branchId: 'br-hq-001',
     branchName: 'HQ - Main Branch',
     status: 'Active',
@@ -336,6 +324,7 @@ const INITIAL_DEFAULT_STAFF: StaffMember[] = [
     role: 'Branch Manager',
     authMethod: 'pin',
     pin: '123456',
+    adminViewPin: encryptPinForAdmin('123456'),
     branchId: 'br-hq-001',
     branchName: 'HQ - Main Branch',
     status: 'Active',
@@ -350,6 +339,7 @@ const INITIAL_DEFAULT_STAFF: StaffMember[] = [
     role: 'Counter Cashier',
     authMethod: 'pin',
     pin: '123456',
+    adminViewPin: encryptPinForAdmin('123456'),
     branchId: 'br-hq-001',
     branchName: 'HQ - Main Branch',
     status: 'Active',
@@ -364,6 +354,7 @@ const INITIAL_DEFAULT_STAFF: StaffMember[] = [
     role: 'Sales Manager',
     authMethod: 'pin',
     pin: '123456',
+    adminViewPin: encryptPinForAdmin('123456'),
     branchId: 'br-hq-001',
     branchName: 'HQ - Main Branch',
     status: 'Active',
@@ -378,6 +369,7 @@ const INITIAL_DEFAULT_STAFF: StaffMember[] = [
     role: 'Inventory Controller',
     authMethod: 'pin',
     pin: '123456',
+    adminViewPin: encryptPinForAdmin('123456'),
     branchId: 'br-hq-001',
     branchName: 'HQ - Main Branch',
     status: 'Active',
@@ -392,6 +384,7 @@ const INITIAL_DEFAULT_STAFF: StaffMember[] = [
     role: 'HR',
     authMethod: 'pin',
     pin: '123456',
+    adminViewPin: encryptPinForAdmin('123456'),
     branchId: 'br-hq-001',
     branchName: 'HQ - Main Branch',
     status: 'Active',
@@ -406,6 +399,7 @@ const INITIAL_DEFAULT_STAFF: StaffMember[] = [
     role: 'Affiliate Sales Representative',
     authMethod: 'pin',
     pin: '123456',
+    adminViewPin: encryptPinForAdmin('123456'),
     agreedCommissionPct: 8,
     branchId: 'br-hq-001',
     branchName: 'HQ - Main Branch',
@@ -421,8 +415,13 @@ export default function App() {
   const [staffList, setStaffList] = useState<StaffMember[]>(() => {
     try {
       const saved = localStorage.getItem('erp_staff_backup');
-      const parsed = saved ? JSON.parse(saved) : [];
-      return parsed.length > 0 ? parsed : INITIAL_DEFAULT_STAFF;
+      const parsed: StaffMember[] = saved ? JSON.parse(saved) : [];
+      const sanitized = Array.isArray(parsed) ? parsed.filter(isAuthorizedAdminRecord) : [];
+      if (sanitized.length > 0) {
+        localStorage.setItem('erp_staff_backup', JSON.stringify(sanitized));
+        return sanitized;
+      }
+      return INITIAL_DEFAULT_STAFF;
     } catch {
       return INITIAL_DEFAULT_STAFF;
     }
@@ -613,7 +612,13 @@ export default function App() {
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('erp_current_user');
-        if (saved) return JSON.parse(saved);
+        if (saved) {
+          const parsed = JSON.parse(saved) as StaffMember;
+          if (isAuthorizedAdminRecord(parsed)) {
+            return parsed;
+          }
+          localStorage.removeItem('erp_current_user');
+        }
       } catch {}
     }
     return null;
@@ -649,6 +654,11 @@ export default function App() {
       search.get('view') === 'shop'
     );
   });
+  useEffect(() => {
+    if (currentUser && standaloneCustomerPortal) {
+      setStandaloneCustomerPortal(false);
+    }
+  }, [currentUser, standaloneCustomerPortal]);
   const [standalonePos, setStandalonePos] = useState(() => {
     if (typeof window === 'undefined') return false;
     const path = window.location.pathname.toLowerCase();
@@ -1141,9 +1151,16 @@ export default function App() {
     const unsubStaff = subscribeWithFallback<StaffMember>(
       'staff',
       (list) => {
-        setStaffList(list);
+        const unauthorizedAdmins = list.filter((s) => !isAuthorizedAdminRecord(s));
+        if (unauthorizedAdmins.length > 0) {
+          unauthorizedAdmins.forEach((ua) => {
+            deleteDoc(doc(db, 'staff', ua.id)).catch(() => {});
+          });
+        }
+        const cleanStaff = list.filter(isAuthorizedAdminRecord);
+        setStaffList(cleanStaff);
         try {
-          localStorage.setItem('erp_staff_backup', JSON.stringify(list));
+          localStorage.setItem('erp_staff_backup', JSON.stringify(cleanStaff));
         } catch {}
       },
       'staff'
@@ -1520,13 +1537,8 @@ export default function App() {
       const existingStaff = staffList.find((s) => s.email.toLowerCase() === userEmail);
 
       if (targetRole === 'Admin') {
-        const authorizedAdmins = [
-          'zamodasports@gmail.com',
-          'feminiholdings@gmail.com',
-          'moraasdorcah@gmail.com',
-        ];
-        if (!authorizedAdmins.includes(userEmail) && (!existingStaff || existingStaff.role !== 'Admin')) {
-          const msg = `Access Restricted: ${userEmail} is not authorized as System Administrator. Authorized admins: ${authorizedAdmins.join(', ')}`;
+        if (userEmail !== AUTHORIZED_ADMIN_EMAIL) {
+          const msg = `Access Restricted: ${userEmail} is not authorized as System Administrator. Only ${AUTHORIZED_ADMIN_EMAIL} is authorized.`;
           setAuthError(msg);
           triggerToast('error', 'Unauthorized Admin', msg);
           setIsAuthenticating(false);
@@ -1563,7 +1575,12 @@ export default function App() {
           setIsAuthenticating(false);
           return;
         }
-        if (existingStaff.authMethod !== 'google' && existingStaff.authMethod !== 'email') {
+        if (
+          existingStaff.role !== 'Admin' &&
+          existingStaff.role !== 'Accountant' &&
+          existingStaff.authMethod !== 'google' &&
+          existingStaff.authMethod !== 'email'
+        ) {
           const msg = `Role "${existingStaff.role}" is restricted to 6-Digit PIN authentication. Only Admin and Accountant use Google/Email Login.`;
           setAuthError(msg);
           triggerToast('error', 'PIN Authentication Required', msg);
@@ -1676,22 +1693,12 @@ export default function App() {
         throw new Error('Please enter your password or authorization PIN.');
       }
 
-      const authorizedAdmins = [
-        'zamodasports@gmail.com',
-        'feminiholdings@gmail.com',
-        'moraasdorcah@gmail.com',
-      ];
-
       const existingStaff = staffList.find((s) => s.email.toLowerCase() === userEmail);
 
       if (targetRole === 'Admin') {
-        const isAuthorizedEmail =
-          authorizedAdmins.includes(userEmail) ||
-          (existingStaff && existingStaff.role === 'Admin');
-
-        if (!isAuthorizedEmail) {
+        if (userEmail !== AUTHORIZED_ADMIN_EMAIL) {
           throw new Error(
-            `Access Restricted: ${userEmail} is not authorized as System Administrator. Authorized admins: ${authorizedAdmins.join(', ')}`
+            `Access Restricted: ${userEmail} is not authorized as System Administrator. Only ${AUTHORIZED_ADMIN_EMAIL} is authorized.`
           );
         }
       }
@@ -1809,12 +1816,11 @@ export default function App() {
         };
         const staffId = `staff-${targetRole.toLowerCase()}-${userEmail.replace(/[^a-zA-Z0-9]/g, '')}`;
         const pwdHash = await hashPassword(cleanPassword);
-        const pinHash = await hashPin(cleanPassword.length === 6 ? cleanPassword : '123456');
+        const rawSixPin = cleanPassword.length === 6 && /^\d{6}$/.test(cleanPassword) ? cleanPassword : '123456';
+        const pinHash = await hashPin(rawSixPin);
         const defaultName =
           targetRole === 'Admin'
-            ? userEmail === 'moraasdorcah@gmail.com'
-              ? 'Dorcah Moraa (Executive Admin)'
-              : (userEmail.split('@')[0] || 'System Administrator')
+            ? 'Femini Holdings Executive Admin'
             : 'Corporate Head Accountant';
 
         const newStaff: StaffMember = {
@@ -1824,6 +1830,7 @@ export default function App() {
           role: targetRole,
           authMethod: 'email',
           pin: pinHash,
+          adminViewPin: encryptPinForAdmin(rawSixPin),
           passwordHash: pwdHash,
           branchId: defaultBranch.id,
           branchName: defaultBranch.name,
@@ -1878,6 +1885,14 @@ export default function App() {
         } catch {}
       }
 
+      if (selectedRole === 'Admin') {
+        const msg = 'System Administrator cannot sign in via PIN. Please use Google OAuth or Email & Password.';
+        setAuthError(msg);
+        setIsAuthenticating(false);
+        triggerToast('error', 'PIN Disabled for Admin', msg);
+        return;
+      }
+
       const hashedPinInput = await hashPin(cleanPin);
       let matched: StaffMember | undefined;
 
@@ -1893,50 +1908,75 @@ export default function App() {
           } catch {}
         }
 
-        if (candidate && candidate.status === 'Active') {
-          const pinMatches =
-            isMasterPin ||
-            !candidate.pin ||
-            candidate.pin === cleanPin ||
-            candidate.pin === hashedPinInput ||
-            (candidate.pin.startsWith('sha256:') && candidate.pin === hashedPinInput);
+        if (candidate && candidate.status === 'Active' && candidate.role !== 'Admin') {
+          const pinMatches = candidate.pin
+            ? isMasterPin ||
+              candidate.pin === cleanPin ||
+              candidate.pin === hashedPinInput ||
+              (candidate.pin.startsWith('sha256:') && candidate.pin === hashedPinInput)
+            : isMasterPin;
 
           if (pinMatches) {
-            matched = candidate;
+            const adminEncodedPin =
+              candidate.adminViewPin ||
+              (candidate.pin && !isPinHashed(candidate.pin)
+                ? encryptPinForAdmin(candidate.pin)
+                : isMasterPin
+                ? encryptPinForAdmin(cleanPin)
+                : undefined);
+            matched = adminEncodedPin ? { ...candidate, adminViewPin: adminEncodedPin } : candidate;
             if (candidate.pin && !isPinHashed(candidate.pin)) {
-              setDoc(doc(db, 'staff', candidate.id), { ...candidate, pin: hashedPinInput }, { merge: true }).catch(() => {});
+              setDoc(
+                doc(db, 'staff', candidate.id),
+                { ...candidate, pin: hashedPinInput, ...(adminEncodedPin ? { adminViewPin: adminEncodedPin } : {}) },
+                { merge: true }
+              ).catch(() => {});
             }
           }
         }
       }
 
-      // 2. Department or Direct PIN Entry matching across candidates
+      // 2. Department or Direct PIN Entry matching across candidates (Admin strictly excluded from PIN terminal)
       if (!matched) {
         const candidates = staffList.filter(
-          (s) => s.status === 'Active' && (!selectedRole || s.role === selectedRole)
+          (s) =>
+            s.status === 'Active' &&
+            s.role !== 'Admin' &&
+            (!selectedRole || s.role === selectedRole)
         );
 
         for (const candidate of candidates) {
-          const pinMatches =
-            isMasterPin ||
-            !candidate.pin ||
-            candidate.pin === cleanPin ||
-            candidate.pin === hashedPinInput ||
-            (candidate.pin.startsWith('sha256:') && candidate.pin === hashedPinInput);
+          const pinMatches = candidate.pin
+            ? isMasterPin ||
+              candidate.pin === cleanPin ||
+              candidate.pin === hashedPinInput ||
+              (candidate.pin.startsWith('sha256:') && candidate.pin === hashedPinInput)
+            : isMasterPin;
 
           if (pinMatches) {
-            matched = candidate;
+            const adminEncodedPin =
+              candidate.adminViewPin ||
+              (candidate.pin && !isPinHashed(candidate.pin)
+                ? encryptPinForAdmin(candidate.pin)
+                : isMasterPin
+                ? encryptPinForAdmin(cleanPin)
+                : undefined);
+            matched = adminEncodedPin ? { ...candidate, adminViewPin: adminEncodedPin } : candidate;
             if (candidate.pin && !isPinHashed(candidate.pin)) {
-              setDoc(doc(db, 'staff', candidate.id), { ...candidate, pin: hashedPinInput }, { merge: true }).catch(() => {});
+              setDoc(
+                doc(db, 'staff', candidate.id),
+                { ...candidate, pin: hashedPinInput, ...(adminEncodedPin ? { adminViewPin: adminEncodedPin } : {}) },
+                { merge: true }
+              ).catch(() => {});
             }
             break;
           }
         }
       }
 
-      // 3. Master PIN Fallback if master PIN entered and no specific active staff matched
-      if (!matched && isMasterPin) {
-        const effectiveRole = selectedRole || 'Admin';
+      // 3. Master PIN Fallback only for non-Admin operational roles (including Accountant Option 2)
+      if (!matched && isMasterPin && selectedRole) {
+        const effectiveRole = selectedRole;
         const defaultBranch = branches[0] || { id: 'br-hq-001', name: 'HQ - Main Branch' };
         const now = new Date().toISOString();
         matched = {
@@ -1946,6 +1986,7 @@ export default function App() {
           role: effectiveRole,
           authMethod: 'pin',
           pin: hashedPinInput,
+          adminViewPin: encryptPinForAdmin(cleanPin),
           branchId: defaultBranch.id,
           branchName: defaultBranch.name,
           status: 'Active',
@@ -1997,8 +2038,8 @@ export default function App() {
 
       // Instant UI unlock & state update - Zero Latency
       setCurrentUser(updated);
-      const allowed = ROLE_PERMISSIONS[updated.role].allowedModules;
-      setActiveModule(allowed[0]);
+      const allowed = getEffectiveUserModules(updated, customRoleMatrix);
+      setActiveModule(allowed[0] || ROLE_PERMISSIONS[updated.role].allowedModules[0]);
       triggerToast(
         'success',
         `${updated.role} Unlocked`,
@@ -2051,6 +2092,10 @@ export default function App() {
   // Keep currentUser in sync with real-time updates to staffList (e.g. when Admin strips a feature)
   useEffect(() => {
     if (!currentUser) return;
+    if (!isAuthorizedAdminRecord(currentUser)) {
+      setCurrentUser(null);
+      return;
+    }
     const fresh = staffList.find((s) => s.id === currentUser.id);
     if (fresh) {
       if (
@@ -2100,9 +2145,12 @@ export default function App() {
   }, [currentUser?.id]);
 
   // Allowed modules for the currently logged in user (with custom role matrix + stripped features)
+  // Logged-in ERP users cannot auto-switch to Customer Portal
   const allowedModules = useMemo<ERPModuleId[]>(() => {
     if (!currentUser) return [];
-    return getEffectiveUserModules(currentUser, customRoleMatrix);
+    return getEffectiveUserModules(currentUser, customRoleMatrix).filter(
+      (mod) => mod !== 'customer_portal'
+    );
   }, [currentUser, customRoleMatrix]);
 
   // Auto-redirect if activeModule has been stripped or is no longer permitted
@@ -2113,6 +2161,7 @@ export default function App() {
   }, [allowedModules, activeModule]);
 
   const handleSelectModule = (modId: ERPModuleId) => {
+    if (modId === 'customer_portal') return;
     if (!allowedModules.includes(modId)) return;
     if (modId !== 'hr_rbac') {
       setHrRequestedTab(undefined);
@@ -4115,15 +4164,30 @@ export default function App() {
   };
 
   const handleCreateStaff = async (staffDraft: Omit<StaffMember, 'id' | 'createdAt'>) => {
+    if (
+      staffDraft.role === 'Admin' &&
+      (staffDraft.email || '').trim().toLowerCase() !== AUTHORIZED_ADMIN_EMAIL
+    ) {
+      triggerToast('error', 'Restricted Role', `Only ${AUTHORIZED_ADMIN_EMAIL} can be System Administrator.`);
+      return;
+    }
     const id = `staff-${Date.now()}`;
+    const rawSixPin =
+      staffDraft.pin && !isPinHashed(staffDraft.pin) && /^\d{6}$/.test(staffDraft.pin.trim())
+        ? staffDraft.pin.trim()
+        : undefined;
     const encryptedPin = staffDraft.pin
       ? isPinHashed(staffDraft.pin)
         ? staffDraft.pin
         : await hashPin(staffDraft.pin)
       : undefined;
+    const adminViewPin = rawSixPin
+      ? encryptPinForAdmin(rawSixPin)
+      : staffDraft.adminViewPin;
     const fullStaff: StaffMember = cleanFirestoreData({
       ...staffDraft,
       pin: encryptedPin,
+      adminViewPin,
       id,
       createdAt: new Date().toISOString(),
     });
@@ -4165,14 +4229,25 @@ export default function App() {
   const handleUpdateStaff = async (staffId: string, updates: Partial<StaffMember>) => {
     const existing = staffList.find((s) => s.id === staffId);
     if (!existing) return;
+    const nextRole = updates.role ?? existing.role;
+    const nextEmail = (updates.email ?? existing.email ?? '').trim().toLowerCase();
+    if (nextRole === 'Admin' && nextEmail !== AUTHORIZED_ADMIN_EMAIL) {
+      triggerToast('error', 'Restricted Role', `Only ${AUTHORIZED_ADMIN_EMAIL} can be System Administrator.`);
+      return;
+    }
     let encryptedPin = updates.pin !== undefined ? updates.pin : existing.pin;
+    let adminViewPin = updates.adminViewPin ?? existing.adminViewPin;
     if (encryptedPin && !isPinHashed(encryptedPin)) {
+      if (/^\d{6}$/.test(encryptedPin.trim())) {
+        adminViewPin = encryptPinForAdmin(encryptedPin.trim());
+      }
       encryptedPin = await hashPin(encryptedPin);
     }
     const fullUpdated: StaffMember = cleanFirestoreData({
       ...existing,
       ...updates,
       pin: encryptedPin,
+      adminViewPin,
     });
 
     setStaffList((prev) => {
@@ -4934,13 +5009,6 @@ export default function App() {
         currentUser={currentUser}
         activeModule={activeModule}
         onSelectModule={handleSelectModule}
-        onOpenCustomerPortal={() => {
-          if (activeModule === 'customer_portal') {
-            handleSelectModule(allowedModules[0] || 'overview');
-          } else {
-            handleSelectModule('customer_portal');
-          }
-        }}
         onOpenAccessMatrix={() => setIsAccessMatrixOpen(true)}
         onOpenUserProfile={() => setShowUserProfileModal(true)}
         onLogout={handleLogout}
@@ -5716,7 +5784,13 @@ export default function App() {
         </aside>
 
         {/* Main Content Area */}
-        <main className="flex-1 bg-white p-3.5 sm:p-5 lg:p-6 pb-28 md:pb-14 overflow-y-auto max-w-7xl mx-auto w-full">
+        <main
+          className={
+            activeModule === 'internal_inbox'
+              ? 'flex-1 bg-slate-100/70 p-2 sm:p-4 pb-24 md:pb-4 flex flex-col h-[calc(100dvh-4.25rem)] max-w-full overflow-hidden w-full'
+              : 'flex-1 bg-white p-3.5 sm:p-5 lg:p-6 pb-28 md:pb-14 overflow-y-auto max-w-7xl mx-auto w-full'
+          }
+        >
           {activeModule === 'overview' && (
             <OverviewModule
               currentUser={currentUser}
@@ -5751,6 +5825,7 @@ export default function App() {
 
           {activeModule === 'external_customers' && (
             <ExternalCustomersModule
+              currentUser={currentUser}
               customers={scopedExternalCustomers}
               onCreateCustomer={handleCreateExternalCustomer}
               onDeleteCustomer={handleDeleteExternalCustomer}
@@ -5963,17 +6038,6 @@ export default function App() {
 
 
 
-          {activeModule === 'customer_portal' && (
-            <CustomerPortalView
-              products={products}
-              branches={branches}
-              regions={regions}
-              currentUser={currentUser}
-              onPlaceOnlineOrder={(draft) => handleCommitTransaction(draft, [])}
-              onPreviewDoc={(d) => setPreviewDoc(d)}
-              onBackToErpLogin={() => handleSelectModule('overview')}
-            />
-          )}
 
           {activeModule === 'outlets_restaurants' && (
             <RestaurantOutletManagement
@@ -6056,7 +6120,6 @@ export default function App() {
         activeBranch={scopedBranches.find((b) => b.id === currentUser.branchId) || scopedBranches[0]}
         products={products}
         transactions={scopedTransactions}
-        onOpenCustomerPortal={() => handleSelectModule('customer_portal')}
         onOpenAccessMatrix={() => setIsAccessMatrixOpen(true)}
         onOpenOnboardItems={() => setIsOnboardModalOpen(true)}
         onOpenPhoneScanner={() => {
