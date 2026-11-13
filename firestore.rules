@@ -202,6 +202,38 @@ service cloud.firestore {
              data.updatedAt is string && data.updatedAt.size() <= 64;
     }
 
+    function isValidExpense(data) {
+      return data.keys().hasAll(['expenseNo', 'title', 'category', 'amountKes', 'branchName', 'paymentMethod', 'expenseDate', 'status', 'recordedBy', 'createdAt']) &&
+             data.expenseNo is string && data.expenseNo.size() <= 48 &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 160 &&
+             data.category in ['Rent & Warehouse Lease', 'Utilities & Power', 'Fuel & Fleet Logistics', 'KRA Excise & Licenses', 'Staff Allowances & Casuals', 'Marketing & Promotions', 'Repairs & Maintenance', 'Office & POS Supplies', 'Security & Insurance', 'Petty Cash & Miscellaneous'] &&
+             data.amountKes is number && data.amountKes > 0 &&
+             data.branchName is string && data.branchName.size() <= 120 &&
+             data.paymentMethod in ['M-Pesa', 'Cash', 'Bank Transfer', 'Petty Cash', 'Cheque', 'Credit / Payable'] &&
+             data.expenseDate is string && data.expenseDate.size() <= 32 &&
+             data.status in ['Recorded', 'Approved', 'Paid'] &&
+             data.recordedBy is string && data.recordedBy.size() <= 120 &&
+             data.createdAt is string && data.createdAt.size() <= 64;
+    }
+
+    function isValidLeaveRequest(data) {
+      return data.keys().hasAll(['requestNo', 'staffId', 'staffName', 'staffRole', 'branchName', 'leaveType', 'startDate', 'endDate', 'totalDays', 'urgency', 'reason', 'status', 'createdAt']) &&
+             data.requestNo is string && data.requestNo.size() >= 1 && data.requestNo.size() <= 48 &&
+             data.staffId is string && data.staffId.size() >= 1 && data.staffId.size() <= 128 &&
+             data.staffName is string && data.staffName.size() >= 1 && data.staffName.size() <= 120 &&
+             data.staffRole is string && data.staffRole.size() <= 80 &&
+             data.branchName is string && data.branchName.size() <= 120 &&
+             data.leaveType in ['Annual Leave', 'Off-Day', 'Emergency Leave', 'Maternity Leave', 'Paternity Leave', 'Sick / Medical Leave', 'Compassionate / Study Leave'] &&
+             data.startDate is string && data.startDate.size() <= 32 &&
+             data.endDate is string && data.endDate.size() <= 32 &&
+             data.totalDays is number && data.totalDays > 0 && data.totalDays <= 365 &&
+             data.urgency in ['Standard', 'Urgent', 'Emergency'] &&
+             data.reason is string && data.reason.size() >= 1 && data.reason.size() <= 800 &&
+             data.status in ['Pending HR Approval', 'Approved', 'Declined', 'Cancelled'] &&
+             (!('hrDecisionNote' in data) || (data.hrDecisionNote is string && data.hrDecisionNote.size() <= 500)) &&
+             data.createdAt is string && data.createdAt.size() <= 64;
+    }
+
     match /test/{docId} {
       allow get: if isValidId(docId);
     }
@@ -333,6 +365,18 @@ service cloud.firestore {
       allow get, list: if true;
       allow create, update: if isValidId(typingId) && isValidInternalChatTyping(incoming());
       allow delete: if isValidId(typingId);
+    }
+
+    match /expenses/{expenseId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(expenseId) && isValidExpense(incoming());
+      allow delete: if isValidId(expenseId);
+    }
+
+    match /leave_requests/{requestId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(requestId) && isValidLeaveRequest(incoming());
+      allow delete: if isValidId(requestId);
     }
   }
 }

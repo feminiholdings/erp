@@ -167,18 +167,33 @@
     },
     "StockTransfer": {
       "title": "StockTransfer",
-      "description": "Inter-branch stock movement under customs/excise bond",
+      "description": "Inter-branch stock movement or warehouse purchase order under customs/excise bond",
       "type": "object",
       "properties": {
         "transferNo": { "type": "string", "maxLength": 48 },
+        "purchaseBatchNo": { "type": "string", "maxLength": 48 },
+        "orderType": { "type": "string", "enum": ["WAREHOUSE_PURCHASE", "INTER_BRANCH_TRANSFER"] },
         "fromBranchId": { "type": "string", "maxLength": 128 },
         "fromBranchName": { "type": "string", "maxLength": 120 },
+        "fromFacilityType": { "type": "string", "maxLength": 40 },
         "toBranchId": { "type": "string", "maxLength": 128 },
         "toBranchName": { "type": "string", "maxLength": 120 },
+        "toFacilityType": { "type": "string", "maxLength": 40 },
         "productId": { "type": "string", "maxLength": 128 },
         "sku": { "type": "string", "maxLength": 48 },
         "productName": { "type": "string", "maxLength": 160 },
         "quantityBottles": { "type": "number" },
+        "unitPriceKes": { "type": "number" },
+        "totalAmountKes": { "type": "number" },
+        "paymentMethod": { "type": "string", "maxLength": 80 },
+        "paymentStatus": { "type": "string", "enum": ["Pending Settlement", "Invoiced", "Paid / Settled"] },
+        "linkedInvoiceId": { "type": "string", "maxLength": 128 },
+        "linkedInvoiceNo": { "type": "string", "maxLength": 48 },
+        "linkedDeliveryNoteId": { "type": "string", "maxLength": 128 },
+        "linkedDeliveryNoteNo": { "type": "string", "maxLength": 48 },
+        "linkedReceiptId": { "type": "string", "maxLength": 128 },
+        "linkedReceiptNo": { "type": "string", "maxLength": 48 },
+        "orderNotes": { "type": "string", "maxLength": 400 },
         "logisticsPartnerName": { "type": "string", "maxLength": 140 },
         "vehicleReg": { "type": "string", "maxLength": 40 },
         "excisePermitNo": { "type": "string", "maxLength": 80 },
@@ -202,14 +217,19 @@
       "properties": {
         "docNumber": { "type": "string", "maxLength": 48 },
         "docType": { "type": "string", "enum": ["Receipt", "Invoice", "Quote", "Packing List", "Delivery Note", "Credit Note", "Online Order"] },
-        "channel": { "type": "string", "enum": ["Retail Counter POS", "B2B Wholesale POS", "Customer Online Portal", "Affiliate Rep"] },
+        "channel": { "type": "string", "enum": ["Retail Counter POS", "B2B Wholesale POS", "Customer Online Portal", "Affiliate Rep", "Restaurant & Club POS", "Merchant Shop POS"] },
+        "orderCategory": { "type": "string", "enum": ["POS_SALE", "WAREHOUSE_PURCHASE", "FACILITY_DOCUMENT"] },
         "branchId": { "type": "string", "maxLength": 128 },
         "branchName": { "type": "string", "maxLength": 120 },
+        "supplierFacilityType": { "type": "string", "maxLength": 40 },
+        "buyerBranchId": { "type": "string", "maxLength": 128 },
+        "buyerBranchName": { "type": "string", "maxLength": 120 },
         "regionId": { "type": "string", "maxLength": 128 },
         "regionName": { "type": "string", "maxLength": 120 },
         "customerName": { "type": "string", "maxLength": 160 },
         "customerPhone": { "type": "string", "maxLength": 48 },
         "customerEmail": { "type": "string", "maxLength": 160 },
+        "customerKraPin": { "type": "string", "maxLength": 48 },
         "customerLicenseNo": { "type": "string", "maxLength": 80 },
         "deliveryAddress": { "type": "string", "maxLength": 300 },
         "deliveryNotes": { "type": "string", "maxLength": 400 },
@@ -226,6 +246,10 @@
         "paymentMethod": { "type": "string", "maxLength": 60 },
         "status": { "type": "string", "enum": ["Paid", "Issued", "Approved", "Fulfilled", "Credited", "Pending Verification"] },
         "relatedInvoiceNo": { "type": "string", "maxLength": 48 },
+        "linkedTransferId": { "type": "string", "maxLength": 128 },
+        "linkedTransferNo": { "type": "string", "maxLength": 48 },
+        "validUntil": { "type": "string", "maxLength": 40 },
+        "notes": { "type": "string", "maxLength": 400 },
         "creditReason": { "type": "string", "maxLength": 250 },
         "createdBy": { "type": "string", "maxLength": 120 },
         "createdByRole": { "type": "string", "maxLength": 80 },
@@ -392,6 +416,112 @@
         "updatedAt": { "type": "string", "maxLength": 64 }
       },
       "required": ["staffId", "staffName", "staffRole", "threadId", "threadType", "isTyping", "updatedAtMs", "updatedAt"]
+    },
+    "AccountingExpense": {
+      "title": "AccountingExpense",
+      "description": "Operating expense voucher and overhead disbursement logged by Accountant or Admin",
+      "type": "object",
+      "properties": {
+        "expenseNo": { "type": "string", "maxLength": 48 },
+        "title": { "type": "string", "maxLength": 160 },
+        "category": {
+          "type": "string",
+          "enum": [
+            "Rent & Warehouse Lease",
+            "Utilities & Power",
+            "Fuel & Fleet Logistics",
+            "KRA Excise & Licenses",
+            "Staff Allowances & Casuals",
+            "Marketing & Promotions",
+            "Repairs & Maintenance",
+            "Office & POS Supplies",
+            "Security & Insurance",
+            "Petty Cash & Miscellaneous"
+          ]
+        },
+        "amountKes": { "type": "number" },
+        "branchId": { "type": "string", "maxLength": 128 },
+        "branchName": { "type": "string", "maxLength": 120 },
+        "paymentMethod": {
+          "type": "string",
+          "enum": ["M-Pesa", "Cash", "Bank Transfer", "Petty Cash", "Cheque", "Credit / Payable"]
+        },
+        "referenceNo": { "type": "string", "maxLength": 80 },
+        "vendorName": { "type": "string", "maxLength": 140 },
+        "expenseDate": { "type": "string", "maxLength": 32 },
+        "status": { "type": "string", "enum": ["Recorded", "Approved", "Paid"] },
+        "notes": { "type": "string", "maxLength": 400 },
+        "recordedBy": { "type": "string", "maxLength": 120 },
+        "recordedByRole": { "type": "string", "maxLength": 80 },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["expenseNo", "title", "category", "amountKes", "branchName", "paymentMethod", "expenseDate", "status", "recordedBy", "createdAt"]
+    },
+    "LeaveRequest": {
+      "title": "LeaveRequest",
+      "description": "Employee leave, off-day, emergency, sick, maternity, or paternity request reviewed by HR",
+      "type": "object",
+      "properties": {
+        "requestNo": { "type": "string", "maxLength": 48 },
+        "staffId": { "type": "string", "maxLength": 128 },
+        "staffName": { "type": "string", "maxLength": 120 },
+        "staffEmail": { "type": "string", "maxLength": 180 },
+        "staffPhone": { "type": "string", "maxLength": 40 },
+        "staffRole": { "type": "string", "maxLength": 80 },
+        "branchId": { "type": "string", "maxLength": 128 },
+        "branchName": { "type": "string", "maxLength": 120 },
+        "leaveType": {
+          "type": "string",
+          "enum": [
+            "Annual Leave",
+            "Off-Day",
+            "Emergency Leave",
+            "Maternity Leave",
+            "Paternity Leave",
+            "Sick / Medical Leave",
+            "Compassionate / Study Leave"
+          ]
+        },
+        "durationMode": {
+          "type": "string",
+          "enum": ["Full Days", "Half Day (Morning)", "Half Day (Afternoon)"]
+        },
+        "startDate": { "type": "string", "maxLength": 32 },
+        "endDate": { "type": "string", "maxLength": 32 },
+        "totalDays": { "type": "number" },
+        "urgency": { "type": "string", "enum": ["Standard", "Urgent", "Emergency"] },
+        "reason": { "type": "string", "maxLength": 800 },
+        "reliefStaffId": { "type": "string", "maxLength": 128 },
+        "reliefStaffName": { "type": "string", "maxLength": 120 },
+        "emergencyContactName": { "type": "string", "maxLength": 120 },
+        "emergencyContactPhone": { "type": "string", "maxLength": 40 },
+        "expectedDeliveryDate": { "type": "string", "maxLength": 32 },
+        "status": {
+          "type": "string",
+          "enum": ["Pending HR Approval", "Approved", "Declined", "Cancelled"]
+        },
+        "hrReviewerName": { "type": "string", "maxLength": 120 },
+        "hrReviewerRole": { "type": "string", "maxLength": 80 },
+        "hrReviewedAt": { "type": "string", "maxLength": 64 },
+        "hrDecisionNote": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": [
+        "requestNo",
+        "staffId",
+        "staffName",
+        "staffRole",
+        "branchName",
+        "leaveType",
+        "startDate",
+        "endDate",
+        "totalDays",
+        "urgency",
+        "reason",
+        "status",
+        "createdAt"
+      ]
     }
   },
   "firestore": {
@@ -458,6 +588,14 @@
     "/internal_chat_typing/{typingId}": {
       "schema": { "$ref": "#/entities/InternalChatTypingSignal" },
       "description": "Real-time typing signal documents keyed by staff ID for internal chat threads"
+    },
+    "/expenses/{expenseId}": {
+      "schema": { "$ref": "#/entities/AccountingExpense" },
+      "description": "Recorded operating expenses and overheads managed by Accounting"
+    },
+    "/leave_requests/{requestId}": {
+      "schema": { "$ref": "#/entities/LeaveRequest" },
+      "description": "Company leave, off-day, emergency, and maternity/paternity requests submitted by staff and reviewed by HR"
     }
   }
 }
