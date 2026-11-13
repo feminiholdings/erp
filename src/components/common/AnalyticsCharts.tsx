@@ -34,6 +34,7 @@ interface BarGraphProps {
   badge?: string;
   emptyMessage?: string;
   activeColor?: string;
+  mode?: 'sum' | 'compare';
 }
 
 export const BarGraph: React.FC<BarGraphProps> = ({
@@ -45,15 +46,21 @@ export const BarGraph: React.FC<BarGraphProps> = ({
   badge,
   emptyMessage = 'No transaction data available yet',
   activeColor = '#0A006E',
+  mode = 'sum',
 }) => {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
   const maxValue = useMemo(() => {
-    const max = Math.max(...data.map((d) => d.value), 0);
+    const max = Math.max(...data.map((d) => Math.abs(d.value)), 0);
     return max > 0 ? max * 1.15 : 100;
   }, [data]);
 
   const total = useMemo(() => data.reduce((acc, curr) => acc + curr.value, 0), [data]);
+  const hasNonZero = useMemo(() => data.some((d) => Math.abs(d.value) > 0), [data]);
+  const peakEntry = useMemo(() => {
+    if (data.length === 0) return null;
+    return data.reduce((best, curr) => (Math.abs(curr.value) > Math.abs(best.value) ? curr : best), data[0]);
+  }, [data]);
 
   // Generate 4 Y-axis ticks
   const yTicks = useMemo(() => {
@@ -64,14 +71,14 @@ export const BarGraph: React.FC<BarGraphProps> = ({
     }));
   }, [maxValue, valueFormatter]);
 
-  const chartPadding = { top: 25, bottom: 45, left: 60, right: 20 };
-  const chartWidth = 520;
+  const chartPadding = { top: 28, bottom: 48, left: 64, right: 20 };
+  const chartWidth = 560;
   const usableWidth = chartWidth - chartPadding.left - chartPadding.right;
   const usableHeight = height - chartPadding.top - chartPadding.bottom;
   const barSpacing = data.length > 0 ? usableWidth / data.length : usableWidth;
-  const barWidth = Math.max(14, Math.min(36, barSpacing * 0.58));
+  const barWidth = Math.max(16, Math.min(40, barSpacing * 0.56));
 
-  if (!data || data.length === 0 || total === 0) {
+  if (!data || data.length === 0 || !hasNonZero) {
     return (
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -114,10 +121,10 @@ export const BarGraph: React.FC<BarGraphProps> = ({
         </div>
         <div className="text-right">
           <div className="text-[10px] font-montserrat font-bold text-slate-400 uppercase">
-            Total Metric
+            {mode === 'compare' ? (peakEntry ? `Peak (${peakEntry.label})` : 'Peak') : 'Total Metric'}
           </div>
           <div className="text-sm font-montserrat font-black text-[#0A006E] font-mono-tabular">
-            {valueFormatter(total)}
+            {mode === 'compare' && peakEntry ? valueFormatter(peakEntry.value) : valueFormatter(total)}
           </div>
         </div>
       </div>
@@ -156,15 +163,23 @@ export const BarGraph: React.FC<BarGraphProps> = ({
 
           {/* Vertical Bars */}
           {data.map((item, idx) => {
-            const barHeight = Math.max(4, (item.value / maxValue) * usableHeight);
+            const absVal = Math.abs(item.value);
+            const isNegative = item.value < 0;
+            const barHeight = absVal === 0 ? 2 : Math.max(4, (absVal / maxValue) * usableHeight);
             const xPos =
               chartPadding.left +
               idx * barSpacing +
               (barSpacing - barWidth) / 2;
             const yPos = chartPadding.top + usableHeight - barHeight;
             const isHovered = hoveredIdx === idx;
-            const fill = item.color || (isHovered ? '#FFDE00' : activeColor);
-            const pctOfTotal = total > 0 ? ((item.value / total) * 100).toFixed(1) : '0';
+            const fill = isNegative ? '#E11D48' : item.color || (isHovered ? '#FFDE00' : activeColor);
+            const pctOfTotal = total > 0 && mode === 'sum' ? ((item.value / total) * 100).toFixed(1) : null;
+            const compactVal =
+              absVal >= 1000000
+                ? `${isNegative ? '-' : ''}${(absVal / 1000000).toFixed(1)}M`
+                : absVal >= 1000
+                ? `${isNegative ? '-' : ''}${(absVal / 1000).toFixed(0)}k`
+                : `${item.value}`;
 
             return (
               <g
@@ -192,10 +207,12 @@ export const BarGraph: React.FC<BarGraphProps> = ({
                   width={barWidth}
                   height={barHeight}
                   fill={fill}
+                  fillOpacity={absVal === 0 ? 0.25 : 1}
                   rx="6"
                   ry="6"
-                  stroke={isHovered ? '#0A006E' : 'none'}
-                  strokeWidth={isHovered ? '2' : '0'}
+                  stroke={isHovered ? '#0A006E' : isNegative ? '#9F1239' : 'none'}
+                  strokeWidth={isHovered ? '2' : isNegative ? '1.5' : '0'}
+                  strokeDasharray={isNegative ? '4 2' : undefined}
                   className="transition-all duration-200"
                 />
 
@@ -203,13 +220,13 @@ export const BarGraph: React.FC<BarGraphProps> = ({
                 {(isHovered || data.length <= 6) && (
                   <text
                     x={xPos + barWidth / 2}
-                    y={Math.max(chartPadding.top - 6, yPos - 5)}
+                    y={Math.max(chartPadding.top - 8, yPos - 6)}
                     textAnchor="middle"
                     className={`text-[9px] font-montserrat font-bold font-mono-tabular ${
-                      isHovered ? 'fill-[#0A006E] font-black' : 'fill-slate-600'
+                      isNegative ? 'fill-rose-700 font-black' : isHovered ? 'fill-[#0A006E] font-black' : 'fill-slate-600'
                     }`}
                   >
-                    {item.formattedValue || (item.value >= 1000 ? `${(item.value / 1000).toFixed(0)}k` : item.value)}
+                    {item.formattedValue || compactVal}
                   </text>
                 )}
 
@@ -218,21 +235,21 @@ export const BarGraph: React.FC<BarGraphProps> = ({
                   x={xPos + barWidth / 2}
                   y={chartPadding.top + usableHeight + 16}
                   textAnchor="middle"
-                  className={`text-[10px] font-montserrat font-bold ${
+                  className={`text-[9.5px] font-montserrat font-bold ${
                     isHovered ? 'fill-[#0A006E]' : 'fill-slate-600'
                   }`}
                 >
-                  {item.label.length > 9 ? `${item.label.slice(0, 8)}…` : item.label}
+                  {item.label.length > 12 ? `${item.label.slice(0, 11)}…` : item.label}
                 </text>
 
                 {/* Secondary subtitle under X-axis */}
                 <text
                   x={xPos + barWidth / 2}
-                  y={chartPadding.top + usableHeight + 28}
+                  y={chartPadding.top + usableHeight + 29}
                   textAnchor="middle"
-                  className="text-[8.5px] fill-slate-400 font-mono-tabular"
+                  className={`text-[8.5px] font-mono-tabular ${isNegative ? 'fill-rose-600 font-bold' : 'fill-slate-400'}`}
                 >
-                  {item.secondaryLabel || `${pctOfTotal}%`}
+                  {item.secondaryLabel || (pctOfTotal !== null ? `${pctOfTotal}%` : isNegative ? 'Loss' : '')}
                 </text>
               </g>
             );
@@ -247,18 +264,26 @@ export const BarGraph: React.FC<BarGraphProps> = ({
             <div className="flex items-center gap-2">
               <span
                 className="w-2.5 h-2.5 rounded-full"
-                style={{ backgroundColor: data[hoveredIdx].color || activeColor }}
+                style={{ backgroundColor: data[hoveredIdx].value < 0 ? '#E11D48' : data[hoveredIdx].color || activeColor }}
               />
               <span className="font-montserrat font-bold text-slate-800">
                 {data[hoveredIdx].label}:
               </span>
-              <strong className="text-[#0A006E] font-mono-tabular">
+              <strong className={`font-mono-tabular ${data[hoveredIdx].value < 0 ? 'text-rose-700' : 'text-[#0A006E]'}`}>
                 {valueFormatter(data[hoveredIdx].value)}
               </strong>
             </div>
-            <span className="text-[11px] font-mono-tabular font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-              {total > 0 ? ((data[hoveredIdx].value / total) * 100).toFixed(1) : 0}% of Total
-            </span>
+            {mode === 'sum' && total > 0 ? (
+              <span className="text-[11px] font-mono-tabular font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                {((data[hoveredIdx].value / total) * 100).toFixed(1)}% of Total
+              </span>
+            ) : (
+              <span className={`text-[11px] font-mono-tabular font-bold px-2 py-0.5 rounded-full ${
+                data[hoveredIdx].value < 0 ? 'text-rose-700 bg-rose-100' : 'text-[#0A006E] bg-slate-200/70'
+              }`}>
+                {data[hoveredIdx].secondaryLabel || (data[hoveredIdx].value < 0 ? 'Deficit' : 'Ledger Metric')}
+              </span>
+            )}
           </>
         ) : (
           <div className="flex items-center gap-2 text-slate-500 text-[11px]">

@@ -65,6 +65,7 @@ const ALL_MODULES: { id: ERPModuleId; label: string }[] = [
   { id: 'documents_credit', label: 'Docs, Receipts & Credit' },
   { id: 'compliance', label: 'Excise & Regulatory Stamps' },
   { id: 'hr_rbac', label: 'HR Provisioning & Roles' },
+  { id: 'leave_management', label: 'Leave, Off & Emergency' },
   { id: 'audit_security', label: 'User Monitoring & Logs' },
   { id: 'outlets_restaurants', label: 'Outlets, Bars & Clubs' },
 ];

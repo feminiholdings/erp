@@ -17,6 +17,7 @@ import {
   Package,
   Printer,
   Navigation,
+  Calendar,
 } from 'lucide-react';
 
 interface DeliveryManagementModuleProps {
@@ -28,6 +29,7 @@ interface DeliveryManagementModuleProps {
   onInspectCustomerOrder?: (tx: TransactionDoc) => void;
   onProcessDeliveryUpdate?: (txId: string, updates: Partial<TransactionDoc>) => Promise<boolean>;
   onPreviewDoc?: (doc: TransactionDoc) => void;
+  onNavigateModule?: (module: any) => void;
   onTriggerToast: (type: 'success' | 'error', title: string, message: string) => void;
 }
 
@@ -40,6 +42,7 @@ export const DeliveryManagementModule: React.FC<DeliveryManagementModuleProps> =
   onInspectCustomerOrder,
   onProcessDeliveryUpdate,
   onPreviewDoc,
+  onNavigateModule,
   onTriggerToast,
 }) => {
   const {
@@ -243,7 +246,17 @@ export const DeliveryManagementModule: React.FC<DeliveryManagementModuleProps> =
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          {onNavigateModule && (
+            <button
+              type="button"
+              onClick={() => onNavigateModule('leave_management')}
+              className="px-4 py-3 bg-white hover:bg-slate-50 text-[#0A006E] rounded-2xl text-xs font-montserrat font-black flex items-center gap-2 cursor-pointer shadow-lg transition active:scale-95"
+            >
+              <Calendar className="w-4 h-4 text-fuchsia-600" />
+              Request Leave / Off
+            </button>
+          )}
           {onCreateStaff && (
             <button
               type="button"

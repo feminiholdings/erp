@@ -51,6 +51,7 @@ import {
   Phone,
   Clock,
   XCircle,
+  Calendar,
 } from 'lucide-react';
 import {
   StaffMember,
@@ -69,6 +70,8 @@ import {
   InventoryThresholdSettings,
   ExternalCustomer,
   ComplianceRecord,
+  AccountingExpense,
+  LeaveRequest,
 } from '../types';
 import {
   generateAutoSku,
@@ -106,6 +109,14 @@ export const OverviewModule: React.FC<{
   staffList: StaffMember[];
   latestPayrollRecord?: PayrollRecord | null;
   payrollRuns?: PayrollRun[];
+  expenses?: AccountingExpense[];
+  leaveRequests?: LeaveRequest[];
+  onOpenHrLeaveTab?: () => void;
+  onCreateExpense?: (
+    draft: Omit<AccountingExpense, 'id' | 'expenseNo' | 'createdAt' | 'recordedBy' | 'recordedByRole'>
+  ) => Promise<void> | void;
+  onUpdateExpenseStatus?: (expenseId: string, status: AccountingExpense['status']) => Promise<void> | void;
+  onDeleteExpense?: (expenseId: string) => Promise<void> | void;
   onOpenPayslip?: (record: PayrollRecord) => void;
   onPreviewDoc: (doc: TransactionDoc) => void;
   onInspectOrder?: (doc: TransactionDoc) => void;
@@ -128,6 +139,12 @@ export const OverviewModule: React.FC<{
   staffList,
   latestPayrollRecord,
   payrollRuns = [],
+  expenses = [],
+  leaveRequests = [],
+  onOpenHrLeaveTab,
+  onCreateExpense,
+  onUpdateExpenseStatus,
+  onDeleteExpense,
   onOpenPayslip,
   onPreviewDoc,
   onInspectOrder,
@@ -141,31 +158,57 @@ export const OverviewModule: React.FC<{
   const isAccountant = currentUser.role === 'Accountant';
   const [adminOverviewView, setAdminOverviewView] = useState<'executive' | 'accounting'>('executive');
   const [adminSimpleView, setAdminSimpleView] = useState(true);
+  const [adminFocusSection, setAdminFocusSection] = useState<
+    'hub' | 'sales_performance' | 'charts' | 'branch_performance' | 'recent_docs' | 'transfers_queue' | 'delivery_queue'
+  >(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('erp_admin_focus_section') as any) || 'hub';
+    }
+    return 'hub';
+  });
+  const selectAdminFocusSection = (
+    sec: 'hub' | 'sales_performance' | 'charts' | 'branch_performance' | 'recent_docs' | 'transfers_queue' | 'delivery_queue'
+  ) => {
+    setAdminFocusSection(sec);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('erp_admin_focus_section', sec);
+    }
+  };
   const scopedBranchId =
     ROLE_PERMISSIONS[currentUser.role].scopeToAssignedBranch ? currentUser.branchId : '';
 
   const visibleTransactions = useMemo(
     () =>
       scopedBranchId
-        ? transactions.filter((t) => t.branchId === scopedBranchId)
+        ? transactions.filter(
+            (t) =>
+              t.branchId === scopedBranchId ||
+              t.buyerBranchId === scopedBranchId ||
+              t.buyerBranchName === currentUser.branchName
+          )
         : transactions,
-    [transactions, scopedBranchId]
+    [transactions, scopedBranchId, currentUser.branchName]
+  );
+
+  const externalVisibleTransactions = useMemo(
+    () => visibleTransactions.filter((t) => t.orderCategory !== 'WAREHOUSE_PURCHASE'),
+    [visibleTransactions]
   );
 
   const totalRevenue = useMemo(
     () =>
-      visibleTransactions
+      externalVisibleTransactions
         .filter((t) => t.docType === 'Receipt' || t.docType === 'Invoice' || t.docType === 'Online Order')
         .reduce((acc, t) => acc + t.totalAmount, 0),
-    [visibleTransactions]
+    [externalVisibleTransactions]
   );
 
   const totalCredits = useMemo(
     () =>
-      visibleTransactions
+      externalVisibleTransactions
         .filter((t) => t.docType === 'Credit Note')
         .reduce((acc, t) => acc + t.totalAmount, 0),
-    [visibleTransactions]
+    [externalVisibleTransactions]
   );
 
   const { totalBottlesInBond, ipsCount, lpsCount } = useMemo(() => {
@@ -188,6 +231,7 @@ export const OverviewModule: React.FC<{
         .filter(
           (t) =>
             t.branchId === b.id &&
+            t.orderCategory !== 'WAREHOUSE_PURCHASE' &&
             (t.docType === 'Receipt' || t.docType === 'Invoice' || t.docType === 'Online Order')
         )
         .reduce((s, t) => s + t.totalAmount, 0);
@@ -207,7 +251,7 @@ export const OverviewModule: React.FC<{
       'Customer Online Portal': { total: 0, color: '#F59E0B' },
       'Affiliate Rep': { total: 0, color: '#6366F1' },
     };
-    visibleTransactions.forEach((t) => {
+    externalVisibleTransactions.forEach((t) => {
       if (t.docType === 'Receipt' || t.docType === 'Invoice' || t.docType === 'Online Order') {
         const channel = t.channel || 'Retail Counter POS';
         if (channelMap[channel]) {
@@ -223,7 +267,7 @@ export const OverviewModule: React.FC<{
       color: info.color,
       sublabel: formatKes(info.total),
     }));
-  }, [visibleTransactions]);
+  }, [externalVisibleTransactions]);
 
   const assetPieData = useMemo(() => {
     let stockValuation = 0;
@@ -233,7 +277,7 @@ export const OverviewModule: React.FC<{
       stockValuation += bottles * unitCost;
     });
     let accountsReceivable = 0;
-    visibleTransactions.forEach((t) => {
+    externalVisibleTransactions.forEach((t) => {
       if (t.docType === 'Invoice' && t.status !== 'Paid') {
         accountsReceivable += t.totalAmount;
       }
@@ -244,11 +288,11 @@ export const OverviewModule: React.FC<{
       { label: 'Accounts Receivable', value: accountsReceivable || 3200000, color: '#34D186', sublabel: 'Unsettled B2B Invoices' },
       { label: 'Liquid Cash Reserves', value: cashReserve, color: '#F59E0B', sublabel: 'Central Treasury' },
     ];
-  }, [products, visibleTransactions]);
+  }, [products, externalVisibleTransactions]);
 
   const topSkusBarData = useMemo(() => {
     const skuMap: Record<string, { name: string; revenue: number }> = {};
-    visibleTransactions.forEach((tx) => {
+    externalVisibleTransactions.forEach((tx) => {
       if (tx.docType === 'Receipt' || tx.docType === 'Invoice' || tx.docType === 'Online Order') {
         try {
           const items = JSON.parse(tx.itemsSummary);
@@ -350,6 +394,10 @@ export const OverviewModule: React.FC<{
           staffList={staffList}
           complianceRecords={complianceRecords}
           payrollRuns={payrollRuns}
+          expenses={expenses}
+          onCreateExpense={onCreateExpense}
+          onUpdateExpenseStatus={onUpdateExpenseStatus}
+          onDeleteExpense={onDeleteExpense}
           onPreviewDoc={onPreviewDoc}
           onOpenKraReturns={onOpenKraReturns}
           onTriggerToast={onTriggerToast}
@@ -369,6 +417,14 @@ export const OverviewModule: React.FC<{
       (staffList.filter((s) => Boolean(s.nssfNo)).length / Math.max(1, staffList.length)) * 100
     );
     const latestRun = payrollRuns[0];
+    const pendingLeaveList = leaveRequests.filter((r) => r.status === 'Pending HR Approval');
+    const urgentLeaveList = pendingLeaveList.filter(
+      (r) =>
+        r.leaveType === 'Emergency Leave' ||
+        r.leaveType === 'Maternity Leave' ||
+        r.urgency === 'Emergency' ||
+        r.urgency === 'Urgent'
+    );
 
     return (
       <div className="space-y-6">
@@ -382,10 +438,22 @@ export const OverviewModule: React.FC<{
               Personnel Roster, Statutory Compliance &amp; Payroll KPIs
             </h2>
             <p className="text-xs text-slate-300 mt-0.5">
-              Approved management of 8-role personnel directory, 6-digit PIN issuance, and statutory deductions.
+              Approved management of personnel directory, leave &amp; emergency requests, 6-digit PINs, and statutory deductions.
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => (onOpenHrLeaveTab ? onOpenHrLeaveTab() : onNavigateModule?.('hr_rbac'))}
+              className={`px-3.5 py-2 rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 transition shadow-xs ${
+                urgentLeaveList.length > 0
+                  ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                  : 'bg-white hover:bg-slate-100 text-[#0A006E]'
+              }`}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              Leave &amp; Emergency Inbox ({pendingLeaveList.length})
+            </button>
             {onOpenKraReturns && (
               <button
                 onClick={() => onOpenKraReturns('PAYE_P10_SEC_B')}
@@ -410,6 +478,68 @@ export const OverviewModule: React.FC<{
               className="px-3.5 py-2 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-montserrat font-bold cursor-pointer transition whitespace-nowrap shrink-0"
             >
               Export CSV
+            </button>
+          </div>
+        </div>
+
+        {/* High-Visibility HR Leave, Off & Emergency Alert Banner */}
+        <div
+          className={`rounded-2xl p-4 sm:p-5 border-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm ${
+            urgentLeaveList.length > 0
+              ? 'bg-rose-50 border-rose-500'
+              : pendingLeaveList.length > 0
+              ? 'bg-amber-50 border-amber-400'
+              : 'bg-white border-slate-200'
+          }`}
+        >
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
+                urgentLeaveList.length > 0
+                  ? 'bg-rose-600 text-white'
+                  : pendingLeaveList.length > 0
+                  ? 'bg-amber-500 text-white'
+                  : 'bg-[#0A006E] text-[#FFDE00]'
+              }`}
+            >
+              <Calendar className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E] flex items-center gap-2 flex-wrap">
+                <span>Company Leave, Off-Day, Emergency &amp; Maternity Portal</span>
+                {pendingLeaveList.length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono-tabular font-black bg-[#0A006E] text-[#FFDE00]">
+                    {pendingLeaveList.length} Awaiting Review
+                  </span>
+                )}
+                {urgentLeaveList.length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono-tabular font-black bg-rose-600 text-white">
+                    {urgentLeaveList.length} Emergency / Maternity Priority
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-600 mt-0.5">
+                {pendingLeaveList.length > 0
+                  ? `${pendingLeaveList.length} staff leave/off request(s) await HR approval or decline decision.`
+                  : 'All staff leave, off-day, emergency, and maternity submissions appear here in real time.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('leave_management')}
+              className="px-3.5 py-2 bg-white hover:bg-slate-50 border border-[#0A006E]/30 text-[#0A006E] rounded-xl text-xs font-montserrat font-bold cursor-pointer transition"
+            >
+              Request Own Leave
+            </button>
+            <button
+              type="button"
+              onClick={() => (onOpenHrLeaveTab ? onOpenHrLeaveTab() : onNavigateModule?.('hr_rbac'))}
+              className="px-4 py-2 bg-[#0A006E] hover:bg-[#12009E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black cursor-pointer shadow-xs transition"
+            >
+              Review &amp; Approve / Decline →
             </button>
           </div>
         </div>
@@ -961,6 +1091,714 @@ export const OverviewModule: React.FC<{
     );
   }
 
+  if (currentUser.role === 'Admin' && adminSimpleView) {
+    const pendingTransfers = transfers.filter((tr) => tr.status === 'Pending Authorization');
+    const activeDeliveriesCount = visibleTransactions.filter(
+      (t) =>
+        (t.docType === 'Online Order' || t.channel === 'Customer Online Portal' || t.deliveryAddress) &&
+        t.deliveryStatus !== 'Delivered' &&
+        t.status !== 'Fulfilled'
+    ).length;
+
+    const sectionTitles: Record<string, string> = {
+      sales_performance: 'Sales Performance (Today · Week · Month · Year)',
+      charts: 'Interactive Charts & Graphical Performance Metrics',
+      branch_performance: 'Regional Branch Performance & Bonded Stock Distribution',
+      recent_docs: 'Latest Commercial Documents (Receipts, Invoices, Quotes & Credit Notes)',
+      transfers_queue: 'Pending Stock Transfer Authorizations',
+      delivery_queue: 'Customer Orders & Delivery Fulfillment',
+    };
+
+    if (adminFocusSection !== 'hub') {
+      return (
+        <div className="space-y-4 pb-8">
+          <div className="bg-[#0A006E] text-white border-2 border-[#FFDE00] rounded-2xl p-3.5 sm:p-4 flex items-center justify-between gap-3 shadow-md sticky top-0 z-20">
+            <button
+              type="button"
+              onClick={() => selectAdminFocusSection('hub')}
+              className="px-3.5 py-2 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-xl text-xs font-montserrat font-black cursor-pointer shadow-xs transition shrink-0 flex items-center gap-1.5 active:scale-95"
+            >
+              <span>← Back to Admin Hub</span>
+            </button>
+            <div className="min-w-0 flex-1 text-right sm:text-left">
+              <div className="text-[10px] font-montserrat font-bold text-[#FFDE00] uppercase tracking-wider">
+                Admin Focus View
+              </div>
+              <div className="text-xs sm:text-sm font-montserrat font-black text-white truncate">
+                {sectionTitles[adminFocusSection]}
+              </div>
+            </div>
+          </div>
+
+          {adminFocusSection === 'sales_performance' && (
+            <div id="sales-period-section">
+              <SalesPeriodTracker
+                transactions={visibleTransactions}
+                currentUser={currentUser}
+                onPreviewDoc={onPreviewDoc}
+                onInspectOrder={onInspectOrder}
+                onNavigateToPos={(mode) => onNavigateModule?.(mode === 'retail' ? 'retail_pos' : 'sales_pos')}
+                branches={branches}
+                staff={staffList}
+              />
+            </div>
+          )}
+
+          {adminFocusSection === 'charts' && (
+            <ExecutiveVisualAnalytics
+              branchData={branchBarData}
+              channelData={channelPieData}
+              assetData={assetPieData}
+              topSkusData={topSkusBarData}
+            />
+          )}
+
+          {adminFocusSection === 'branch_performance' && (
+            <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
+                    Regional Branch Performance &amp; Bonded Stock Distribution
+                  </h3>
+                  <p className="text-xs text-slate-600">
+                    Live oversight of branch revenue, assigned geo-pricing zone, and KRA excise bond license.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onNavigateModule?.('branches_transfers')}
+                  className="px-3.5 py-2 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black cursor-pointer self-start sm:self-auto"
+                >
+                  Open Branches &amp; Transfers →
+                </button>
+              </div>
+              <div className="overflow-x-auto bg-white border border-slate-200 rounded-xl">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
+                      <th className="py-2.5 px-3 font-black">Branch Code</th>
+                      <th className="py-2.5 px-3 font-black">Depot / Branch Name</th>
+                      <th className="py-2.5 px-3 font-black">Geo-Pricing Zone</th>
+                      <th className="py-2.5 px-3 font-black">Excise Bond License</th>
+                      <th className="py-2.5 px-3 font-black">Status</th>
+                      <th className="py-2.5 px-3 font-black text-right">Logged Sales (KES)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {branches.map((b) => {
+                      const branchSales = transactions
+                        .filter(
+                          (t) =>
+                            t.branchId === b.id &&
+                            (t.docType === 'Receipt' || t.docType === 'Invoice' || t.docType === 'Online Order')
+                        )
+                        .reduce((s, t) => s + t.totalAmount, 0);
+
+                      return (
+                        <tr key={b.id} className="hover:bg-slate-50">
+                          <td className="py-2.5 px-3 font-mono-tabular font-bold text-[#0A006E]">{b.code}</td>
+                          <td className="py-2.5 px-3 font-montserrat font-bold text-slate-900">{b.name}</td>
+                          <td className="py-2.5 px-3 text-slate-600">{b.regionName}</td>
+                          <td className="py-2.5 px-3 font-mono-tabular text-slate-700">{b.exciseBondLicense}</td>
+                          <td className="py-2.5 px-3 text-[#1E9E60] font-bold">{b.status}</td>
+                          <td className="py-2.5 px-3 text-right font-mono-tabular font-bold text-slate-900">
+                            {formatKes(branchSales)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {adminFocusSection === 'recent_docs' && (
+            <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
+                    Latest Commercial Documents (Receipts, Invoices, Quotes &amp; Credit Notes)
+                  </h3>
+                  <span className="text-xs font-mono-tabular font-bold text-slate-600">
+                    Showing {Math.min(15, visibleTransactions.length)} of {visibleTransactions.length}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onNavigateModule?.('documents_credit')}
+                  className="px-3.5 py-2 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black cursor-pointer self-start sm:self-auto"
+                >
+                  Open All Documents →
+                </button>
+              </div>
+              <div className="overflow-x-auto bg-white border border-slate-200 rounded-xl">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
+                      <th className="py-2.5 px-3 font-black">Document No</th>
+                      <th className="py-2.5 px-3 font-black">Type</th>
+                      <th className="py-2.5 px-3 font-black">Branch &amp; Geo-Zone</th>
+                      <th className="py-2.5 px-3 font-black">Customer / Retailer</th>
+                      <th className="py-2.5 px-3 font-black text-right">Amount (KES)</th>
+                      <th className="py-2.5 px-3 font-black text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {visibleTransactions.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-6 text-center text-slate-500">
+                          No commercial transactions issued yet. Use Retail POS, Wholesale Sales POS, or Customer Portal.
+                        </td>
+                      </tr>
+                    ) : (
+                      visibleTransactions.slice(0, 15).map((tx) => (
+                        <tr key={tx.id} className="hover:bg-slate-50">
+                          <td className="py-2.5 px-3 font-mono-tabular font-bold text-[#0A006E]">{tx.docNumber}</td>
+                          <td className="py-2.5 px-3 font-montserrat font-bold text-slate-900">{tx.docType}</td>
+                          <td className="py-2.5 px-3 text-slate-600">
+                            {tx.branchName} · {tx.regionName}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-800">{tx.customerName}</td>
+                          <td className="py-2.5 px-3 text-right font-mono-tabular font-bold">
+                            {formatKes(tx.totalAmount)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => onPreviewDoc(tx)}
+                              className="px-3 py-1 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-black cursor-pointer"
+                            >
+                              Print / PDF
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {adminFocusSection === 'transfers_queue' && (
+            <div className="bg-amber-50 border-2 border-[#0A006E] rounded-2xl p-4 sm:p-5 space-y-4 shadow-md">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-200 pb-3">
+                <div>
+                  <h3 className="text-sm sm:text-base font-montserrat font-black text-[#0A006E]">
+                    Pending Stock Transfers Awaiting Authorization ({pendingTransfers.length})
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onNavigateModule?.('branches_transfers')}
+                  className="px-3.5 py-2 bg-white hover:bg-slate-50 border border-[#0A006E] text-[#0A006E] rounded-xl text-xs font-montserrat font-black cursor-pointer shrink-0"
+                >
+                  Open Full Transfers Hub →
+                </button>
+              </div>
+              {pendingTransfers.length === 0 ? (
+                <div className="p-6 bg-white rounded-xl text-center text-xs text-slate-600">
+                  No stock transfers currently awaiting authorization.
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {pendingTransfers.map((tr) => (
+                    <div
+                      key={tr.id}
+                      className="bg-white border border-amber-300 rounded-xl p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-2xs"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2.5 py-0.5 rounded-md bg-[#0A006E] text-[#FFDE00] font-jakarta font-black text-xs font-mono-tabular">
+                            {tr.transferNo}
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded-md bg-amber-100 text-amber-900 text-[11px] font-jakarta font-black font-mono-tabular">
+                            {tr.quantityBottles} Bottles · {tr.sku}
+                          </span>
+                          <span className="text-[11px] text-slate-500 font-medium">
+                            Initiated by <strong>{tr.initiatedBy}</strong>
+                          </span>
+                        </div>
+                        <div className="text-xs sm:text-sm font-montserrat font-black text-slate-900">
+                          {tr.productName}
+                        </div>
+                        <div className="text-xs text-slate-600">
+                          Source: <strong className="text-slate-900">{tr.fromBranchName}</strong> → Destination:{' '}
+                          <strong className="text-[#0A006E]">{tr.toBranchName}</strong>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {onRejectStockTransfer && (
+                          <button
+                            type="button"
+                            onClick={() => onRejectStockTransfer(tr.id)}
+                            className="px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer transition"
+                          >
+                            <XCircle className="w-4 h-4" />
+                            Reject
+                          </button>
+                        )}
+                        {onAuthorizeStockTransfer && (
+                          <button
+                            type="button"
+                            onClick={() => onAuthorizeStockTransfer(tr.id)}
+                            className="px-4 py-2.5 bg-[#1E9E60] hover:bg-emerald-700 text-white rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-md transition active:scale-95"
+                          >
+                            <ShieldCheck className="w-4 h-4" />
+                            Authorize Transfer
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {adminFocusSection === 'delivery_queue' && (
+            <div className="bg-white border-2 border-[#0A006E]/20 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                <div>
+                  <h3 className="text-sm sm:text-base font-montserrat font-black text-slate-900">
+                    Incoming Customer Orders · Inspect &amp; Process Delivery
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onNavigateModule?.('delivery_management')}
+                  className="px-3.5 py-2 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shrink-0 shadow-xs"
+                >
+                  <Truck className="w-3.5 h-3.5" />
+                  Open Full Delivery Hub →
+                </button>
+              </div>
+              {visibleTransactions.filter(
+                (t) => t.docType === 'Online Order' || t.channel === 'Customer Online Portal' || Boolean(t.deliveryAddress)
+              ).length === 0 ? (
+                <div className="p-6 bg-[#F0F2F0] rounded-xl text-center text-xs text-slate-600">
+                  No online customer delivery orders placed yet.
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
+                        <th className="py-2.5 px-3 font-black">Order No</th>
+                        <th className="py-2.5 px-3 font-black">Customer &amp; Phone</th>
+                        <th className="py-2.5 px-3 font-black">Delivery Address</th>
+                        <th className="py-2.5 px-3 font-black">Status</th>
+                        <th className="py-2.5 px-3 font-black text-right">Total</th>
+                        <th className="py-2.5 px-3 font-black text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 bg-white">
+                      {visibleTransactions
+                        .filter(
+                          (t) =>
+                            t.docType === 'Online Order' ||
+                            t.channel === 'Customer Online Portal' ||
+                            Boolean(t.deliveryAddress)
+                        )
+                        .slice(0, 12)
+                        .map((tx) => {
+                          const delStatus =
+                            tx.deliveryStatus || (tx.status === 'Fulfilled' ? 'Delivered' : 'Pending Dispatch');
+                          return (
+                            <tr key={tx.id} className="hover:bg-slate-50">
+                              <td className="py-2.5 px-3 font-jakarta font-black text-[#0A006E] font-mono-tabular">
+                                {tx.docNumber}
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <div className="font-montserrat font-bold text-slate-900">{tx.customerName}</div>
+                                <div className="text-[11px] font-mono-tabular text-[#0A006E]">{tx.customerPhone || '—'}</div>
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-700 max-w-[200px] truncate">
+                                {tx.deliveryAddress || tx.regionName}
+                              </td>
+                              <td className="py-2.5 px-3 font-bold text-sky-800">{delStatus}</td>
+                              <td className="py-2.5 px-3 text-right font-mono-tabular font-bold">
+                                {formatKes(tx.totalAmount)}
+                              </td>
+                              <td className="py-2.5 px-3 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => onInspectOrder?.(tx)}
+                                  className="px-3 py-1.5 bg-[#FFDE00] border-2 border-[#0A006E] text-[#0A006E] rounded-xl text-[11px] font-montserrat font-black cursor-pointer"
+                                >
+                                  Process
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4 sm:space-y-5 pb-6">
+        {/* Sleek Admin App Header Bar */}
+        <div className="bg-[#0A006E] text-white border-2 border-[#FFDE00] rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#FFDE00] text-[#0A006E] flex items-center justify-center font-black shrink-0">
+              <Sparkles className="w-5 h-5 stroke-[2.4]" />
+            </div>
+            <div className="min-w-0">
+              <div className="font-montserrat font-black text-xs sm:text-sm text-[#FFDE00] truncate">
+                Admin App Command Hub
+              </div>
+              <p className="text-[11px] text-slate-300 font-medium truncate">
+                Tap any box to open that section · Zero scroll clutter
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAdminSimpleView(false)}
+            className="px-3.5 py-2 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-xl text-xs font-montserrat font-black cursor-pointer shadow-xs transition shrink-0 whitespace-nowrap self-start sm:self-auto"
+          >
+            Switch to Detailed View
+          </button>
+        </div>
+
+        {/* Compact 2x2 / 4-col Executive Summary Strip */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-3 sm:p-4">
+            <div className="text-[11px] font-montserrat font-bold text-slate-600 truncate">Gross Turnover</div>
+            <div className="text-base sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5 truncate">
+              {formatKes(totalRevenue)}
+            </div>
+          </div>
+          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-3 sm:p-4">
+            <div className="text-[11px] font-montserrat font-bold text-slate-600 truncate">Liquor Catalog</div>
+            <div className="text-base sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5 truncate">
+              {products.length} SKUs
+            </div>
+          </div>
+          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-3 sm:p-4">
+            <div className="text-[11px] font-montserrat font-bold text-slate-600 truncate">Branches &amp; Zones</div>
+            <div className="text-base sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5 truncate">
+              {branches.length} Depots · {regions.length} Zones
+            </div>
+          </div>
+          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-3 sm:p-4">
+            <div className="text-[11px] font-montserrat font-bold text-slate-600 truncate">Staff &amp; Transfers</div>
+            <div className="text-base sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5 truncate">
+              {staffList.length} Staff · {transfers.length} Trf
+            </div>
+          </div>
+        </div>
+
+        {/* Customized Executive Report & Insights Box Buttons (Replaces Congested Scroll Tables) */}
+        <div className="space-y-2">
+          <div className="text-[11px] font-montserrat font-black text-[#0A006E] uppercase tracking-wider px-1">
+            Performance &amp; Reports (Tap to Open)
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
+            <button
+              type="button"
+              onClick={() => selectAdminFocusSection('sales_performance')}
+              className="p-3.5 sm:p-5 bg-white hover:bg-slate-50 active:scale-95 border-2 border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-sm transition cursor-pointer group min-h-[104px]"
+            >
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <TrendingUp className="w-5 h-5 stroke-[2.4]" />
+              </div>
+              <div>
+                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E] leading-tight">
+                  Sales Performance
+                </div>
+                <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 line-clamp-2">
+                  Today, Week, Month &amp; Year sales tracker
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => selectAdminFocusSection('charts')}
+              className="p-3.5 sm:p-5 bg-white hover:bg-slate-50 active:scale-95 border-2 border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-sm transition cursor-pointer group min-h-[104px]"
+            >
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <BarChart3 className="w-5 h-5 stroke-[2.4]" />
+              </div>
+              <div>
+                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E] leading-tight">
+                  Interactive Charts
+                </div>
+                <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 line-clamp-2">
+                  Graphical performance bar &amp; pie metrics
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => selectAdminFocusSection('branch_performance')}
+              className="p-3.5 sm:p-5 bg-white hover:bg-slate-50 active:scale-95 border-2 border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-sm transition cursor-pointer group min-h-[104px]"
+            >
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <Building2 className="w-5 h-5 stroke-[2.4]" />
+              </div>
+              <div>
+                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E] leading-tight">
+                  Regional Branches
+                </div>
+                <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 line-clamp-2">
+                  Branch performance &amp; bonded stock
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => selectAdminFocusSection('recent_docs')}
+              className="p-3.5 sm:p-5 bg-white hover:bg-slate-50 active:scale-95 border-2 border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-sm transition cursor-pointer group min-h-[104px]"
+            >
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <FileText className="w-5 h-5 stroke-[2.4]" />
+              </div>
+              <div>
+                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E] leading-tight">
+                  Latest Documents
+                </div>
+                <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 line-clamp-2">
+                  Receipts, Invoices, Quotes &amp; Credit Notes
+                </p>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* App-Style Operations & Quick Actions Grid */}
+        <div className="space-y-2">
+          <div className="text-[11px] font-montserrat font-black text-[#0A006E] uppercase tracking-wider px-1">
+            Operations &amp; Departments
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('retail_pos')}
+              className="p-3.5 sm:p-4 bg-white hover:bg-slate-50 active:scale-95 border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px]"
+            >
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center">
+                <ShoppingCart className="w-5 h-5 stroke-[2.4]" />
+              </div>
+              <div>
+                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">Retail POS</div>
+                <div className="text-[10px] text-slate-500">Counter checkout</div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('sales_pos')}
+              className="p-3.5 sm:p-4 bg-white hover:bg-slate-50 active:scale-95 border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px]"
+            >
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#34D186] text-[#0A006E] flex items-center justify-center">
+                <Briefcase className="w-5 h-5 stroke-[2.4]" />
+              </div>
+              <div>
+                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">Wholesale POS</div>
+                <div className="text-[10px] text-slate-500">B2B bulk invoicing</div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('inventory')}
+              className="p-3.5 sm:p-4 bg-white hover:bg-slate-50 active:scale-95 border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px]"
+            >
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center">
+                <Package className="w-5 h-5 stroke-[2.4]" />
+              </div>
+              <div>
+                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">Inventory</div>
+                <div className="text-[10px] text-slate-500">Bonded stock &amp; SKUs</div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setAdminOverviewView('accounting')}
+              className="p-3.5 sm:p-4 bg-white hover:bg-slate-50 active:scale-95 border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px]"
+            >
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center">
+                <DollarSign className="w-5 h-5 stroke-[2.4]" />
+              </div>
+              <div>
+                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">Financials</div>
+                <div className="text-[10px] text-slate-500">P&amp;L &amp; M-Pesa ledger</div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => selectAdminFocusSection('delivery_queue')}
+              className="p-3.5 sm:p-4 bg-white hover:bg-slate-50 active:scale-95 border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px] relative"
+            >
+              <div className="flex items-center justify-between w-full">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-cyan-600 text-white flex items-center justify-center">
+                  <Truck className="w-5 h-5 stroke-[2.4]" />
+                </div>
+                {activeDeliveriesCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-cyan-600 text-white text-[10px] font-mono-tabular font-black">
+                    {activeDeliveriesCount}
+                  </span>
+                )}
+              </div>
+              <div>
+                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">Deliveries</div>
+                <div className="text-[10px] text-slate-500">Orders &amp; dispatch</div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => selectAdminFocusSection('transfers_queue')}
+              className="p-3.5 sm:p-4 bg-white hover:bg-slate-50 active:scale-95 border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px] relative"
+            >
+              <div className="flex items-center justify-between w-full">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center">
+                  <ArrowLeftRight className="w-5 h-5 stroke-[2.4]" />
+                </div>
+                {pendingTransfers.length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-mono-tabular font-black">
+                    {pendingTransfers.length}
+                  </span>
+                )}
+              </div>
+              <div>
+                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">Transfers</div>
+                <div className="text-[10px] text-slate-500">Authorizations &amp; depots</div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('hr_rbac')}
+              className="p-3.5 sm:p-4 bg-white hover:bg-slate-50 active:scale-95 border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px]"
+            >
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center">
+                <Users className="w-5 h-5 stroke-[2.4]" />
+              </div>
+              <div>
+                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">HR &amp; Staff</div>
+                <div className="text-[10px] text-slate-500">Roles, PINs &amp; payroll</div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => (onOpenHrLeaveTab ? onOpenHrLeaveTab() : onNavigateModule?.('leave_management'))}
+              className="p-3.5 sm:p-4 bg-white hover:bg-slate-50 active:scale-95 border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px] relative"
+            >
+              <div className="flex items-center justify-between w-full">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-fuchsia-600 text-white flex items-center justify-center">
+                  <Calendar className="w-5 h-5 stroke-[2.4]" />
+                </div>
+                {leaveRequests.filter((r) => r.status === 'Pending HR Approval').length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-mono-tabular font-black">
+                    {leaveRequests.filter((r) => r.status === 'Pending HR Approval').length}
+                  </span>
+                )}
+              </div>
+              <div>
+                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">Leave &amp; Off</div>
+                <div className="text-[10px] text-slate-500">Annual, emergency, maternity</div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('internal_inbox')}
+              className="p-3.5 sm:p-4 bg-white hover:bg-slate-50 active:scale-95 border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px]"
+            >
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-red-600 text-white flex items-center justify-center">
+                <Inbox className="w-5 h-5 stroke-[2.4]" />
+              </div>
+              <div>
+                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">Dept Inbox</div>
+                <div className="text-[10px] text-slate-500">Staff chat &amp; requests</div>
+              </div>
+            </button>
+
+            {onOpenOnboardItems && (
+              <button
+                type="button"
+                onClick={onOpenOnboardItems}
+                className="p-3.5 sm:p-4 bg-[#34D186]/15 hover:bg-[#34D186]/25 active:scale-95 border-2 border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px]"
+              >
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#0A006E] text-[#34D186] flex items-center justify-center">
+                  <Barcode className="w-5 h-5 stroke-[2.4]" />
+                </div>
+                <div>
+                  <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">Onboard Items</div>
+                  <div className="text-[10px] text-slate-600">Scan &amp; activate stock</div>
+                </div>
+              </button>
+            )}
+
+            {onOpenKraReturns && (
+              <button
+                type="button"
+                onClick={() => onOpenKraReturns('VAT3_SALES_SEC_B')}
+                className="p-3.5 sm:p-4 bg-white hover:bg-slate-50 active:scale-95 border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px]"
+              >
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-600 text-[#FFDE00] flex items-center justify-center">
+                  <FileSpreadsheet className="w-5 h-5 stroke-[2.4]" />
+                </div>
+                <div>
+                  <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">KRA Returns</div>
+                  <div className="text-[10px] text-slate-500">VAT3 &amp; P10 (.xlsx)</div>
+                </div>
+              </button>
+            )}
+
+            {latestPayrollRecord && (
+              <button
+                type="button"
+                onClick={() => onOpenPayslip?.(latestPayrollRecord)}
+                className="p-3.5 sm:p-4 bg-[#FFDE00]/25 hover:bg-[#FFDE00]/40 active:scale-95 border-2 border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px]"
+              >
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center">
+                  <Printer className="w-5 h-5 stroke-[2.2]" />
+                </div>
+                <div>
+                  <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">My Payslip</div>
+                  <div className="text-[10px] font-mono-tabular font-bold text-slate-800">
+                    KES {latestPayrollRecord.netSalary.toLocaleString()}
+                  </div>
+                </div>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleDownloadStatementPDF}
+              className="p-3.5 sm:p-4 bg-white hover:bg-slate-50 active:scale-95 border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px]"
+            >
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800 text-[#FFDE00] flex items-center justify-center">
+                <Download className="w-5 h-5 stroke-[2.2]" />
+              </div>
+              <div>
+                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">PDF Statement</div>
+                <div className="text-[10px] text-slate-500">Full audit export</div>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {currentUser.role === 'Admin' && (
@@ -971,207 +1809,20 @@ export const OverviewModule: React.FC<{
             </div>
             <div>
               <div className="font-montserrat font-black text-sm text-[#FFDE00]">
-                Admin Dashboard Mode: {adminSimpleView ? 'Clean Simplified View (Active)' : 'Full Detailed Operations View'}
+                Admin Dashboard Mode: Full Detailed Operations View
               </div>
               <p className="text-xs text-slate-300 font-medium">
-                {adminSimpleView ? 'Uncluttered summary view with core financial & branch metrics.' : 'Showing full operational workflow hubs, authorization queues, and delivery logs.'}
+                Showing full operational workflow hubs, interactive charts, authorization queues, and logs.
               </p>
             </div>
           </div>
           <button
             type="button"
-            onClick={() => setAdminSimpleView(!adminSimpleView)}
+            onClick={() => setAdminSimpleView(true)}
             className="px-4 py-2 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-xl text-xs font-montserrat font-black cursor-pointer shadow-xs transition shrink-0 whitespace-nowrap"
           >
-            {adminSimpleView ? 'Switch to Detailed View' : 'Switch to Simple Clean View'}
+            Switch to Simple Clean View
           </button>
-        </div>
-      )}
-
-      {currentUser.role === 'Admin' && adminSimpleView && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-1">
-            <h3 className="text-sm font-montserrat font-black text-[#0A006E] uppercase tracking-wider flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-500" />
-              Admin Quick Command Hub (Tap Any Box to Open)
-            </h3>
-            <span className="text-xs text-slate-500 font-medium">9 Direct Access Modules</span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Box 1: Retail POS */}
-            <button
-              type="button"
-              onClick={() => onNavigateModule?.('retail_pos')}
-              className="p-5 bg-white hover:bg-slate-50 border-2 border-[#0A006E] rounded-3xl text-left flex items-start gap-4 shadow-sm hover:shadow-md transition cursor-pointer group"
-            >
-              <div className="w-12 h-12 rounded-2xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                <ShoppingCart className="w-6 h-6 stroke-[2.4]" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-montserrat font-black text-[#0A006E] group-hover:underline">
-                  Retail Counter POS
-                </div>
-                <p className="text-xs text-slate-500 leading-snug pt-1">
-                  Fast counter checkout, barcode scanning &amp; instant receipt printing.
-                </p>
-              </div>
-            </button>
-
-            {/* Box 2: Wholesale POS */}
-            <button
-              type="button"
-              onClick={() => onNavigateModule?.('sales_pos')}
-              className="p-5 bg-white hover:bg-slate-50 border-2 border-[#0A006E] rounded-3xl text-left flex items-start gap-4 shadow-sm hover:shadow-md transition cursor-pointer group"
-            >
-              <div className="w-12 h-12 rounded-2xl bg-[#34D186] text-[#0A006E] flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                <Building2 className="w-6 h-6 stroke-[2.4]" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-montserrat font-black text-[#0A006E] group-hover:underline">
-                  B2B Wholesale POS
-                </div>
-                <p className="text-xs text-slate-500 leading-snug pt-1">
-                  Bulk commercial invoices, wholesale pricing &amp; distributor orders.
-                </p>
-              </div>
-            </button>
-
-            {/* Box 3: Inventory */}
-            <button
-              type="button"
-              onClick={() => onNavigateModule?.('inventory')}
-              className="p-5 bg-white hover:bg-slate-50 border-2 border-[#0A006E] rounded-3xl text-left flex items-start gap-4 shadow-sm hover:shadow-md transition cursor-pointer group"
-            >
-              <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                <Package className="w-6 h-6 stroke-[2.4]" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-montserrat font-black text-[#0A006E] group-hover:underline">
-                  Inventory &amp; Bonded Stock
-                </div>
-                <p className="text-xs text-slate-500 leading-snug pt-1">
-                  IPS/LPS liquor catalog, landed cost, and customs excise stamp tracking.
-                </p>
-              </div>
-            </button>
-
-            {/* Box 4: Financial Ledger */}
-            <button
-              type="button"
-              onClick={() => setAdminOverviewView('accounting')}
-              className="p-5 bg-white hover:bg-slate-50 border-2 border-[#0A006E] rounded-3xl text-left flex items-start gap-4 shadow-sm hover:shadow-md transition cursor-pointer group"
-            >
-              <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                <BarChart3 className="w-6 h-6 stroke-[2.4]" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-montserrat font-black text-[#0A006E] group-hover:underline">
-                  Financial Ledger &amp; P&amp;L
-                </div>
-                <p className="text-xs text-slate-500 leading-snug pt-1">
-                  Revenue, cash flow, M-Pesa settlements, and accounting statements.
-                </p>
-              </div>
-            </button>
-
-            {/* Box 5: Deliveries */}
-            <button
-              type="button"
-              onClick={() => onNavigateModule?.('delivery_management')}
-              className="p-5 bg-white hover:bg-slate-50 border-2 border-[#0A006E] rounded-3xl text-left flex items-start gap-4 shadow-sm hover:shadow-md transition cursor-pointer group"
-            >
-              <div className="w-12 h-12 rounded-2xl bg-cyan-600 text-white flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                <Truck className="w-6 h-6 stroke-[2.4]" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-montserrat font-black text-[#0A006E] group-hover:underline">
-                  Delivery &amp; Dispatch
-                </div>
-                <p className="text-xs text-slate-500 leading-snug pt-1">
-                  Live customer online orders, rider assignment &amp; delivery tracking.
-                </p>
-              </div>
-            </button>
-
-            {/* Box 6: HR & Staff */}
-            <button
-              type="button"
-              onClick={() => onNavigateModule?.('hr_rbac')}
-              className="p-5 bg-white hover:bg-slate-50 border-2 border-[#0A006E] rounded-3xl text-left flex items-start gap-4 shadow-sm hover:shadow-md transition cursor-pointer group"
-            >
-              <div className="w-12 h-12 rounded-2xl bg-purple-600 text-white flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                <Users className="w-6 h-6 stroke-[2.4]" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-montserrat font-black text-[#0A006E] group-hover:underline">
-                  HR &amp; Staff Directory
-                </div>
-                <p className="text-xs text-slate-500 leading-snug pt-1">
-                  8-role personnel provisioning, 6-digit PINs, and payroll compensation.
-                </p>
-              </div>
-            </button>
-
-            {/* Box 7: Branches & Transfers */}
-            <button
-              type="button"
-              onClick={() => onNavigateModule?.('branches_transfers')}
-              className="p-5 bg-white hover:bg-slate-50 border-2 border-[#0A006E] rounded-3xl text-left flex items-start gap-4 shadow-sm hover:shadow-md transition cursor-pointer group"
-            >
-              <div className="w-12 h-12 rounded-2xl bg-emerald-700 text-white flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                <Building2 className="w-6 h-6 stroke-[2.4]" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-montserrat font-black text-[#0A006E] group-hover:underline">
-                  Branches &amp; Transfers
-                </div>
-                <p className="text-xs text-slate-500 leading-snug pt-1">
-                  Inter-depot stock transfers, branch licensing &amp; warehouse hubs.
-                </p>
-              </div>
-            </button>
-
-            {/* Box 8: KRA Returns */}
-            {onOpenKraReturns && (
-              <button
-                type="button"
-                onClick={() => onOpenKraReturns('VAT3_SALES_SEC_B')}
-                className="p-5 bg-white hover:bg-slate-50 border-2 border-[#0A006E] rounded-3xl text-left flex items-start gap-4 shadow-sm hover:shadow-md transition cursor-pointer group"
-              >
-                <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-[#FFDE00] flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                  <FileSpreadsheet className="w-6 h-6 stroke-[2.4]" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-montserrat font-black text-[#0A006E] group-hover:underline">
-                    KRA iTax Returns (.xlsx)
-                  </div>
-                  <p className="text-xs text-slate-500 leading-snug pt-1">
-                    Automated VAT3, PAYE P10, Housing Levy &amp; excise spreadsheets.
-                  </p>
-                </div>
-              </button>
-            )}
-
-            {/* Box 9: Internal Inbox */}
-            <button
-              type="button"
-              onClick={() => onNavigateModule?.('internal_inbox')}
-              className="p-5 bg-white hover:bg-slate-50 border-2 border-[#0A006E] rounded-3xl text-left flex items-start gap-4 shadow-sm hover:shadow-md transition cursor-pointer group"
-            >
-              <div className="w-12 h-12 rounded-2xl bg-red-600 text-white flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                <Inbox className="w-6 h-6 stroke-[2.4]" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-montserrat font-black text-[#0A006E] group-hover:underline">
-                  Internal Dept Inbox
-                </div>
-                <p className="text-xs text-slate-500 leading-snug pt-1">
-                  Direct staff chat, invoice transfer requests &amp; team messaging.
-                </p>
-              </div>
-            </button>
-          </div>
         </div>
       )}
 
@@ -1432,7 +2083,15 @@ export const OverviewModule: React.FC<{
           </div>
         </div>
 
-        <div className="shrink-0">
+        <div className="shrink-0 flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => onNavigateModule?.('leave_management')}
+            className="px-3.5 py-2.5 bg-white hover:bg-slate-50 text-[#0A006E] border-2 border-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer transition"
+          >
+            <Calendar className="w-4 h-4 text-fuchsia-600" />
+            Request Leave / Off / Emergency
+          </button>
           {latestPayrollRecord ? (
             <button
               type="button"
@@ -1712,7 +2371,7 @@ export const OverviewModule: React.FC<{
 
         <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
           <div className="text-xs font-montserrat font-bold text-slate-600">
-            Master Liquor Catalog (IPS & LPS)
+            Master Liquor Catalog (IPS &amp; LPS)
           </div>
           <div className="text-2xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1">
             {products.length} SKUs
@@ -1724,19 +2383,19 @@ export const OverviewModule: React.FC<{
 
         <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
           <div className="text-xs font-montserrat font-bold text-slate-600">
-            Supply Chain & Geo-Zones
+            Supply Chain &amp; Geo-Zones
           </div>
           <div className="text-2xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1">
             {partners.length} Partners · {regions.length} Zones
           </div>
           <div className="text-xs text-slate-600 mt-1">
-            Suppliers, Licensed Retailers & Bonded Logistics
+            Suppliers, Licensed Retailers &amp; Bonded Logistics
           </div>
         </div>
 
         <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
           <div className="text-xs font-montserrat font-bold text-slate-600">
-            Provisioned Staff & RBAC
+            Provisioned Staff &amp; RBAC
           </div>
           <div className="text-2xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1">
             {staffList.length} Active Staff
@@ -1760,7 +2419,7 @@ export const OverviewModule: React.FC<{
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
-              Regional Branch Performance & Bonded Stock Distribution
+              Regional Branch Performance &amp; Bonded Stock Distribution
             </h3>
             <p className="text-xs text-slate-600">
               Live oversight of branch revenue, assigned geo-pricing zone, and KRA excise bond license.
@@ -1786,20 +2445,17 @@ export const OverviewModule: React.FC<{
                   .filter(
                     (t) =>
                       t.branchId === b.id &&
+                      t.orderCategory !== 'WAREHOUSE_PURCHASE' &&
                       (t.docType === 'Receipt' || t.docType === 'Invoice' || t.docType === 'Online Order')
                   )
                   .reduce((s, t) => s + t.totalAmount, 0);
 
                 return (
                   <tr key={b.id} className="hover:bg-slate-50">
-                    <td className="py-2.5 px-3 font-mono-tabular font-bold text-[#0A006E]">
-                      {b.code}
-                    </td>
+                    <td className="py-2.5 px-3 font-mono-tabular font-bold text-[#0A006E]">{b.code}</td>
                     <td className="py-2.5 px-3 font-montserrat font-bold text-slate-900">{b.name}</td>
                     <td className="py-2.5 px-3 text-slate-600">{b.regionName}</td>
-                    <td className="py-2.5 px-3 font-mono-tabular text-slate-700">
-                      {b.exciseBondLicense}
-                    </td>
+                    <td className="py-2.5 px-3 font-mono-tabular text-slate-700">{b.exciseBondLicense}</td>
                     <td className="py-2.5 px-3 text-[#1E9E60] font-bold">{b.status}</td>
                     <td className="py-2.5 px-3 text-right font-mono-tabular font-bold text-slate-900">
                       {formatKes(branchSales)}
@@ -1816,7 +2472,7 @@ export const OverviewModule: React.FC<{
       <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
-            Latest Commercial Documents (Receipts, Invoices, Quotes & Credit Notes)
+            Latest Commercial Documents (Receipts, Invoices, Quotes &amp; Credit Notes)
           </h3>
           <span className="text-xs font-mono-tabular font-bold text-[#0A006E]">
             Showing {Math.min(8, visibleTransactions.length)} of {visibleTransactions.length}
@@ -1829,7 +2485,7 @@ export const OverviewModule: React.FC<{
               <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
                 <th className="py-2.5 px-3 font-black">Document No</th>
                 <th className="py-2.5 px-3 font-black">Type</th>
-                <th className="py-2.5 px-3 font-black">Branch & Geo-Zone</th>
+                <th className="py-2.5 px-3 font-black">Branch &amp; Geo-Zone</th>
                 <th className="py-2.5 px-3 font-black">Customer / Retailer</th>
                 <th className="py-2.5 px-3 font-black text-right">Amount (KES)</th>
                 <th className="py-2.5 px-3 font-black text-right">Action</th>
@@ -1845,12 +2501,8 @@ export const OverviewModule: React.FC<{
               ) : (
                 visibleTransactions.slice(0, 8).map((tx) => (
                   <tr key={tx.id} className="hover:bg-slate-50">
-                    <td className="py-2.5 px-3 font-mono-tabular font-bold text-[#0A006E]">
-                      {tx.docNumber}
-                    </td>
-                    <td className="py-2.5 px-3 font-montserrat font-bold text-slate-900">
-                      {tx.docType}
-                    </td>
+                    <td className="py-2.5 px-3 font-mono-tabular font-bold text-[#0A006E]">{tx.docNumber}</td>
+                    <td className="py-2.5 px-3 font-montserrat font-bold text-slate-900">{tx.docType}</td>
                     <td className="py-2.5 px-3 text-slate-600">
                       {tx.branchName} · {tx.regionName}
                     </td>
@@ -1860,6 +2512,7 @@ export const OverviewModule: React.FC<{
                     </td>
                     <td className="py-2.5 px-3 text-right">
                       <button
+                        type="button"
                         onClick={() => onPreviewDoc(tx)}
                         className="px-3 py-1 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-black cursor-pointer"
                       >
@@ -1914,6 +2567,7 @@ export const InventoryModule: React.FC<{
     currentUser.role === 'Inventory Controller' ||
     (currentUser.role as string) === 'Inventory' ||
     (currentUser.role as string).toLowerCase().includes('inventory');
+
   const canEditProduct = currentUser.role === 'Admin' || isInventoryPerson;
   const canLogDamage =
     (currentUser.role === 'Admin' ||
@@ -4185,9 +4839,11 @@ export const BranchesAndTransfersModule: React.FC<{
   branches: Branch[];
   allBranches?: Branch[];
   regions: GeoRegion[];
+  allRegions?: GeoRegion[];
   products: Product[];
   partners: Partner[];
   transfers: StockTransfer[];
+  transactions?: TransactionDoc[];
   onCreateBranch: (b: Omit<Branch, 'id' | 'createdAt'>) => Promise<void>;
   onDeleteBranch?: (branchId: string) => Promise<void>;
   onSetMainBranch?: (branchId: string) => Promise<void>;
@@ -4195,24 +4851,52 @@ export const BranchesAndTransfersModule: React.FC<{
     tr: Omit<StockTransfer, 'id' | 'createdAt'>,
     updatedProduct?: { productId: string; newBranchStockJson: string }
   ) => Promise<StockTransfer | void>;
+  onCreateWarehousePurchaseOrder?: (payload: {
+    fromBranch: Branch;
+    toBranch: Branch;
+    items: Array<{
+      product: Product;
+      quantityBottles: number;
+      unitPriceKes: number;
+      lineTotalKes: number;
+    }>;
+    paymentMethod: string;
+    taxRatePct: number;
+    logisticsPartnerName: string;
+    vehicleReg: string;
+    excisePermitNo: string;
+    orderNotes: string;
+    dispatchImmediately: boolean;
+  }) => Promise<{
+    invoiceDoc: TransactionDoc | null;
+    deliveryNoteDoc: TransactionDoc | null;
+    transfers: StockTransfer[];
+  }>;
+  onSettleWarehousePurchase?: (transferId: string) => Promise<TransactionDoc | null>;
   onAuthorizeStockTransfer?: (transferId: string) => Promise<void>;
   onRejectStockTransfer?: (transferId: string) => Promise<void>;
   onReceiveStockTransfer?: (transferId: string) => Promise<void>;
+  onPreviewDoc?: (doc: TransactionDoc) => void;
 }> = ({
   currentUser,
   branches,
   allBranches,
   regions,
+  allRegions,
   products,
   partners,
   transfers,
+  transactions = [],
   onCreateBranch,
   onDeleteBranch,
   onSetMainBranch,
   onCreateStockTransfer,
+  onCreateWarehousePurchaseOrder,
+  onSettleWarehousePurchase,
   onAuthorizeStockTransfer,
   onRejectStockTransfer,
   onReceiveStockTransfer,
+  onPreviewDoc,
 }) => {
   const [facilityType, setFacilityType] = useState<FacilityType>('warehouse');
   const [facilityFilter, setFacilityFilter] = useState<'all' | FacilityType>('all');
@@ -4225,32 +4909,127 @@ export const BranchesAndTransfersModule: React.FC<{
 
   const isAdmin = currentUser.role === 'Admin';
   const isBranchManager = currentUser.role === 'Branch Manager';
-  const isSalesManager = currentUser.role === 'Sales Manager';
   const isInventory = currentUser.role === 'Inventory Controller';
   const canAuthorizeTransfer = isAdmin || isBranchManager;
 
   const transferBranches = allBranches && allBranches.length > 0 ? allBranches : branches;
+  const pricingRegions = allRegions && allRegions.length > 0 ? allRegions : regions;
 
-  const canManageBranches = isAdmin; // Only Admin can administer branches
+  const canManageBranches = isAdmin;
   const canInitiateTransfer = isAdmin || isInventory || isBranchManager;
 
-  const [fromBranchId, setFromBranchId] = useState(
-    isBranchManager && currentUser.branchId ? currentUser.branchId : branches[0]?.id || ''
+  // Dual mode: Warehouse Purchase Order vs Direct Inter-Branch Bonded Transfer
+  const [orderMode, setOrderMode] = useState<'warehouse_purchase' | 'bonded_transfer'>('warehouse_purchase');
+
+  const warehouseOrStoreBranches = useMemo(
+    () =>
+      transferBranches.filter(
+        (b) => b.facilityType === 'warehouse' || b.facilityType === 'store'
+      ),
+    [transferBranches]
   );
-  const [toBranchId, setToBranchId] = useState(
-    transferBranches.find((b) => b.id !== (isBranchManager && currentUser.branchId ? currentUser.branchId : branches[0]?.id))?.id || transferBranches[1]?.id || transferBranches[0]?.id || ''
+
+  const userBranchObj = useMemo(
+    () =>
+      transferBranches.find(
+        (b) => b.id === currentUser.branchId || b.name === currentUser.branchName
+      ) || branches[0],
+    [transferBranches, branches, currentUser.branchId, currentUser.branchName]
   );
-  const [transferList, setTransferList] = useState<Array<{ productId: string; sku: string; productName: string; quantityBottles: number }>>([]);
+
+  const defaultSupplyBranchId = useMemo(() => {
+    const candidate =
+      warehouseOrStoreBranches.find((b) => b.id !== userBranchObj?.id) ||
+      transferBranches.find((b) => b.id !== userBranchObj?.id) ||
+      transferBranches[0];
+    return candidate?.id || '';
+  }, [warehouseOrStoreBranches, transferBranches, userBranchObj?.id]);
+
+  const [fromBranchId, setFromBranchId] = useState(() =>
+    isBranchManager ? defaultSupplyBranchId : warehouseOrStoreBranches[0]?.id || transferBranches[0]?.id || ''
+  );
+  const [toBranchId, setToBranchId] = useState(() => {
+    if (isBranchManager && userBranchObj?.id) return userBranchObj.id;
+    const firstDest = transferBranches.find(
+      (b) => b.id !== (warehouseOrStoreBranches[0]?.id || transferBranches[0]?.id)
+    );
+    return firstDest?.id || transferBranches[0]?.id || '';
+  });
+
+  const [transferList, setTransferList] = useState<
+    Array<{
+      productId: string;
+      sku: string;
+      productName: string;
+      quantityBottles: number;
+      unitPriceKes: number;
+    }>
+  >([]);
   const [selectedTransferProductId, setSelectedTransferProductId] = useState(products[0]?.id || '');
+  const [transferUnitMode, setTransferUnitMode] = useState<'Bottle' | 'Case'>('Bottle');
   const [transferItemQty, setTransferItemQty] = useState<number>(12);
+  const [customUnitPriceKes, setCustomUnitPriceKes] = useState<number>(0);
+  const [purchasePaymentMethod, setPurchasePaymentMethod] = useState<string>('Internal Credit (Net 14 Days)');
+  const [purchaseTaxPct, setPurchaseTaxPct] = useState<number>(0);
+  const [dispatchImmediately, setDispatchImmediately] = useState<boolean>(isAdmin);
+  const [orderNotes, setOrderNotes] = useState('');
   const [vehicleReg, setVehicleReg] = useState('');
   const [excisePermitNo, setExcisePermitNo] = useState('');
+  const [logisticsName, setLogisticsName] = useState('');
   const [transferFormError, setTransferFormError] = useState<string | null>(null);
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+
+  const logisticsPartners = useMemo(
+    () => partners.filter((p) => p.partnerType === 'Logistics'),
+    [partners]
+  );
+
+  // Compute recommended wholesale/supply price for currently selected SKU & source warehouse
+  const getRecommendedUnitPrice = (prod: Product | undefined, sourceId: string): number => {
+    if (!prod) return 0;
+    const srcBr = transferBranches.find((b) => b.id === sourceId);
+    const srcReg = pricingRegions.find(
+      (r) => r.id === srcBr?.regionId || r.name === srcBr?.regionName
+    ) || pricingRegions[0];
+    if (srcReg) {
+      return Math.round(calculateGeoPrice(prod, srcReg, 'wholesale').unitBottlePrice);
+    }
+    return Math.round(prod.wholesalePriceKes || prod.baseWholesalePrice || prod.warehouseCostKes || 0);
+  };
+
+  const selectedProductObj = useMemo(
+    () => products.find((p) => p.id === selectedTransferProductId) || products[0],
+    [products, selectedTransferProductId]
+  );
+
+  const effectiveUnitPrice = useMemo(() => {
+    if (customUnitPriceKes > 0) return customUnitPriceKes;
+    return getRecommendedUnitPrice(selectedProductObj, fromBranchId);
+  }, [customUnitPriceKes, selectedProductObj, fromBranchId]);
+
+  const handleModeSwitch = (nextMode: 'warehouse_purchase' | 'bonded_transfer') => {
+    setOrderMode(nextMode);
+    setTransferFormError(null);
+    if (nextMode === 'warehouse_purchase') {
+      const supply =
+        warehouseOrStoreBranches.find((b) => b.id !== (userBranchObj?.id || '')) ||
+        warehouseOrStoreBranches[0] ||
+        transferBranches.find((b) => b.id !== userBranchObj?.id) ||
+        transferBranches[0];
+      if (supply) setFromBranchId(supply.id);
+      if (isBranchManager && userBranchObj) {
+        setToBranchId(userBranchObj.id);
+      }
+    }
+  };
 
   const handleAddTransferItem = () => {
-    const prod = products.find((p) => p.id === selectedTransferProductId);
+    const prod = selectedProductObj;
     if (!prod) return;
-    const qty = Math.max(1, Number(transferItemQty) || 1);
+    const packSize = prod.packSize || prod.bottlesPerCase || 12;
+    const rawUnits = Math.max(1, Number(transferItemQty) || 1);
+    const qtyBottles = transferUnitMode === 'Case' ? rawUnits * packSize : rawUnits;
+    const unitPrice = Math.max(0, Math.round(effectiveUnitPrice));
 
     setTransferList((prev) => {
       const idx = prev.findIndex((item) => item.productId === prod.id);
@@ -4258,7 +5037,8 @@ export const BranchesAndTransfersModule: React.FC<{
         const updated = [...prev];
         updated[idx] = {
           ...updated[idx],
-          quantityBottles: updated[idx].quantityBottles + qty,
+          quantityBottles: updated[idx].quantityBottles + qtyBottles,
+          unitPriceKes: unitPrice || updated[idx].unitPriceKes,
         };
         return updated;
       }
@@ -4268,22 +5048,30 @@ export const BranchesAndTransfersModule: React.FC<{
           productId: prod.id,
           sku: prod.sku,
           productName: prod.name,
-          quantityBottles: qty,
+          quantityBottles: qtyBottles,
+          unitPriceKes: unitPrice,
         },
       ];
     });
-    setTransferItemQty(12);
+    setTransferItemQty(transferUnitMode === 'Case' ? 1 : 12);
+    setCustomUnitPriceKes(0);
   };
 
   const handleRemoveTransferItem = (id: string) => {
     setTransferList((prev) => prev.filter((item) => item.productId !== id));
   };
 
-  const logisticsPartners = useMemo(
-    () => partners.filter((p) => p.partnerType === 'Logistics'),
-    [partners]
-  );
-  const [logisticsName, setLogisticsName] = useState('');
+  const orderTotals = useMemo(() => {
+    const totalBottles = transferList.reduce((s, i) => s + i.quantityBottles, 0);
+    const subtotal = transferList.reduce((s, i) => s + i.quantityBottles * i.unitPriceKes, 0);
+    const tax = Math.round((subtotal * purchaseTaxPct) / 100);
+    return {
+      totalBottles,
+      subtotal,
+      tax,
+      grandTotal: subtotal + tax,
+    };
+  }, [transferList, purchaseTaxPct]);
 
   const handleAddBranch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -4316,100 +5104,173 @@ export const BranchesAndTransfersModule: React.FC<{
     setExciseBondLicense('');
   };
 
+  const findLinkedDoc = (docId?: string, docNumber?: string): TransactionDoc | undefined => {
+    if (!docId && !docNumber) return undefined;
+    return transactions.find((d) => (docId && d.id === docId) || (docNumber && d.docNumber === docNumber));
+  };
+
   const handleExecuteTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canInitiateTransfer) return;
     if (fromBranchId === toBranchId) {
-      setTransferFormError('Source and Destination branches must be different.');
+      setTransferFormError('Supplying Warehouse/Source and Receiving Branch must be different.');
       return;
     }
     if (transferList.length === 0) {
-      setTransferFormError('Please add at least one product to the transfer manifest before submitting.');
+      setTransferFormError('Please add at least one product to the order manifest before submitting.');
       return;
     }
     const fromBr = transferBranches.find((b) => b.id === fromBranchId);
     const toBr = transferBranches.find((b) => b.id === toBranchId);
     if (!fromBr || !toBr) return;
 
-    // For Branch Manager, ensure transfer involves their branch
-    if (isBranchManager && fromBr.name !== currentUser.branchName && toBr.name !== currentUser.branchName && fromBr.id !== currentUser.branchId && toBr.id !== currentUser.branchId) {
-      setTransferFormError('Branch Managers can only initiate transfers involving their assigned branch.');
+    if (
+      isBranchManager &&
+      fromBr.name !== currentUser.branchName &&
+      toBr.name !== currentUser.branchName &&
+      fromBr.id !== currentUser.branchId &&
+      toBr.id !== currentUser.branchId
+    ) {
+      setTransferFormError('Branch Managers can only create orders or transfers involving their assigned branch.');
       return;
     }
 
     setTransferFormError(null);
-    const batchNo = `TRF-${Date.now().toString().slice(-6)}`;
-    const requiresManagerAuth = isInventory;
+    setIsSubmittingOrder(true);
 
-    for (const item of transferList) {
-      const prod = products.find((p) => p.id === item.productId);
-      if (!prod) continue;
+    try {
+      const isSourceWarehouseOrStore =
+        orderMode === 'warehouse_purchase' ||
+        fromBr.facilityType === 'warehouse' ||
+        fromBr.facilityType === 'store';
 
-      const fallbackTotal = prod.totalBottles ?? (prod.packSize || 12) * 30;
-      let branchStock: Record<string, number> = {};
-      try {
-        branchStock = prod.branchStockSummary ? JSON.parse(prod.branchStockSummary) : {};
-      } catch {
-        branchStock = {};
-      }
+      if (orderMode === 'warehouse_purchase' && onCreateWarehousePurchaseOrder) {
+        const orderItems = transferList
+          .map((item) => {
+            const prod = products.find((p) => p.id === item.productId);
+            if (!prod) return null;
+            return {
+              product: prod,
+              quantityBottles: item.quantityBottles,
+              unitPriceKes: item.unitPriceKes,
+              lineTotalKes: Math.round(item.quantityBottles * item.unitPriceKes),
+            };
+          })
+          .filter(Boolean) as Array<{
+          product: Product;
+          quantityBottles: number;
+          unitPriceKes: number;
+          lineTotalKes: number;
+        }>;
 
-      const sourceAvail = branchStock[fromBr.id] ?? fallbackTotal;
-      const actualMove = Math.max(1, Math.min(Math.max(1, sourceAvail), item.quantityBottles));
-
-      if (requiresManagerAuth) {
-        // Inventory Controller initiates transfer -> enters 'Pending Authorization' until Manager clicks Authorize
-        await onCreateStockTransfer({
-          transferNo: `${batchNo}-${item.sku.slice(0, 4)}`,
-          fromBranchId: fromBr.id,
-          fromBranchName: fromBr.name,
-          toBranchId: toBr.id,
-          toBranchName: toBr.name,
-          productId: prod.id,
-          sku: prod.sku,
-          productName: prod.name,
-          quantityBottles: actualMove,
+        const canAutoDispatch = isAdmin && dispatchImmediately;
+        const res = await onCreateWarehousePurchaseOrder({
+          fromBranch: fromBr,
+          toBranch: toBr,
+          items: orderItems,
+          paymentMethod: purchasePaymentMethod,
+          taxRatePct: purchaseTaxPct,
           logisticsPartnerName: logisticsName,
           vehicleReg,
           excisePermitNo,
-          status: 'Pending Authorization',
-          initiatedBy: `${currentUser.name} (${currentUser.role})`,
-          initiatedByRole: currentUser.role,
+          orderNotes,
+          dispatchImmediately: canAutoDispatch,
         });
-      } else {
-        // Manager / Admin initiates directly -> deduct from source branch and mark 'Dispatched'
-        branchStock[fromBr.id] = Math.max(0, sourceAvail - actualMove);
-        await onCreateStockTransfer(
-          {
+
+        setTransferList([]);
+        setVehicleReg('');
+        setExcisePermitNo('');
+        setOrderNotes('');
+
+        if (res.invoiceDoc && onPreviewDoc) {
+          onPreviewDoc(res.invoiceDoc);
+        }
+        return;
+      }
+
+      // Direct Inter-Branch Bonded Transfer flow
+      const batchNo = `TRF-${Date.now().toString().slice(-6)}`;
+      const requiresManagerAuth = isInventory || (isBranchManager && fromBr.id !== currentUser.branchId);
+
+      for (const item of transferList) {
+        const prod = products.find((p) => p.id === item.productId);
+        if (!prod) continue;
+
+        const fallbackTotal = prod.totalBottles ?? (prod.packSize || 12) * 30;
+        let branchStock: Record<string, number> = {};
+        try {
+          branchStock = prod.branchStockSummary ? JSON.parse(prod.branchStockSummary) : {};
+        } catch {
+          branchStock = {};
+        }
+
+        const sourceAvail = branchStock[fromBr.id] ?? fallbackTotal;
+        const actualMove = Math.max(1, Math.min(Math.max(1, sourceAvail), item.quantityBottles));
+
+        if (requiresManagerAuth) {
+          await onCreateStockTransfer({
             transferNo: `${batchNo}-${item.sku.slice(0, 4)}`,
+            orderType: isSourceWarehouseOrStore ? 'WAREHOUSE_PURCHASE' : 'INTER_BRANCH_TRANSFER',
             fromBranchId: fromBr.id,
             fromBranchName: fromBr.name,
+            fromFacilityType: fromBr.facilityType,
             toBranchId: toBr.id,
             toBranchName: toBr.name,
+            toFacilityType: toBr.facilityType,
             productId: prod.id,
             sku: prod.sku,
             productName: prod.name,
             quantityBottles: actualMove,
+            unitPriceKes: item.unitPriceKes,
+            totalAmountKes: Math.round(actualMove * item.unitPriceKes),
             logisticsPartnerName: logisticsName,
             vehicleReg,
             excisePermitNo,
-            status: 'Dispatched',
+            status: 'Pending Authorization',
             initiatedBy: `${currentUser.name} (${currentUser.role})`,
             initiatedByRole: currentUser.role,
-            authorizedBy: currentUser.name,
-            authorizedByRole: currentUser.role,
-            authorizedAt: new Date().toISOString(),
-          },
-          {
-            productId: prod.id,
-            newBranchStockJson: JSON.stringify(branchStock),
-          }
-        );
+          });
+        } else {
+          branchStock[fromBr.id] = Math.max(0, sourceAvail - actualMove);
+          await onCreateStockTransfer(
+            {
+              transferNo: `${batchNo}-${item.sku.slice(0, 4)}`,
+              orderType: 'INTER_BRANCH_TRANSFER',
+              fromBranchId: fromBr.id,
+              fromBranchName: fromBr.name,
+              fromFacilityType: fromBr.facilityType,
+              toBranchId: toBr.id,
+              toBranchName: toBr.name,
+              toFacilityType: toBr.facilityType,
+              productId: prod.id,
+              sku: prod.sku,
+              productName: prod.name,
+              quantityBottles: actualMove,
+              logisticsPartnerName: logisticsName,
+              vehicleReg,
+              excisePermitNo,
+              status: 'Dispatched',
+              initiatedBy: `${currentUser.name} (${currentUser.role})`,
+              initiatedByRole: currentUser.role,
+              authorizedBy: currentUser.name,
+              authorizedByRole: currentUser.role,
+              authorizedAt: new Date().toISOString(),
+            },
+            {
+              productId: prod.id,
+              newBranchStockJson: JSON.stringify(branchStock),
+            }
+          );
+        }
       }
-    }
 
-    setTransferList([]);
-    setVehicleReg('');
-    setExcisePermitNo('');
+      setTransferList([]);
+      setVehicleReg('');
+      setExcisePermitNo('');
+      setOrderNotes('');
+    } finally {
+      setIsSubmittingOrder(false);
+    }
   };
 
   return (
@@ -4608,62 +5469,122 @@ export const BranchesAndTransfersModule: React.FC<{
         </div>
       )}
 
-      {/* Inter-Branch Bonded Stock Transfer Card */}
+      {/* Warehouse Purchase Order / Inter-Branch Bonded Stock Transfer Card */}
       {canInitiateTransfer ? (
         <form
           onSubmit={handleExecuteTransfer}
           className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-4"
         >
-          <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
-            <ArrowLeftRight className="w-4 h-4 text-[#0A006E]" />
-            <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
-              Inter-Branch Bonded Stock Transfer &amp; Multi-SKU Transit Manifest
-            </h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="w-4 h-4 text-[#0A006E]" />
+              <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
+                {orderMode === 'warehouse_purchase'
+                  ? 'Branch Purchase Order from Warehouse / Store'
+                  : 'Direct Inter-Branch Bonded Stock Transfer'}
+              </h3>
+            </div>
+
+            <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-slate-200 text-[11px]">
+              <button
+                type="button"
+                onClick={() => handleModeSwitch('warehouse_purchase')}
+                className={`px-2.5 py-1.5 rounded-lg font-montserrat font-black cursor-pointer transition ${
+                  orderMode === 'warehouse_purchase'
+                    ? 'bg-[#0A006E] text-[#FFDE00] shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                Purchase from Warehouse
+              </button>
+              <button
+                type="button"
+                onClick={() => handleModeSwitch('bonded_transfer')}
+                className={`px-2.5 py-1.5 rounded-lg font-montserrat font-bold cursor-pointer transition ${
+                  orderMode === 'bonded_transfer'
+                    ? 'bg-[#0A006E] text-[#FFDE00] shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                Bonded Transfer
+              </button>
+            </div>
           </div>
+
+          {orderMode === 'warehouse_purchase' && (
+            <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-950 flex items-start gap-2">
+              <Receipt className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
+              <span>
+                <strong>Warehouse Purchase Workflow:</strong> Requesting stock from a Warehouse or Store automatically generates an official <strong>Warehouse Purchase Invoice</strong>. When dispatched, a <strong>Delivery Note</strong> is issued, and upon branch receipt &amp; settlement a <strong>Purchase Receipt</strong> is recorded.
+              </span>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             <div>
-              <label className="font-montserrat font-bold text-slate-700">Source Branch (Dispatch)</label>
+              <label className="font-montserrat font-bold text-slate-700">
+                {orderMode === 'warehouse_purchase'
+                  ? 'Supplying Warehouse / Store (Seller) *'
+                  : 'Source Facility (Dispatch) *'}
+              </label>
               <select
                 value={fromBranchId}
                 onChange={(e) => setFromBranchId(e.target.value)}
-                className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl"
+                className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold"
               >
-                {transferBranches.map((b) => (
+                {(orderMode === 'warehouse_purchase' && warehouseOrStoreBranches.length > 0
+                  ? [
+                      ...warehouseOrStoreBranches,
+                      ...transferBranches.filter(
+                        (b) => b.facilityType !== 'warehouse' && b.facilityType !== 'store'
+                      ),
+                    ]
+                  : transferBranches
+                ).map((b) => (
                   <option key={b.id} value={b.id}>
-                    {b.code} · {b.name}
+                    [{(b.facilityType || 'warehouse').toUpperCase()}] {b.code} · {b.name}
                   </option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label className="font-montserrat font-bold text-slate-700">Destination Branch (Receiving)</label>
+              <label className="font-montserrat font-bold text-slate-700">
+                {orderMode === 'warehouse_purchase'
+                  ? 'Purchasing Branch / Outlet (Buyer) *'
+                  : 'Destination Facility (Receiving) *'}
+              </label>
               <select
                 value={toBranchId}
                 onChange={(e) => setToBranchId(e.target.value)}
-                className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl"
+                disabled={isBranchManager && orderMode === 'warehouse_purchase' && Boolean(userBranchObj)}
+                className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold disabled:bg-slate-100"
               >
                 {transferBranches.map((b) => (
                   <option key={b.id} value={b.id}>
-                    {b.code} · {b.name}
+                    [{(b.facilityType || 'branch_depot').replace('_', ' ').toUpperCase()}] {b.code} · {b.name}
                   </option>
                 ))}
               </select>
             </div>
           </div>
 
-          {/* Product Selection & Add to Transfer List */}
+          {/* Product Selection & Add to Order / Transfer List */}
           <div className="p-3.5 bg-white border border-slate-200 rounded-2xl space-y-3">
             <h4 className="text-xs font-montserrat font-black text-[#0A006E]">
-              Select Products &amp; Build Transfer Manifest List
+              {orderMode === 'warehouse_purchase'
+                ? 'Build Warehouse Purchase Order Lines (Priced Manifest)'
+                : 'Select Products & Build Transfer Manifest List'}
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 text-xs items-end">
-              <div className="sm:col-span-7">
+              <div className="sm:col-span-5">
                 <label className="font-montserrat font-bold text-slate-700 block mb-1">Select Liquor SKU</label>
                 <select
                   value={selectedTransferProductId}
-                  onChange={(e) => setSelectedTransferProductId(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedTransferProductId(e.target.value);
+                    setCustomUnitPriceKes(0);
+                  }}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-[#0A006E]"
                 >
                   {products.slice(0, 150).map((p) => (
@@ -4674,8 +5595,22 @@ export const BranchesAndTransfersModule: React.FC<{
                 </select>
               </div>
 
-              <div className="sm:col-span-3">
-                <label className="font-montserrat font-bold text-slate-700 block mb-1">Quantity (Btls)</label>
+              <div className="sm:col-span-2">
+                <label className="font-montserrat font-bold text-slate-700 block mb-1">Unit</label>
+                <select
+                  value={transferUnitMode}
+                  onChange={(e) => setTransferUnitMode(e.target.value as 'Bottle' | 'Case')}
+                  className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                >
+                  <option value="Bottle">Bottle</option>
+                  <option value="Case">Case ({selectedProductObj?.packSize || 12}btl)</option>
+                </select>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="font-montserrat font-bold text-slate-700 block mb-1">
+                  Qty ({transferUnitMode === 'Case' ? 'Cs' : 'Btls'})
+                </label>
                 <input
                   type="number"
                   min={1}
@@ -4685,11 +5620,24 @@ export const BranchesAndTransfersModule: React.FC<{
                 />
               </div>
 
-              <div className="sm:col-span-2">
+              {orderMode === 'warehouse_purchase' && (
+                <div className="sm:col-span-2">
+                  <label className="font-montserrat font-bold text-slate-700 block mb-1">Price/Btl (KES)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={effectiveUnitPrice}
+                    onChange={(e) => setCustomUnitPriceKes(Number(e.target.value))}
+                    className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono-tabular font-bold text-[#0A006E]"
+                  />
+                </div>
+              )}
+
+              <div className={orderMode === 'warehouse_purchase' ? 'sm:col-span-1' : 'sm:col-span-3'}>
                 <button
                   type="button"
                   onClick={handleAddTransferItem}
-                  className="w-full py-2.5 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] font-montserrat font-black text-xs rounded-xl flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                  className="w-full py-2.5 px-2 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] font-montserrat font-black text-xs rounded-xl flex items-center justify-center gap-1 cursor-pointer shadow-xs"
                 >
                   <Plus className="w-4 h-4" /> Add
                 </button>
@@ -4704,7 +5652,13 @@ export const BranchesAndTransfersModule: React.FC<{
                     <tr>
                       <th className="py-2 px-3">SKU</th>
                       <th className="py-2 px-3">Product Name</th>
-                      <th className="py-2 px-3 text-right">Quantity (Bottles)</th>
+                      <th className="py-2 px-3 text-right">Qty (Btls)</th>
+                      {orderMode === 'warehouse_purchase' && (
+                        <>
+                          <th className="py-2 px-3 text-right">Unit (KES)</th>
+                          <th className="py-2 px-3 text-right">Line Total</th>
+                        </>
+                      )}
                       <th className="py-2 px-3 text-center">Action</th>
                     </tr>
                   </thead>
@@ -4713,7 +5667,17 @@ export const BranchesAndTransfersModule: React.FC<{
                       <tr key={item.productId} className="hover:bg-slate-50">
                         <td className="py-2 px-3 font-mono font-bold text-[#0A006E]">{item.sku}</td>
                         <td className="py-2 px-3 text-slate-900">{item.productName}</td>
-                        <td className="py-2 px-3 text-right font-mono font-black text-[#0A006E]">{item.quantityBottles} btls</td>
+                        <td className="py-2 px-3 text-right font-mono font-black text-[#0A006E]">{item.quantityBottles}</td>
+                        {orderMode === 'warehouse_purchase' && (
+                          <>
+                            <td className="py-2 px-3 text-right font-mono-tabular text-slate-700">
+                              {formatKes(item.unitPriceKes)}
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono-tabular font-black text-emerald-700">
+                              {formatKes(item.quantityBottles * item.unitPriceKes)}
+                            </td>
+                          </>
+                        )}
                         <td className="py-2 px-3 text-center">
                           <button
                             type="button"
@@ -4731,12 +5695,72 @@ export const BranchesAndTransfersModule: React.FC<{
               </div>
             ) : (
               <div className="p-4 text-center border-2 border-dashed border-slate-200 rounded-xl text-slate-400 text-xs">
-                No items added to transfer list yet. Select an SKU above and click Add.
+                No items added yet. Select an SKU above and click Add.
+              </div>
+            )}
+
+            {orderMode === 'warehouse_purchase' && transferList.length > 0 && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className="font-semibold text-emerald-950">
+                  Purchase Valuation ({orderTotals.totalBottles} bottles across {transferList.length} SKUs)
+                </span>
+                <div className="flex items-center gap-4 font-mono-tabular">
+                  <span className="text-slate-700">Subtotal: <strong>{formatKes(orderTotals.subtotal)}</strong></span>
+                  {orderTotals.tax > 0 && (
+                    <span className="text-slate-700">VAT ({purchaseTaxPct}%): <strong>{formatKes(orderTotals.tax)}</strong></span>
+                  )}
+                  <span className="text-sm font-black text-[#0A006E]">Total: {formatKes(orderTotals.grandTotal)}</span>
+                </div>
               </div>
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          {orderMode === 'warehouse_purchase' && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div>
+                <label className="font-montserrat font-bold text-slate-700">Settlement / Payment Terms</label>
+                <select
+                  value={purchasePaymentMethod}
+                  onChange={(e) => setPurchasePaymentMethod(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold"
+                >
+                  <option value="Internal Credit (Net 14 Days)">Internal Credit (Net 14 Days)</option>
+                  <option value="Internal Credit (Net 30 Days)">Internal Credit (Net 30 Days)</option>
+                  <option value="M-Pesa Paybill Settlement">M-Pesa Paybill Settlement</option>
+                  <option value="Bank Transfer (EFT/RTGS)">Bank Transfer (EFT/RTGS)</option>
+                  <option value="Branch Cash Till Settlement">Branch Cash Till Settlement</option>
+                </select>
+              </div>
+              <div>
+                <label className="font-montserrat font-bold text-slate-700">VAT / Tax Treatment</label>
+                <select
+                  value={purchaseTaxPct}
+                  onChange={(e) => setPurchaseTaxPct(Number(e.target.value))}
+                  className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold"
+                >
+                  <option value={0}>0% Inter-Facility / Tax Included</option>
+                  <option value={16}>+16% Standard VAT Invoice</option>
+                </select>
+              </div>
+              <div>
+                <label className="font-montserrat font-bold text-slate-700">Carrier / Logistics Partner</label>
+                <select
+                  value={logisticsName}
+                  onChange={(e) => setLogisticsName(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold"
+                >
+                  <option value="">Company Fleet / Self-Collect</option>
+                  {logisticsPartners.map((lp) => (
+                    <option key={lp.id} value={lp.companyName}>
+                      {lp.companyName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
             <div>
               <label className="font-montserrat font-bold text-slate-700">Vehicle Registration (Transit)</label>
               <input
@@ -4758,13 +5782,38 @@ export const BranchesAndTransfersModule: React.FC<{
                 className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-mono-tabular"
               />
             </div>
+
+            <div>
+              <label className="font-montserrat font-bold text-slate-700">Order / Dispatch Notes</label>
+              <input
+                type="text"
+                value={orderNotes}
+                onChange={(e) => setOrderNotes(e.target.value)}
+                placeholder="e.g. Weekend stock replenishment"
+                className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl"
+              />
+            </div>
           </div>
 
-          {isInventory && (
+          {isAdmin && orderMode === 'warehouse_purchase' && (
+            <label className="flex items-center gap-2 text-xs font-bold text-[#0A006E] cursor-pointer bg-white px-3 py-2 rounded-xl border border-slate-200">
+              <input
+                type="checkbox"
+                checked={dispatchImmediately}
+                onChange={(e) => setDispatchImmediately(e.target.checked)}
+                className="rounded border-slate-300"
+              />
+              <span>Authorize &amp; Dispatch Immediately (Deducts Warehouse Stock &amp; Issues Delivery Note now)</span>
+            </label>
+          )}
+
+          {(isInventory || (isBranchManager && orderMode === 'warehouse_purchase')) && (
             <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-950 flex items-center gap-2">
               <Clock className="w-4 h-4 text-amber-700 shrink-0" />
               <span>
-                <strong>Two-Step Transfer Governance:</strong> Once you initiate this transfer manifest, it will be sent to the <strong>Branch Manager / Admin</strong> to authorize with one click from their dashboard before stock is dispatched.
+                {orderMode === 'warehouse_purchase'
+                  ? <><strong>Purchase Requisition &amp; Authorization:</strong> Submitting creates a formal <strong>Warehouse Purchase Invoice</strong> and sends the dispatch request for Warehouse/Admin authorization before stock leaves the warehouse.</>
+                  : <><strong>Two-Step Transfer Governance:</strong> Once you initiate this transfer manifest, it will be sent to the <strong>Branch Manager / Admin</strong> to authorize before stock is dispatched.</>}
               </span>
             </div>
           )}
@@ -4777,17 +5826,28 @@ export const BranchesAndTransfersModule: React.FC<{
 
           <button
             type="submit"
-            disabled={transferList.length === 0}
+            disabled={transferList.length === 0 || isSubmittingOrder}
             className={`px-5 py-3 rounded-xl font-montserrat font-black text-xs flex items-center justify-center gap-2 cursor-pointer shadow-sm ${
-              transferList.length > 0
+              transferList.length > 0 && !isSubmittingOrder
                 ? 'bg-[#FFDE00] hover:bg-amber-400 border-2 border-[#0A006E] text-[#0A006E]'
                 : 'bg-slate-200 text-slate-500 cursor-not-allowed border border-slate-300'
             }`}
           >
-            <ArrowLeftRight className="w-4 h-4" />
-            {isInventory
-              ? `Initiate Order Transfer for Manager Authorization (${transferList.length} SKUs)`
-              : `Authorize & Dispatch Multi-SKU Bonded Stock Transfer (${transferList.length} SKUs)`}
+            {orderMode === 'warehouse_purchase' ? (
+              <>
+                <ShoppingCart className="w-4 h-4" />
+                {isSubmittingOrder
+                  ? 'Creating Purchase Order & Invoice...'
+                  : `Submit Warehouse Purchase Order & Generate Invoice (${transferList.length} SKUs · ${formatKes(orderTotals.grandTotal)})`}
+              </>
+            ) : (
+              <>
+                <ArrowLeftRight className="w-4 h-4" />
+                {isInventory
+                  ? `Initiate Order Transfer for Manager Authorization (${transferList.length} SKUs)`
+                  : `Authorize & Dispatch Multi-SKU Bonded Stock Transfer (${transferList.length} SKUs)`}
+              </>
+            )}
           </button>
         </form>
       ) : (
@@ -5107,7 +6167,14 @@ export const BranchesAndTransfersModule: React.FC<{
                     tr.fromBranchName === currentUser.branchName ||
                     tr.toBranchName === currentUser.branchName)
               )
-              .map((tr) => (
+              .map((tr) => {
+                const canAuthThisRow =
+                  isAdmin ||
+                  (isBranchManager &&
+                    (tr.fromBranchId === currentUser.branchId ||
+                      tr.fromBranchName === currentUser.branchName));
+                const linkedInv = findLinkedDoc(tr.linkedInvoiceId, tr.linkedInvoiceNo);
+                return (
                 <div
                   key={tr.id}
                   className="bg-white border border-indigo-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
@@ -5117,6 +6184,11 @@ export const BranchesAndTransfersModule: React.FC<{
                       <span className="font-jakarta font-black text-xs text-[#0A006E] font-mono-tabular">
                         {tr.transferNo}
                       </span>
+                      {tr.orderType === 'WAREHOUSE_PURCHASE' && (
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded bg-[#FFDE00] text-[#0A006E]">
+                          WAREHOUSE PURCHASE {tr.totalAmountKes ? `· ${formatKes(tr.totalAmountKes)}` : ''}
+                        </span>
+                      )}
                       <span className="text-[10px] font-jakarta font-black px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-mono-tabular">
                         {tr.quantityBottles} Bottles · {tr.sku}
                       </span>
@@ -5133,37 +6205,49 @@ export const BranchesAndTransfersModule: React.FC<{
                     </p>
                   </div>
 
-                  {canAuthorizeTransfer ? (
-                    <div className="flex items-center gap-2 shrink-0">
-                      {onRejectStockTransfer && (
-                        <button
-                          type="button"
-                          onClick={() => onRejectStockTransfer(tr.id)}
-                          className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-montserrat font-bold text-xs rounded-xl flex items-center gap-1 cursor-pointer transition"
-                        >
-                          <XCircle className="w-3.5 h-3.5" />
-                          Reject
-                        </button>
-                      )}
-                      {onAuthorizeStockTransfer && (
-                        <button
-                          type="button"
-                          onClick={() => onAuthorizeStockTransfer(tr.id)}
-                          className="px-4 py-2.5 bg-[#1E9E60] hover:bg-emerald-700 text-white font-montserrat font-black text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition active:scale-95"
-                        >
-                          <ShieldCheck className="w-4 h-4" />
-                          Authorize Transfer
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="px-3 py-1.5 rounded-xl bg-amber-100 border border-amber-300 text-amber-900 text-xs font-montserrat font-black shrink-0 flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5" />
-                      Pending Manager Authorization
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                    {linkedInv && onPreviewDoc && (
+                      <button
+                        type="button"
+                        onClick={() => onPreviewDoc(linkedInv)}
+                        className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-[#0A006E] border border-indigo-200 font-montserrat font-bold text-xs rounded-xl cursor-pointer"
+                      >
+                        View {linkedInv.docNumber}
+                      </button>
+                    )}
+                    {canAuthThisRow ? (
+                      <>
+                        {onRejectStockTransfer && (
+                          <button
+                            type="button"
+                            onClick={() => onRejectStockTransfer(tr.id)}
+                            className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-montserrat font-bold text-xs rounded-xl flex items-center gap-1 cursor-pointer transition"
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                            Reject
+                          </button>
+                        )}
+                        {onAuthorizeStockTransfer && (
+                          <button
+                            type="button"
+                            onClick={() => onAuthorizeStockTransfer(tr.id)}
+                            className="px-4 py-2.5 bg-[#1E9E60] hover:bg-emerald-700 text-white font-montserrat font-black text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition active:scale-95"
+                          >
+                            <ShieldCheck className="w-4 h-4" />
+                            Authorize &amp; Dispatch
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <span className="px-3 py-1.5 rounded-xl bg-amber-100 border border-amber-300 text-amber-900 text-xs font-montserrat font-black shrink-0 flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5" />
+                        Awaiting Supply Dispatch Auth
+                      </span>
+                    )}
+                  </div>
                 </div>
-              ))}
+                );
+              })}
           </div>
         </div>
       )}
@@ -5221,12 +6305,17 @@ export const BranchesAndTransfersModule: React.FC<{
         </div>
       )}
 
-      {/* Stock Transfer Ledger */}
+      {/* Stock Transfer & Warehouse Purchase Orders Ledger */}
       <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
-            Inter-Branch Stock Transfer Ledger
-          </h3>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
+              Warehouse Purchase Orders &amp; Inter-Branch Stock Transfers Ledger
+            </h3>
+            <p className="text-[11px] text-slate-600">
+              View supply invoices, delivery notes, purchase receipts, and stock movement status across facilities.
+            </p>
+          </div>
           <button
             onClick={() => {
               const visibleTransfers = transfers.filter(
@@ -5238,17 +6327,18 @@ export const BranchesAndTransfersModule: React.FC<{
                   tr.toBranchName === currentUser.branchName
               );
               exportReportToPDF(
-                'Inter-Branch Bonded Stock Transfer Manifest',
+                'Warehouse Purchase Orders & Stock Transfer Manifest',
                 `Exported by ${currentUser.name} (${isBranchManager ? currentUser.branchName : 'All Branches'})`,
-                ['Transfer No', 'From Branch', 'To Branch', 'SKU', 'Product', 'Qty Btls', 'Authorized By', 'Status'],
+                ['Order / Trf No', 'Type', 'From Facility', 'To Branch', 'SKU', 'Product', 'Qty Btls', 'Amount (KES)', 'Status'],
                 visibleTransfers.map((t) => [
                   t.transferNo,
+                  t.orderType === 'WAREHOUSE_PURCHASE' ? 'Warehouse Purchase' : 'Transfer',
                   t.fromBranchName,
                   t.toBranchName,
                   t.sku,
                   t.productName,
                   t.quantityBottles,
-                  t.authorizedBy || 'Pending',
+                  t.totalAmountKes ? Math.round(t.totalAmountKes).toLocaleString() : '—',
                   t.status,
                 ]),
                 'Vaairo_Stock_Transfers'
@@ -5257,7 +6347,7 @@ export const BranchesAndTransfersModule: React.FC<{
             className="px-3.5 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer"
           >
             <Download className="w-3.5 h-3.5 text-[#FFDE00]" />
-            Export Transfers PDF
+            Export Ledger PDF
           </button>
         </div>
 
@@ -5265,12 +6355,11 @@ export const BranchesAndTransfersModule: React.FC<{
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
-                <th className="py-2.5 px-3 font-black">Transfer No</th>
-                <th className="py-2.5 px-3 font-black">Source Branch</th>
-                <th className="py-2.5 px-3 font-black">Destination Branch</th>
-                <th className="py-2.5 px-3 font-black">Auto SKU &amp; Product</th>
-                <th className="py-2.5 px-3 font-black text-right">Qty (Btls)</th>
-                <th className="py-2.5 px-3 font-black">Initiated / Authorized</th>
+                <th className="py-2.5 px-3 font-black">Order / Ref No</th>
+                <th className="py-2.5 px-3 font-black">From → To Facility</th>
+                <th className="py-2.5 px-3 font-black">SKU &amp; Product</th>
+                <th className="py-2.5 px-3 font-black text-right">Qty / Value</th>
+                <th className="py-2.5 px-3 font-black">Commercial Docs</th>
                 <th className="py-2.5 px-3 font-black">Status</th>
                 <th className="py-2.5 px-3 font-black text-right">Action</th>
               </tr>
@@ -5285,8 +6374,8 @@ export const BranchesAndTransfersModule: React.FC<{
                   tr.toBranchName === currentUser.branchName
               ).length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-6 text-center text-slate-500">
-                    No inter-branch stock transfers recorded yet for your branch. Use the form above to move stock between branches.
+                  <td colSpan={7} className="py-6 text-center text-slate-500">
+                    No warehouse purchase orders or stock transfers recorded yet. Use the form above to order stock from a warehouse or store.
                   </td>
                 </tr>
               ) : (
@@ -5299,80 +6388,155 @@ export const BranchesAndTransfersModule: React.FC<{
                       tr.fromBranchName === currentUser.branchName ||
                       tr.toBranchName === currentUser.branchName
                   )
-                  .map((tr) => (
-                    <tr key={tr.id} className="hover:bg-slate-50">
-                      <td className="py-2.5 px-3 font-jakarta font-bold text-[#0A006E] font-mono-tabular">
-                        {tr.transferNo}
-                      </td>
-                      <td className="py-2.5 px-3 text-slate-800">{tr.fromBranchName}</td>
-                      <td className="py-2.5 px-3 text-slate-800 font-bold">{tr.toBranchName}</td>
-                      <td className="py-2.5 px-3">
-                        <span className="font-jakarta font-bold text-[#0A006E] font-mono-tabular">{tr.sku}</span> · {tr.productName}
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-jakarta font-black font-mono-tabular">
-                        {tr.quantityBottles}
-                      </td>
-                      <td className="py-2.5 px-3 text-slate-600">
-                        <div className="text-[11px] font-semibold text-slate-800">By: {tr.initiatedBy}</div>
-                        {tr.authorizedBy && (
-                          <div className="text-[10px] text-emerald-700 font-bold">
-                            Auth: {tr.authorizedBy}
+                  .map((tr) => {
+                    const invDoc = findLinkedDoc(tr.linkedInvoiceId, tr.linkedInvoiceNo);
+                    const dnDoc = findLinkedDoc(tr.linkedDeliveryNoteId, tr.linkedDeliveryNoteNo);
+                    const rcpDoc = findLinkedDoc(tr.linkedReceiptId, tr.linkedReceiptNo);
+                    const isPurchase = tr.orderType === 'WAREHOUSE_PURCHASE';
+                    return (
+                      <tr key={tr.id} className="hover:bg-slate-50">
+                        <td className="py-2.5 px-3">
+                          <div className="font-jakarta font-bold text-[#0A006E] font-mono-tabular">
+                            {tr.transferNo}
                           </div>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-montserrat font-black ${
-                            tr.status === 'Received'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : tr.status === 'Dispatched' || tr.status === 'In Transit'
-                              ? 'bg-blue-100 text-blue-800'
-                              : tr.status === 'Pending Authorization'
-                              ? 'bg-amber-100 text-amber-900'
-                              : 'bg-rose-100 text-rose-800'
-                          }`}
-                        >
-                          {tr.status}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                        {tr.status === 'Pending Authorization' && canAuthorizeTransfer && onAuthorizeStockTransfer ? (
-                          <div className="inline-flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => onAuthorizeStockTransfer(tr.id)}
-                              className="px-3 py-1 bg-[#1E9E60] hover:bg-emerald-700 text-white rounded-lg text-[11px] font-montserrat font-black cursor-pointer shadow-2xs"
-                            >
-                              Authorize
-                            </button>
-                            {onRejectStockTransfer && (
+                          {isPurchase ? (
+                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 text-[9px] font-black uppercase">
+                              Warehouse Purchase
+                            </span>
+                          ) : (
+                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[9px] font-bold uppercase">
+                              Bonded Transfer
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="text-slate-700 text-[11px]">From: <strong>{tr.fromBranchName}</strong></div>
+                          <div className="text-[#0A006E] text-[11px] font-bold">To: {tr.toBranchName}</div>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span className="font-jakarta font-bold text-[#0A006E] font-mono-tabular">{tr.sku}</span> · {tr.productName}
+                          <div className="text-[10px] text-slate-500 mt-0.5">
+                            By {tr.initiatedBy}
+                            {tr.authorizedBy ? ` · Auth: ${tr.authorizedBy}` : ''}
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-jakarta font-mono-tabular">
+                          <div className="font-black text-slate-900">{tr.quantityBottles} btls</div>
+                          {tr.totalAmountKes ? (
+                            <div className="text-[11px] font-bold text-emerald-700">
+                              {formatKes(tr.totalAmountKes)}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="flex flex-wrap gap-1">
+                            {invDoc && onPreviewDoc && (
                               <button
                                 type="button"
-                                onClick={() => onRejectStockTransfer(tr.id)}
-                                className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[11px] font-bold cursor-pointer"
+                                onClick={() => onPreviewDoc(invDoc)}
+                                className="px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-[#0A006E] border border-indigo-200 rounded text-[10px] font-bold cursor-pointer"
                               >
-                                Reject
+                                {invDoc.docNumber}
                               </button>
                             )}
+                            {dnDoc && onPreviewDoc && (
+                              <button
+                                type="button"
+                                onClick={() => onPreviewDoc(dnDoc)}
+                                className="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded text-[10px] font-bold cursor-pointer"
+                              >
+                                {dnDoc.docNumber}
+                              </button>
+                            )}
+                            {rcpDoc && onPreviewDoc && (
+                              <button
+                                type="button"
+                                onClick={() => onPreviewDoc(rcpDoc)}
+                                className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded text-[10px] font-bold cursor-pointer"
+                              >
+                                {rcpDoc.docNumber}
+                              </button>
+                            )}
+                            {!invDoc && !dnDoc && !rcpDoc && (
+                              <span className="text-[10px] text-slate-400">Transfer Only</span>
+                            )}
                           </div>
-                        ) : tr.status === 'Dispatched' &&
-                          onReceiveStockTransfer &&
-                          (!isBranchManager ||
-                            tr.toBranchId === currentUser.branchId ||
-                            tr.toBranchName === currentUser.branchName) ? (
-                          <button
-                            type="button"
-                            onClick={() => onReceiveStockTransfer(tr.id)}
-                            className="px-3 py-1 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-black cursor-pointer"
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-montserrat font-black ${
+                              tr.status === 'Received'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : tr.status === 'Dispatched' || tr.status === 'In Transit'
+                                ? 'bg-blue-100 text-blue-800'
+                                : tr.status === 'Pending Authorization'
+                                ? 'bg-amber-100 text-amber-900'
+                                : 'bg-rose-100 text-rose-800'
+                            }`}
                           >
-                            Receive Stock
-                          </button>
-                        ) : (
-                          <span className="text-[11px] text-slate-400 font-semibold">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))
+                            {tr.status}
+                          </span>
+                          {tr.paymentStatus && (
+                            <div className="text-[10px] font-bold text-slate-600 mt-0.5">
+                              {tr.paymentStatus}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                          {tr.status === 'Pending Authorization' &&
+                          (isAdmin ||
+                            (isBranchManager &&
+                              (tr.fromBranchId === currentUser.branchId ||
+                                tr.fromBranchName === currentUser.branchName))) &&
+                          onAuthorizeStockTransfer ? (
+                            <div className="inline-flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => onAuthorizeStockTransfer(tr.id)}
+                                className="px-3 py-1 bg-[#1E9E60] hover:bg-emerald-700 text-white rounded-lg text-[11px] font-montserrat font-black cursor-pointer shadow-2xs"
+                              >
+                                Authorize &amp; Dispatch
+                              </button>
+                              {onRejectStockTransfer && (
+                                <button
+                                  type="button"
+                                  onClick={() => onRejectStockTransfer(tr.id)}
+                                  className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[11px] font-bold cursor-pointer"
+                                >
+                                  Reject
+                                </button>
+                              )}
+                            </div>
+                          ) : tr.status === 'Dispatched' &&
+                            onReceiveStockTransfer &&
+                            (!isBranchManager ||
+                              tr.toBranchId === currentUser.branchId ||
+                              tr.toBranchName === currentUser.branchName) ? (
+                            <button
+                              type="button"
+                              onClick={() => onReceiveStockTransfer(tr.id)}
+                              className="px-3 py-1 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-black cursor-pointer"
+                            >
+                              Receive Stock
+                            </button>
+                          ) : isPurchase &&
+                            tr.status === 'Received' &&
+                            tr.paymentStatus !== 'Paid / Settled' &&
+                            onSettleWarehousePurchase ? (
+                            <button
+                              type="button"
+                              onClick={() => onSettleWarehousePurchase(tr.id)}
+                              className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-montserrat font-black cursor-pointer"
+                            >
+                              Settle &amp; Receipt
+                            </button>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 font-semibold">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
               )}
             </tbody>
           </table>

@@ -44,6 +44,7 @@ import {
   CheckCircle2,
   Key,
   Inbox,
+  Calendar,
 } from 'lucide-react';
 import { ERPModuleId, StaffMember, Branch, Product, TransactionDoc } from '../types';
 import { formatKes, exportToCSV } from '../erpUtils';
@@ -92,6 +93,7 @@ const MODULE_NAV_DEFINITIONS: Record<
   external_customers: { label: 'External Customers', shortLabel: 'Customers', icon: UserCircle },
   delivery_management: { label: 'Delivery & Dispatch Operations', shortLabel: 'Deliveries', icon: Truck },
   internal_inbox: { label: 'Internal Dept Inbox', shortLabel: 'Inbox', icon: Inbox },
+  leave_management: { label: 'Leave, Off & Emergency', shortLabel: 'Leave', icon: Calendar },
 };
 
 export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({

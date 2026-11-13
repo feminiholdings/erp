@@ -76,15 +76,25 @@ export const DocumentPrintModal: React.FC<DocumentPrintModalProps> = ({ docData,
           {/* Letterhead */}
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 border-b-2 border-slate-200">
             <div>
-              <div className="text-xs font-montserrat font-black text-[#0A006E] tracking-widest uppercase flex items-center gap-1.5">
+              <div className="text-xs font-montserrat font-black text-[#0A006E] tracking-widest uppercase flex items-center gap-1.5 flex-wrap">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#34D186]" />
                 VAAIRO BEVERAGES &amp; MERCHANTS LTD
+                {docData.supplierFacilityType && (
+                  <span className="ml-1 px-2 py-0.5 rounded bg-blue-100 text-blue-900 text-[10px] font-black uppercase">
+                    {docData.supplierFacilityType.replace('_', ' ')}
+                  </span>
+                )}
+                {docData.orderCategory === 'WAREHOUSE_PURCHASE' && (
+                  <span className="px-2 py-0.5 rounded bg-[#FFDE00] text-[#0A006E] text-[10px] font-black uppercase">
+                    WAREHOUSE → BRANCH PURCHASE
+                  </span>
+                )}
               </div>
               <h1 className="text-3xl font-montserrat font-black italic text-[#0A006E] mt-1 tracking-tight">
                 {docData.docType.toUpperCase()}
               </h1>
               <p className="text-xs text-slate-600 mt-1 font-medium">
-                Licensed Importer &amp; Regional Distributor · Branch:{' '}
+                Issuing Facility:{' '}
                 <span className="font-bold text-slate-900">{docData.branchName}</span> ({docData.regionName})
               </p>
               <p className="text-xs text-slate-500 mt-0.5">
@@ -98,6 +108,11 @@ export const DocumentPrintModal: React.FC<DocumentPrintModalProps> = ({ docData,
               <div className="text-xs text-slate-600 mt-1">
                 Issued: {new Date(docData.createdAt).toLocaleString()}
               </div>
+              {docData.validUntil && (
+                <div className="text-xs text-amber-800 mt-0.5 font-bold">
+                  Valid Until: {docData.validUntil}
+                </div>
+              )}
               <div className="text-xs text-emerald-700 mt-1 font-bold flex items-center sm:justify-end gap-1">
                 <ShieldCheck className="w-3.5 h-3.5" />
                 Status: {docData.status} · {docData.paymentMethod}
@@ -109,25 +124,46 @@ export const DocumentPrintModal: React.FC<DocumentPrintModalProps> = ({ docData,
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#F8FAFC] p-4 rounded-xl border border-slate-200 text-xs">
             <div>
               <div className="text-[10px] text-[#0A006E] font-montserrat font-black uppercase tracking-wider">
-                Consignee / Customer Details
+                {docData.buyerBranchName ? 'Purchasing / Receiving Branch' : 'Consignee / Customer Details'}
               </div>
               <div className="text-sm font-montserrat font-bold text-slate-900 mt-1">
                 {docData.customerName}
               </div>
               <div className="text-xs text-slate-600 font-mono-tabular mt-1">
-                Liquor License / PIN: <strong className="text-slate-900">{docData.customerLicenseNo || 'Walk-in Retail 21+ Verified'}</strong>
+                License / KRA PIN:{' '}
+                <strong className="text-slate-900">
+                  {docData.customerKraPin || docData.customerLicenseNo || 'Commercial Verified 21+'}
+                </strong>
               </div>
+              {(docData.customerPhone || docData.customerEmail || docData.deliveryAddress) && (
+                <div className="text-[11px] text-slate-600 mt-1 space-y-0.5">
+                  {docData.customerPhone && <div>Tel: {docData.customerPhone}</div>}
+                  {docData.customerEmail && <div>Email: {docData.customerEmail}</div>}
+                  {docData.deliveryAddress && <div>Delivery Address: {docData.deliveryAddress}</div>}
+                </div>
+              )}
             </div>
             <div>
               <div className="text-[10px] text-[#1E9E60] font-montserrat font-black uppercase tracking-wider">
-                Regulatory &amp; Excise Stamp Metadata
+                Regulatory, Excise &amp; Traceability Metadata
               </div>
               <div className="text-xs text-slate-700 mt-1 leading-relaxed">
                 All IPS/LPS spirits &amp; alcoholic beverages carry verified KRA Digital Excise &amp; Import Duty Stamps. Bonded under Kenya Revenue Authority rules.
               </div>
+              {docData.linkedTransferNo && (
+                <div className="text-xs font-bold text-[#0A006E] mt-1 font-mono-tabular">
+                  Linked Purchase / Transfer Batch: {docData.linkedTransferNo}
+                </div>
+              )}
               {docData.relatedInvoiceNo && (
                 <div className="text-xs font-bold text-amber-800 mt-1">
-                  Ref Invoice: {docData.relatedInvoiceNo} · Reason: {docData.creditReason}
+                  Ref Document: {docData.relatedInvoiceNo}
+                  {docData.creditReason ? ` · Reason: ${docData.creditReason}` : ''}
+                </div>
+              )}
+              {docData.notes && (
+                <div className="text-xs text-slate-700 mt-1 italic">
+                  Notes: {docData.notes}
                 </div>
               )}
             </div>
@@ -213,7 +249,7 @@ export const DocumentPrintModal: React.FC<DocumentPrintModalProps> = ({ docData,
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6 border-t border-slate-200 text-xs text-slate-700">
               <div className="space-y-4">
                 <div className="font-montserrat font-bold text-slate-900">
-                  Bonded Warehouse Dispatch Officer
+                  {docData.branchName} Dispatch Officer
                 </div>
                 <div className="border-b-2 border-slate-400 w-56 pb-1 font-mono text-slate-500 text-[10px]">
                   Signature &amp; Excise Seal Check

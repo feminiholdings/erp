@@ -29,6 +29,7 @@ import {
   Wine,
   ChefHat,
   Layers,
+  Calendar,
 } from 'lucide-react';
 import {
   Product,
@@ -81,6 +82,7 @@ interface PosViewsProps {
   ) => Promise<TransactionDoc | null>;
   onPreviewDoc: (doc: TransactionDoc) => void;
   onUpdateRestaurantItem?: (itemId: string, updates: Partial<RestaurantInventoryItem>) => Promise<void>;
+  onNavigateModule?: (module: any) => void;
 }
 
 export const PosViews: React.FC<PosViewsProps> = ({
@@ -95,6 +97,7 @@ export const PosViews: React.FC<PosViewsProps> = ({
   onCommitTransaction,
   onPreviewDoc,
   onUpdateRestaurantItem,
+  onNavigateModule,
 }) => {
   const isScopedBranch =
     currentUser.role === 'Branch Manager' ||
@@ -1003,6 +1006,18 @@ export const PosViews: React.FC<PosViewsProps> = ({
               ))}
             </select>
           </div>
+
+          {onNavigateModule && (
+            <button
+              type="button"
+              onClick={() => onNavigateModule('leave_management')}
+              className="px-2.5 py-1 bg-white hover:bg-slate-50 border border-[#0A006E] text-[#0A006E] rounded-lg text-[11px] font-montserrat font-black flex items-center gap-1 cursor-pointer shadow-xs transition whitespace-nowrap"
+              title="Request Annual Leave, Off-Day, Emergency or Maternity Leave"
+            >
+              <Calendar className="w-3.5 h-3.5 text-fuchsia-600 shrink-0" />
+              <span>Leave / Off</span>
+            </button>
+          )}
         </div>
       </div>
 

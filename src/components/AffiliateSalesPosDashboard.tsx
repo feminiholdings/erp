@@ -43,6 +43,7 @@ import {
   Camera,
   ScanLine,
   Keyboard,
+  Calendar,
 } from 'lucide-react';
 import {
   Product,
@@ -953,6 +954,18 @@ export const AffiliateSalesPosDashboard: React.FC<AffiliateSalesPosDashboardProp
                 <Keyboard className="w-3.5 h-3.5" />
                 <span>Keyboard</span>
               </button>
+
+              {onNavigateModule && (
+                <button
+                  type="button"
+                  onClick={() => onNavigateModule('leave_management')}
+                  className="px-3 py-1.5 rounded-lg font-montserrat font-black text-xs cursor-pointer transition-all flex items-center gap-1.5 bg-white/15 hover:bg-white hover:text-[#0A006E] text-white border border-white/25 shadow-xs whitespace-nowrap"
+                  title="Request Leave, Off-Day, Emergency or Paternity/Maternity"
+                >
+                  <Calendar className="w-3.5 h-3.5 text-[#FFDE00]" />
+                  <span>Leave / Off</span>
+                </button>
+              )}
             </div>
           </div>
         </div>

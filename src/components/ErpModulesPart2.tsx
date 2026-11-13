@@ -52,13 +52,18 @@ import {
   StaffDeductionItem,
   DeductionCategory,
   DeductionCalcMode,
+  DocType,
+  LineItem,
+  LeaveRequest,
 } from '../types';
+import { LeaveManagementPortal } from './LeaveManagementPortal';
 import { GoogleIcon } from './icons/GoogleIcon';
 import {
   ROLE_PERMISSIONS,
   exportToCSV,
   exportReportToPDF,
   exportCommercialDocumentPDF,
+  calculateGeoPrice,
   formatKes,
   isUserFeaturePermitted,
 } from '../erpUtils';
@@ -713,9 +718,18 @@ export const DocumentsAndCreditNotesModule: React.FC<{
   currentUser: StaffMember;
   transactions: TransactionDoc[];
   branches: Branch[];
+  allBranches?: Branch[];
   regions: GeoRegion[];
+  allRegions?: GeoRegion[];
   products: Product[];
+  externalCustomers?: ExternalCustomer[];
+  partners?: Partner[];
   onIssueCreditNote: (cn: Omit<TransactionDoc, 'id' | 'createdAt'>) => Promise<TransactionDoc | null>;
+  onCreateDocument?: (
+    txDraft: Omit<TransactionDoc, 'id' | 'createdAt'>,
+    updatedProducts: { productId: string; newTotal: number; newBranchStockJson: string }[]
+  ) => Promise<TransactionDoc | null>;
+  onUpdateDocument?: (txId: string, updates: Partial<TransactionDoc>) => Promise<boolean>;
   onPreviewDoc: (doc: TransactionDoc) => void;
   onInspectOrder?: (doc: TransactionDoc) => void;
   onOpenKraReturns?: (defaultTab?: KraReturnScheduleType) => void;
@@ -723,21 +737,35 @@ export const DocumentsAndCreditNotesModule: React.FC<{
   currentUser,
   transactions,
   branches,
+  allBranches,
   regions,
+  allRegions,
   products,
+  externalCustomers = [],
+  partners = [],
   onIssueCreditNote,
+  onCreateDocument,
+  onUpdateDocument,
   onPreviewDoc,
   onInspectOrder,
   onOpenKraReturns,
 }) => {
   const [filterDocType, setFilterDocType] = useState<string>('All');
-  const [refInvoiceNo, setRefInvoiceNo] = useState('');
-  const [customerName, setCustomerName] = useState('');
-  const [creditReason, setCreditReason] = useState('Breakage in Bonded Transit / Short-Landed Case');
-  const [selectedProdId, setSelectedProdId] = useState(products[0]?.id || '');
-  const [creditBottles, setCreditBottles] = useState<number>(1);
-  const [creditUnitPrice, setCreditUnitPrice] = useState<number>(
-    products[0]?.wholesalePriceKes || products[0]?.baseWholesalePrice || 0
+  const [filterFacilityId, setFilterFacilityId] = useState<string>('ALL');
+  const [searchDocQuery, setSearchDocQuery] = useState('');
+  const [isCreatorExpanded, setIsCreatorExpanded] = useState(true);
+
+  const issuingBranches = useMemo(
+    () => (branches && branches.length > 0 ? branches : allBranches || []),
+    [branches, allBranches]
+  );
+  const directoryBranches = useMemo(
+    () => (allBranches && allBranches.length > 0 ? allBranches : issuingBranches),
+    [allBranches, issuingBranches]
+  );
+  const pricingRegions = useMemo(
+    () => (allRegions && allRegions.length > 0 ? allRegions : regions),
+    [allRegions, regions]
   );
 
   const canIssueCreditNote =
@@ -746,135 +774,519 @@ export const DocumentsAndCreditNotesModule: React.FC<{
       currentUser.role === 'Branch Manager') &&
     isUserFeaturePermitted(currentUser, 'issue_credit_notes');
 
-  // Role-scoped documents based on Target Access Model
+  const canCreateCommercialDocs =
+    currentUser.role === 'Admin' ||
+    currentUser.role === 'Branch Manager' ||
+    currentUser.role === 'Inventory Controller' ||
+    currentUser.role === 'Sales Manager' ||
+    currentUser.role === 'Accountant' ||
+    currentUser.role === 'Counter Cashier';
+
+  // Document Creator State
+  const [docType, setDocType] = useState<Exclude<DocType, 'Online Order'>>('Invoice');
+  const [issuerBranchId, setIssuerBranchId] = useState<string>(() => {
+    const match = issuingBranches.find(
+      (b) => b.id === currentUser.branchId || b.name === currentUser.branchName
+    );
+    return match?.id || issuingBranches[0]?.id || '';
+  });
+
+  useEffect(() => {
+    if (!issuerBranchId && issuingBranches.length > 0) {
+      const match = issuingBranches.find(
+        (b) => b.id === currentUser.branchId || b.name === currentUser.branchName
+      );
+      setIssuerBranchId(match?.id || issuingBranches[0].id);
+    }
+  }, [issuingBranches, issuerBranchId, currentUser.branchId, currentUser.branchName]);
+
+  const [recipientMode, setRecipientMode] = useState<'custom' | 'customer' | 'partner' | 'branch'>('custom');
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [selectedPartnerId, setSelectedPartnerId] = useState('');
+  const [selectedRecipientBranchId, setSelectedRecipientBranchId] = useState('');
+
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [customerKraPin, setCustomerKraPin] = useState('');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+
+  const [refInvoiceNo, setRefInvoiceNo] = useState('');
+  const [creditReason, setCreditReason] = useState('Breakage in Bonded Transit / Short-Landed Case');
+  const [validUntil, setValidUntil] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    return d.toISOString().split('T')[0];
+  });
+  const [paymentMethod, setPaymentMethod] = useState('M-Pesa Paybill / Till');
+  const [docStatus, setDocStatus] = useState<TransactionDoc['status']>('Issued');
+  const [taxMode, setTaxMode] = useState<'EXCLUSIVE_16' | 'INCLUSIVE_16' | 'EXEMPT_0'>('EXCLUSIVE_16');
+  const [deductFacilityStock, setDeductFacilityStock] = useState(false);
+  const [docNotes, setDocNotes] = useState('');
+
+  // Line Item Builder State
+  const [selectedProdId, setSelectedProdId] = useState(products[0]?.id || '');
+  const [itemUnitMode, setItemUnitMode] = useState<'Bottle' | 'Case'>('Bottle');
+  const [itemQuantity, setItemQuantity] = useState<number>(1);
+  const [customUnitPrice, setCustomUnitPrice] = useState<number>(0);
+  const [docLineItems, setDocLineItems] = useState<LineItem[]>([]);
+  const [creatorError, setCreatorError] = useState<string | null>(null);
+  const [isCreatingDoc, setIsCreatingDoc] = useState(false);
+
+  const selectedIssuerBranch = useMemo(
+    () => issuingBranches.find((b) => b.id === issuerBranchId) || issuingBranches[0],
+    [issuingBranches, issuerBranchId]
+  );
+
+  const selectedIssuerRegion = useMemo(
+    () =>
+      pricingRegions.find(
+        (r) => r.id === selectedIssuerBranch?.regionId || r.name === selectedIssuerBranch?.regionName
+      ) || pricingRegions[0],
+    [pricingRegions, selectedIssuerBranch]
+  );
+
+  const selectedProductObj = useMemo(
+    () => products.find((p) => p.id === selectedProdId) || products[0],
+    [products, selectedProdId]
+  );
+
+  const defaultUnitPrice = useMemo(() => {
+    if (!selectedProductObj) return 0;
+    const priceTier: 'retail' | 'wholesale' = docType === 'Receipt' ? 'retail' : 'wholesale';
+    const baseBottlePrice = selectedIssuerRegion
+      ? Math.round(calculateGeoPrice(selectedProductObj, selectedIssuerRegion, priceTier).unitBottlePrice)
+      : Math.round(
+          docType === 'Receipt'
+            ? selectedProductObj.retailPriceKes || selectedProductObj.baseRetailPrice || 0
+            : selectedProductObj.wholesalePriceKes || selectedProductObj.baseWholesalePrice || 0
+        );
+    const packSize = selectedProductObj.packSize || selectedProductObj.bottlesPerCase || 12;
+    return itemUnitMode === 'Case' ? baseBottlePrice * packSize : baseBottlePrice;
+  }, [selectedProductObj, selectedIssuerRegion, docType, itemUnitMode]);
+
+  const activeUnitPrice = customUnitPrice > 0 ? customUnitPrice : defaultUnitPrice;
+
+  const handleSelectRecipientCustomer = (id: string) => {
+    setSelectedCustomerId(id);
+    const cust = externalCustomers.find((c) => c.id === id);
+    if (cust) {
+      setCustomerName(cust.companyName ? `${cust.companyName} (${cust.name})` : cust.name);
+      setCustomerPhone(cust.phone || '');
+      setCustomerEmail(cust.email || '');
+      setCustomerKraPin(cust.kraPin || cust.liquorLicenseNo || '');
+      setDeliveryAddress(cust.deliveryAddress || cust.address || '');
+    }
+  };
+
+  const handleSelectRecipientPartner = (id: string) => {
+    setSelectedPartnerId(id);
+    const partner = partners.find((p) => p.id === id);
+    if (partner) {
+      setCustomerName(partner.companyName);
+      setCustomerPhone(partner.phone || '');
+      setCustomerEmail(partner.email || '');
+      setCustomerKraPin(partner.taxPin || partner.liquorLicenseNo || '');
+      setDeliveryAddress(partner.regionName || '');
+    }
+  };
+
+  const handleSelectRecipientBranch = (id: string) => {
+    setSelectedRecipientBranchId(id);
+    const br = directoryBranches.find((b) => b.id === id);
+    if (br) {
+      setCustomerName(br.name);
+      setCustomerKraPin(br.exciseBondLicense || '');
+      setDeliveryAddress(br.address || '');
+      setCustomerPhone('');
+      setCustomerEmail('');
+    }
+  };
+
+  const handleDocTypeSwitch = (nextType: Exclude<DocType, 'Online Order'>) => {
+    setDocType(nextType);
+    setCreatorError(null);
+    setCustomUnitPrice(0);
+    if (nextType === 'Receipt') {
+      setDocStatus('Paid');
+      setPaymentMethod('M-Pesa Paybill / Till');
+    } else if (nextType === 'Credit Note') {
+      setDocStatus('Credited');
+      setPaymentMethod('Ledger Credit Offset');
+      setDeductFacilityStock(false);
+    } else if (nextType === 'Quote') {
+      setDocStatus('Issued');
+      setPaymentMethod('Quotation / Proforma');
+      setDeductFacilityStock(false);
+    } else if (nextType === 'Packing List' || nextType === 'Delivery Note') {
+      setDocStatus('Issued');
+      setTaxMode('EXEMPT_0');
+    } else {
+      setDocStatus('Issued');
+      setTaxMode('EXCLUSIVE_16');
+    }
+  };
+
+  const handleAddLineItem = () => {
+    const prod = selectedProductObj;
+    if (!prod) return;
+    const packSize = prod.packSize || prod.bottlesPerCase || 12;
+    const qtyUnits = Math.max(1, Number(itemQuantity) || 1);
+    const totalBottles = itemUnitMode === 'Case' ? qtyUnits * packSize : qtyUnits;
+    const unitPrice = Math.max(0, Math.round(activeUnitPrice));
+    const lineTotal = Math.round(qtyUnits * unitPrice);
+
+    setDocLineItems((prev) => {
+      const idx = prev.findIndex((i) => i.productId === prod.id && i.unitMode === itemUnitMode);
+      if (idx >= 0) {
+        const updated = [...prev];
+        const newUnits = updated[idx].quantityUnits + qtyUnits;
+        const newBottles = itemUnitMode === 'Case' ? newUnits * packSize : newUnits;
+        updated[idx] = {
+          ...updated[idx],
+          quantityUnits: newUnits,
+          totalBottles: newBottles,
+          unitPrice,
+          lineTotal: Math.round(newUnits * unitPrice),
+        };
+        return updated;
+      }
+      return [
+        ...prev,
+        {
+          productId: prod.id,
+          sku: prod.sku,
+          name: prod.name,
+          unitMode: itemUnitMode,
+          bottlesPerCase: packSize,
+          quantityUnits: qtyUnits,
+          totalBottles,
+          unitPrice,
+          lineTotal,
+        },
+      ];
+    });
+    setItemQuantity(1);
+    setCustomUnitPrice(0);
+    setCreatorError(null);
+  };
+
+  const handleRemoveLineItem = (idx: number) => {
+    setDocLineItems((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const docFinancials = useMemo(() => {
+    const rawSum = docLineItems.reduce((s, li) => s + li.lineTotal, 0);
+    if (taxMode === 'EXEMPT_0') {
+      return { subtotal: rawSum, tax: 0, total: rawSum };
+    }
+    if (taxMode === 'INCLUSIVE_16') {
+      const subtotal = Math.round(rawSum / 1.16);
+      const tax = rawSum - subtotal;
+      return { subtotal, tax, total: rawSum };
+    }
+    const tax = Math.round(rawSum * 0.16);
+    return { subtotal: rawSum, tax, total: rawSum + tax };
+  }, [docLineItems, taxMode]);
+
+  const handleCreateCommercialDoc = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canCreateCommercialDocs) return;
+    if (docType === 'Credit Note' && !canIssueCreditNote) {
+      setCreatorError('Issuing Credit Notes requires Accountant, Branch Manager, or Admin authorization.');
+      return;
+    }
+    if (!selectedIssuerBranch || !selectedIssuerRegion) {
+      setCreatorError('Please select a valid issuing Branch, Warehouse, Store, or Shop.');
+      return;
+    }
+    if (docLineItems.length === 0) {
+      setCreatorError('Please add at least one product line item to the document.');
+      return;
+    }
+    if (!customerName.trim() && recipientMode === 'custom') {
+      setCreatorError('Please enter a Customer, Recipient Facility, or Consignee name.');
+      return;
+    }
+
+    setCreatorError(null);
+    setIsCreatingDoc(true);
+
+    try {
+      const prefixMap: Record<Exclude<DocType, 'Online Order'>, string> = {
+        Invoice: 'INV',
+        Quote: 'QTE',
+        'Delivery Note': 'DN',
+        'Packing List': 'PKL',
+        Receipt: 'RCP',
+        'Credit Note': 'CRN',
+      };
+      const suffix = Date.now().toString().slice(-6);
+      const docNumber = `${prefixMap[docType]}-${suffix}`;
+
+      const recipientBranchObj =
+        recipientMode === 'branch' && selectedRecipientBranchId
+          ? directoryBranches.find((b) => b.id === selectedRecipientBranchId)
+          : undefined;
+
+      const updatedProducts: { productId: string; newTotal: number; newBranchStockJson: string }[] = [];
+      if (
+        deductFacilityStock &&
+        (docType === 'Invoice' || docType === 'Receipt' || docType === 'Delivery Note')
+      ) {
+        const deductByProd: Record<string, number> = {};
+        docLineItems.forEach((li) => {
+          deductByProd[li.productId] = (deductByProd[li.productId] || 0) + li.totalBottles;
+        });
+
+        Object.entries(deductByProd).forEach(([pid, bottlesToDeduct]) => {
+          const prod = products.find((p) => p.id === pid);
+          if (!prod) return;
+          let branchStock: Record<string, number> = {};
+          try {
+            branchStock = prod.branchStockSummary ? JSON.parse(prod.branchStockSummary) : {};
+          } catch {
+            branchStock = {};
+          }
+          const currentBranchQty = branchStock[selectedIssuerBranch.id] ?? 0;
+          branchStock[selectedIssuerBranch.id] = Math.max(0, currentBranchQty - bottlesToDeduct);
+          const nextTotal = Math.max(0, (prod.totalBottles ?? 0) - bottlesToDeduct);
+          updatedProducts.push({
+            productId: pid,
+            newTotal: nextTotal,
+            newBranchStockJson: JSON.stringify(branchStock),
+          });
+        });
+      }
+
+      const payload: Omit<TransactionDoc, 'id' | 'createdAt'> = {
+        docNumber,
+        docType,
+        channel:
+          selectedIssuerBranch.facilityType === 'shop'
+            ? 'Merchant Shop POS'
+            : docType === 'Receipt' && selectedIssuerBranch.facilityType === 'store'
+            ? 'Retail Counter POS'
+            : 'B2B Wholesale POS',
+        orderCategory: recipientBranchObj ? 'WAREHOUSE_PURCHASE' : 'FACILITY_DOCUMENT',
+        branchId: selectedIssuerBranch.id,
+        branchName: selectedIssuerBranch.name,
+        supplierFacilityType: selectedIssuerBranch.facilityType || 'branch_depot',
+        buyerBranchId: recipientBranchObj?.id,
+        buyerBranchName: recipientBranchObj?.name,
+        regionId: selectedIssuerRegion.id,
+        regionName: selectedIssuerRegion.name,
+        customerId: recipientMode === 'customer' ? selectedCustomerId || undefined : undefined,
+        customerName: customerName.trim() || recipientBranchObj?.name || 'Direct Trade Account',
+        customerPhone: customerPhone.trim() || undefined,
+        customerEmail: customerEmail.trim() || undefined,
+        customerKraPin: customerKraPin.trim() || undefined,
+        customerLicenseNo: customerKraPin.trim() || 'Commercial Verified 21+',
+        deliveryAddress: deliveryAddress.trim() || undefined,
+        itemsSummary: JSON.stringify(docLineItems),
+        subtotal: docFinancials.subtotal,
+        exciseAndTax: docFinancials.tax,
+        totalAmount: docFinancials.total,
+        paymentMethod,
+        status: docType === 'Credit Note' ? 'Credited' : docStatus,
+        relatedInvoiceNo: refInvoiceNo.trim() || undefined,
+        validUntil: docType === 'Quote' ? validUntil : undefined,
+        notes: docNotes.trim() || undefined,
+        creditReason: docType === 'Credit Note' ? creditReason : undefined,
+        createdBy: currentUser.name,
+        createdByRole: currentUser.role,
+      };
+
+      const created = onCreateDocument
+        ? await onCreateDocument(payload, updatedProducts)
+        : await onIssueCreditNote(payload);
+
+      if (created) {
+        onPreviewDoc(created);
+      }
+
+      setDocLineItems([]);
+      setRefInvoiceNo('');
+      setDocNotes('');
+      if (recipientMode === 'custom') {
+        setCustomerName('');
+        setCustomerPhone('');
+        setCustomerEmail('');
+        setCustomerKraPin('');
+        setDeliveryAddress('');
+      }
+    } finally {
+      setIsCreatingDoc(false);
+    }
+  };
+
+  // Role-scoped documents
   const visibleDocs = useMemo(() => {
     let docs = transactions;
     const role = currentUser.role;
 
     if (role === 'Accountant') {
-      // Financial documents: invoices, credit notes, receipts
       docs = docs.filter(
         (t) =>
           t.docType === 'Invoice' ||
           t.docType === 'Credit Note' ||
-          t.docType === 'Receipt'
+          t.docType === 'Receipt' ||
+          t.docType === 'Quote'
       );
     } else if (role === 'Sales Manager') {
-      // Commercial sales & online customer order documents
       docs = docs.filter(
         (t) =>
           t.channel.includes('Wholesale') ||
           t.channel.includes('Sales') ||
           t.docType === 'Invoice' ||
           t.docType === 'Quote' ||
-          t.docType === 'Online Order'
+          t.docType === 'Online Order' ||
+          t.docType === 'Delivery Note'
       );
     } else if (role === 'Branch Manager') {
-      // Branch scoped documents
       docs = docs.filter(
         (t) =>
           t.branchName === currentUser.branchName ||
-          t.branchId === currentUser.branchId
+          t.branchId === currentUser.branchId ||
+          t.buyerBranchId === currentUser.branchId ||
+          t.buyerBranchName === currentUser.branchName
       );
     } else if (role === 'Inventory Controller') {
-      // Delivery documents: Delivery Notes, Packing Lists, Credit returns
       docs = docs.filter(
         (t) =>
           t.docType === 'Delivery Note' ||
           t.docType === 'Packing List' ||
-          t.docType === 'Credit Note'
+          t.docType === 'Credit Note' ||
+          t.docType === 'Invoice' ||
+          t.docType === 'Quote' ||
+          t.docType === 'Receipt'
       );
     } else if (role === 'Counter Cashier') {
-      // Own POS docs
       docs = docs.filter(
         (t) =>
           t.createdBy === currentUser.name ||
           (t.channel === 'Retail Counter POS' && t.branchName === currentUser.branchName)
       );
     } else if (role === 'Affiliate Sales Representative') {
-      // Own sales docs
       docs = docs.filter(
         (t) =>
           t.createdBy === currentUser.name ||
           t.docNumber.includes('AFF')
       );
     }
-    // Admin has Full access to all docs
 
-    return filterDocType === 'All'
-      ? docs
-      : docs.filter((t) => t.docType === filterDocType);
-  }, [transactions, filterDocType, currentUser]);
-
-  const handleCreateCreditNote = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const prod = products.find((p) => p.id === selectedProdId) || products[0];
-    const br =
-      branches.find(
-        (b) => b.id === currentUser.branchId || b.name === currentUser.branchName
-      ) || branches[0];
-    const reg =
-      regions.find((r) => r.id === br?.regionId) ||
-      regions[0];
-    if (!prod || !br || !reg) return;
-
-    const packSize = prod.packSize || prod.bottlesPerCase || 12;
-    const subtotal = Math.round(creditBottles * creditUnitPrice);
-    const tax = Math.round(subtotal * 0.16);
-    const totalAmount = subtotal + tax;
-
-    const created = await onIssueCreditNote({
-      docNumber: `CRN-${Date.now().toString().slice(-6)}`,
-      docType: 'Credit Note',
-      channel: 'B2B Wholesale POS',
-      branchId: br.id,
-      branchName: br.name,
-      regionId: reg.id,
-      regionName: reg.name,
-      customerName: customerName.trim() || 'Direct Trade Account',
-      customerLicenseNo: '',
-      itemsSummary: JSON.stringify([
-        {
-          productId: prod.id,
-          sku: prod.sku,
-          name: prod.name,
-          unitMode: 'Bottle',
-          bottlesPerCase: packSize,
-          quantityUnits: creditBottles,
-          totalBottles: creditBottles,
-          unitPrice: creditUnitPrice,
-          lineTotal: subtotal,
-        },
-      ]),
-      subtotal,
-      exciseAndTax: tax,
-      totalAmount,
-      paymentMethod: 'Ledger Credit Offset',
-      status: 'Credited',
-      relatedInvoiceNo: refInvoiceNo.trim() || '',
-      creditReason,
-      createdBy: currentUser.name,
-      createdByRole: currentUser.role,
-    });
-
-    if (created) {
-      onPreviewDoc(created);
+    if (filterFacilityId !== 'ALL') {
+      const targetBr = directoryBranches.find((b) => b.id === filterFacilityId);
+      docs = docs.filter(
+        (t) =>
+          t.branchId === filterFacilityId ||
+          (targetBr && t.branchName === targetBr.name) ||
+          t.buyerBranchId === filterFacilityId
+      );
     }
-    setRefInvoiceNo('');
-    setCustomerName('');
-  };
 
-  const handlePrintDerivedDoc = (
+    if (filterDocType !== 'All') {
+      docs = docs.filter((t) => t.docType === filterDocType);
+    }
+
+    const q = searchDocQuery.trim().toLowerCase();
+    if (q) {
+      docs = docs.filter(
+        (t) =>
+          t.docNumber.toLowerCase().includes(q) ||
+          t.customerName.toLowerCase().includes(q) ||
+          t.branchName.toLowerCase().includes(q) ||
+          (t.relatedInvoiceNo || '').toLowerCase().includes(q) ||
+          (t.linkedTransferNo || '').toLowerCase().includes(q)
+      );
+    }
+
+    return docs;
+  }, [transactions, filterDocType, filterFacilityId, searchDocQuery, currentUser, directoryBranches]);
+
+  const handleSaveDerivedDoc = async (
     baseTx: TransactionDoc,
-    targetType: 'Packing List' | 'Delivery Note' | 'Quote' | 'Invoice' | 'Receipt'
+    targetType: 'Packing List' | 'Delivery Note' | 'Invoice' | 'Receipt'
   ) => {
-    const derived: TransactionDoc = {
+    const prefix =
+      targetType === 'Packing List'
+        ? 'PKL'
+        : targetType === 'Delivery Note'
+        ? 'DN'
+        : targetType === 'Invoice'
+        ? 'INV'
+        : 'RCP';
+    const docNumber = `${prefix}-${Date.now().toString().slice(-5)}`;
+
+    if (onCreateDocument) {
+      const saved = await onCreateDocument(
+        {
+          docNumber,
+          docType: targetType,
+          channel: baseTx.channel,
+          orderCategory: baseTx.orderCategory || 'FACILITY_DOCUMENT',
+          branchId: baseTx.branchId,
+          branchName: baseTx.branchName,
+          supplierFacilityType: baseTx.supplierFacilityType,
+          buyerBranchId: baseTx.buyerBranchId,
+          buyerBranchName: baseTx.buyerBranchName,
+          regionId: baseTx.regionId,
+          regionName: baseTx.regionName,
+          customerId: baseTx.customerId,
+          customerName: baseTx.customerName,
+          customerPhone: baseTx.customerPhone,
+          customerEmail: baseTx.customerEmail,
+          customerKraPin: baseTx.customerKraPin,
+          customerLicenseNo: baseTx.customerLicenseNo,
+          deliveryAddress: baseTx.deliveryAddress,
+          itemsSummary: baseTx.itemsSummary,
+          subtotal: baseTx.subtotal,
+          exciseAndTax: baseTx.exciseAndTax,
+          totalAmount: baseTx.totalAmount,
+          paymentMethod: targetType === 'Receipt' ? 'Settled Payment' : baseTx.paymentMethod,
+          status: targetType === 'Receipt' ? 'Paid' : 'Issued',
+          relatedInvoiceNo: baseTx.docNumber,
+          linkedTransferNo: baseTx.linkedTransferNo,
+          notes: `Generated from ${baseTx.docType} ${baseTx.docNumber}`,
+          createdBy: currentUser.name,
+          createdByRole: currentUser.role,
+        },
+        []
+      );
+
+      if (onUpdateDocument) {
+        if (baseTx.docType === 'Quote' && targetType === 'Invoice') {
+          await onUpdateDocument(baseTx.id, { status: 'Approved' });
+        } else if (baseTx.docType === 'Invoice' && targetType === 'Receipt') {
+          await onUpdateDocument(baseTx.id, { status: 'Paid' });
+        }
+      }
+
+      if (saved) {
+        onPreviewDoc(saved);
+        return;
+      }
+    }
+
+    onPreviewDoc({
       ...baseTx,
       docType: targetType,
-      docNumber: `${targetType.slice(0, 3).toUpperCase()}-${baseTx.docNumber.split('-')[1] || '101'}`,
-    };
-    onPreviewDoc(derived);
+      docNumber,
+    });
   };
+
+  const DOC_TYPE_OPTIONS: Array<{
+    type: Exclude<DocType, 'Online Order'>;
+    label: string;
+    shortDesc: string;
+  }> = [
+    { type: 'Invoice', label: 'Invoice', shortDesc: 'Tax / Trade Billing' },
+    { type: 'Quote', label: 'Quotation', shortDesc: 'Proforma Offer' },
+    { type: 'Delivery Note', label: 'Delivery Note', shortDesc: 'Dispatch Transit' },
+    { type: 'Packing List', label: 'Packing List', shortDesc: 'Case & Seal Manifest' },
+    { type: 'Receipt', label: 'Receipt', shortDesc: 'Payment Settled' },
+    { type: 'Credit Note', label: 'Credit Note', shortDesc: 'Return / Offset' },
+  ];
 
   return (
     <div className="space-y-6">
@@ -882,13 +1294,13 @@ export const DocumentsAndCreditNotesModule: React.FC<{
         <div className="silent-scanner-beam-dark" />
         <div className="relative z-10">
           <span className="text-xs font-montserrat font-black text-[#0A006E] uppercase tracking-wider">
-            Commercial Document Center & Returns Ledger
+            Branch &amp; Warehouse Commercial Document Studio
           </span>
           <h2 className="text-xl font-montserrat font-black italic text-[#0A006E] mt-1">
-            Print Receipts, Invoices, Quotes, Packing Lists, Delivery Notes & Credit Notes
+            Create &amp; Issue Invoices, Quotations, Delivery Notes, Packing Lists, Receipts &amp; Credit Notes
           </h2>
           <p className="text-xs font-medium text-slate-900 mt-0.5">
-            Download any statement or commercial document in PDF or CSV format, or issue formal Credit Notes against B2B invoices.
+            Every Branch, Warehouse, Store &amp; Shop can issue official documents, convert Quotations into Invoices, settle Receipts, and export PDF/CSV.
           </p>
         </div>
 
@@ -906,9 +1318,9 @@ export const DocumentsAndCreditNotesModule: React.FC<{
           <button
             onClick={() =>
               exportReportToPDF(
-                'Commercial Ledger: Invoices, Receipts, Quotes & Credit Notes',
+                'Commercial Ledger: Invoices, Quotes, Delivery Notes, Receipts & Credit Notes',
                 `Exported by ${currentUser.name}`,
-                ['Doc No', 'Type', 'Branch', 'Geo-Zone', 'Customer', 'Subtotal (KES)', 'Tax (KES)', 'Total (KES)', 'Status'],
+                ['Doc No', 'Type', 'Issuing Facility', 'Geo-Zone', 'Customer', 'Subtotal (KES)', 'Tax (KES)', 'Total (KES)', 'Status'],
                 visibleDocs.map((d) => [
                   d.docNumber,
                   d.docType,
@@ -932,7 +1344,7 @@ export const DocumentsAndCreditNotesModule: React.FC<{
             onClick={() =>
               exportToCSV(
                 'Vaairo_Commercial_Documents_Statement',
-                ['Doc No', 'Type', 'Channel', 'Branch', 'Geo-Zone', 'Customer', 'Subtotal (KES)', 'Excise/Tax (KES)', 'Total (KES)', 'Status', 'Issued By', 'Created At'],
+                ['Doc No', 'Type', 'Channel', 'Facility', 'Geo-Zone', 'Customer', 'Subtotal (KES)', 'Excise/Tax (KES)', 'Total (KES)', 'Status', 'Issued By', 'Created At'],
                 visibleDocs.map((d) => [
                   d.docNumber,
                   d.docType,
@@ -957,140 +1369,605 @@ export const DocumentsAndCreditNotesModule: React.FC<{
         </div>
       </div>
 
-      {/* Issue Credit Note Form / RBAC Boundary Banner */}
-      {canIssueCreditNote ? (
-        <form
-          onSubmit={handleCreateCreditNote}
-          className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-4"
-        >
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3 flex-wrap gap-2">
-            <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
-              Issue Official Credit Note (Breakage, Excise Return, or Regional Tariff Rebate)
-            </h3>
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-montserrat font-black bg-[#0A006E] text-[#FFDE00]">
-              Authorized: {currentUser.role} Scope
-            </span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
-            <div>
-              <label className="font-montserrat font-bold text-slate-700">Ref Invoice Number *</label>
-              <input
-                required
-                type="text"
-                value={refInvoiceNo}
-                onChange={(e) => setRefInvoiceNo(e.target.value)}
-                placeholder="e.g. INV-849201"
-                className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-mono-tabular"
-              />
-            </div>
-            <div>
-              <label className="font-montserrat font-bold text-slate-700">Customer / Retailer *</label>
-              <input
-                required
-                type="text"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="e.g. Kilimani Sapphire Lounge"
-                className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl"
-              />
-            </div>
-            <div>
-              <label className="font-montserrat font-bold text-slate-700">Liquor Auto-SKU</label>
-              <select
-                value={selectedProdId}
-                onChange={(e) => setSelectedProdId(e.target.value)}
-                className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold"
-              >
-                {products.slice(0, 120).map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.sku} · {p.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="font-montserrat font-bold text-slate-700">Bottles & Unit Credit (KES)</label>
-              <div className="grid grid-cols-2 gap-2 mt-1">
-                <input
-                  type="number"
-                  min={1}
-                  value={creditBottles}
-                  onChange={(e) => setCreditBottles(Number(e.target.value))}
-                  className="px-2 py-2 bg-white border border-slate-200 rounded-xl font-mono-tabular"
-                />
-                <input
-                  type="number"
-                  value={creditUnitPrice}
-                  onChange={(e) => setCreditUnitPrice(Number(e.target.value))}
-                  className="px-2 py-2 bg-white border border-slate-200 rounded-xl font-mono-tabular"
-                />
+      {/* Standalone Facility Commercial Document Creator */}
+      {canCreateCommercialDocs && (
+        <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4">
+          <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <FileText className="w-4 h-4 text-[#0A006E]" />
+              <div>
+                <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
+                  Issue New Branch / Warehouse Document
+                </h3>
+                <p className="text-[11px] text-slate-600">
+                  Select issuing facility, choose document type, build product lines, and save &amp; print immediately.
+                </p>
               </div>
             </div>
-            <div>
-              <label className="font-montserrat font-bold text-slate-700">Credit Reason</label>
-              <input
-                type="text"
-                value={creditReason}
-                onChange={(e) => setCreditReason(e.target.value)}
-                className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl"
-              />
-            </div>
+            <button
+              type="button"
+              onClick={() => setIsCreatorExpanded((v) => !v)}
+              className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-montserrat font-bold text-[#0A006E] cursor-pointer"
+            >
+              {isCreatorExpanded ? 'Hide Builder' : 'Open Document Builder'}
+            </button>
           </div>
-          <button
-            type="submit"
-            className="px-4 py-2.5 bg-[#FFDE00] hover:bg-amber-400 border-2 border-[#0A006E] text-[#0A006E] font-montserrat font-black text-xs rounded-xl flex items-center gap-1.5 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            Issue & Print Official Credit Note
-          </button>
-        </form>
-      ) : (
-        <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 flex items-center justify-between gap-3 text-amber-950 shadow-xs">
-          <div className="flex items-center gap-2.5">
-            <Lock className="w-5 h-5 text-amber-700 shrink-0" />
-            <div>
-              <div className="text-xs font-montserrat font-black uppercase text-amber-900">
-                Credit Note Issuance Restricted · {currentUser.role} Scope
+
+          {isCreatorExpanded && (
+            <form onSubmit={handleCreateCommercialDoc} className="space-y-4">
+              {/* Step 1: Document Type Box Buttons */}
+              <div>
+                <label className="text-xs font-montserrat font-bold text-slate-700 block mb-2">
+                  1. Choose Document Type *
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                  {DOC_TYPE_OPTIONS.map((opt) => {
+                    const isRestricted = opt.type === 'Credit Note' && !canIssueCreditNote;
+                    const active = docType === opt.type;
+                    return (
+                      <button
+                        key={opt.type}
+                        type="button"
+                        onClick={() => handleDocTypeSwitch(opt.type)}
+                        className={`p-2.5 rounded-xl border-2 text-left transition cursor-pointer ${
+                          active
+                            ? 'bg-[#0A006E] border-[#0A006E] text-[#FFDE00] shadow-sm'
+                            : isRestricted
+                            ? 'bg-slate-100 border-slate-200 text-slate-400'
+                            : 'bg-white border-slate-200 text-slate-800 hover:border-[#0A006E]/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-montserrat font-black text-xs">{opt.label}</span>
+                          {isRestricted && <Lock className="w-3 h-3 text-amber-600" />}
+                        </div>
+                        <div className={`text-[10px] mt-0.5 ${active ? 'text-white/80' : 'text-slate-500'}`}>
+                          {opt.shortDesc}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <p className="text-xs text-amber-800">
-                In accordance with ERP security boundaries, issuing credit notes and financial offsets requires approved Accounting, Branch Manager, or Administrator authorization. You have read/print access to documents in your authorized scope below.
-              </p>
-            </div>
-          </div>
+
+              {docType === 'Credit Note' && !canIssueCreditNote && (
+                <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-3 flex items-center gap-2.5 text-xs text-amber-900">
+                  <Lock className="w-4 h-4 text-amber-700 shrink-0" />
+                  <span>
+                    Issuing Credit Notes requires Accounting, Branch Manager, or Admin authorization. You can still issue Invoices, Quotations, Delivery Notes, Packing Lists, and Receipts.
+                  </span>
+                </div>
+              )}
+
+              {/* Step 2: Issuing Facility & Recipient Details */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 text-xs">
+                <div className="lg:col-span-4 bg-white p-3.5 rounded-xl border border-slate-200 space-y-2.5">
+                  <label className="font-montserrat font-black text-[#0A006E] flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5" />
+                    2. Issuing Facility (Branch / Warehouse)
+                  </label>
+                  <select
+                    value={issuerBranchId}
+                    onChange={(e) => setIssuerBranchId(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-[#0A006E]"
+                  >
+                    {issuingBranches.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        [{(b.facilityType || 'branch_depot').replace('_', ' ').toUpperCase()}] {b.name} ({b.code})
+                      </option>
+                    ))}
+                  </select>
+                  {selectedIssuerBranch && (
+                    <div className="text-[11px] text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                      <div>Zone: <strong>{selectedIssuerRegion?.name || selectedIssuerBranch.regionName}</strong></div>
+                      <div>Permit: <strong className="font-mono">{selectedIssuerBranch.exciseBondLicense}</strong></div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="lg:col-span-8 bg-white p-3.5 rounded-xl border border-slate-200 space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label className="font-montserrat font-black text-[#0A006E]">
+                      3. Customer / Receiving Facility Details
+                    </label>
+                    <div className="flex items-center gap-1 flex-wrap text-[11px]">
+                      {[
+                        { key: 'custom', label: 'Walk-in / Custom' },
+                        { key: 'customer', label: `CRM (${externalCustomers.length})` },
+                        { key: 'partner', label: `Partners (${partners.length})` },
+                        { key: 'branch', label: `Branch / Warehouse (${directoryBranches.length})` },
+                      ].map((m) => (
+                        <button
+                          key={m.key}
+                          type="button"
+                          onClick={() => setRecipientMode(m.key as typeof recipientMode)}
+                          className={`px-2 py-1 rounded-lg font-bold cursor-pointer ${
+                            recipientMode === m.key
+                              ? 'bg-[#0A006E] text-[#FFDE00]'
+                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                          }`}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {recipientMode === 'customer' && (
+                    <select
+                      value={selectedCustomerId}
+                      onChange={(e) => handleSelectRecipientCustomer(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                    >
+                      <option value="">-- Select Registered CRM Customer --</option>
+                      {externalCustomers.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.customerNumber} · {c.companyName || c.name} ({c.phone})
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  {recipientMode === 'partner' && (
+                    <select
+                      value={selectedPartnerId}
+                      onChange={(e) => handleSelectRecipientPartner(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                    >
+                      <option value="">-- Select Trade Partner / Retailer --</option>
+                      {partners.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          [{p.partnerType}] {p.companyName} ({p.liquorLicenseNo})
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  {recipientMode === 'branch' && (
+                    <select
+                      value={selectedRecipientBranchId}
+                      onChange={(e) => handleSelectRecipientBranch(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                    >
+                      <option value="">-- Select Receiving Branch, Store, or Warehouse --</option>
+                      {directoryBranches.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          [{(b.facilityType || 'branch_depot').toUpperCase()}] {b.code} · {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                    <input
+                      type="text"
+                      required
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="Recipient / Business Name *"
+                      className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                    />
+                    <input
+                      type="text"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      placeholder="Phone (e.g. 0722...)"
+                      className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono-tabular"
+                    />
+                    <input
+                      type="text"
+                      value={customerKraPin}
+                      onChange={(e) => setCustomerKraPin(e.target.value)}
+                      placeholder="KRA PIN / Liquor License"
+                      className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono-tabular"
+                    />
+                    <input
+                      type="text"
+                      value={deliveryAddress}
+                      onChange={(e) => setDeliveryAddress(e.target.value)}
+                      placeholder="Delivery Address / Yard"
+                      className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 3: Multi-Line Product Builder */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-3.5 space-y-3 text-xs">
+                <h4 className="font-montserrat font-black text-[#0A006E]">
+                  4. Add Products &amp; Pricing Lines
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+                  <div className="sm:col-span-5">
+                    <label className="font-bold text-slate-700 block mb-1">Liquor SKU</label>
+                    <select
+                      value={selectedProdId}
+                      onChange={(e) => {
+                        setSelectedProdId(e.target.value);
+                        setCustomUnitPrice(0);
+                      }}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-[#0A006E]"
+                    >
+                      {products.slice(0, 150).map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.sku} · {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="font-bold text-slate-700 block mb-1">Unit</label>
+                    <select
+                      value={itemUnitMode}
+                      onChange={(e) => {
+                        setItemUnitMode(e.target.value as 'Bottle' | 'Case');
+                        setCustomUnitPrice(0);
+                      }}
+                      className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                    >
+                      <option value="Bottle">Bottle</option>
+                      <option value="Case">Case ({selectedProductObj?.packSize || 12}btl)</option>
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="font-bold text-slate-700 block mb-1">Qty</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={itemQuantity}
+                      onChange={(e) => setItemQuantity(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono-tabular font-black"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="font-bold text-slate-700 block mb-1">Unit Price (KES)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={activeUnitPrice}
+                      onChange={(e) => setCustomUnitPrice(Number(e.target.value))}
+                      className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono-tabular font-bold text-[#0A006E]"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-1">
+                    <button
+                      type="button"
+                      onClick={handleAddLineItem}
+                      className="w-full py-2.5 px-2 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] font-montserrat font-black rounded-xl flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" /> Add
+                    </button>
+                  </div>
+                </div>
+
+                {docLineItems.length > 0 ? (
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100 font-montserrat font-black text-slate-700">
+                        <tr>
+                          <th className="py-2 px-3">SKU</th>
+                          <th className="py-2 px-3">Product</th>
+                          <th className="py-2 px-3">Mode</th>
+                          <th className="py-2 px-3 text-right">Qty</th>
+                          <th className="py-2 px-3 text-right">Total Btls</th>
+                          <th className="py-2 px-3 text-right">Unit (KES)</th>
+                          <th className="py-2 px-3 text-right">Line Total</th>
+                          <th className="py-2 px-3 text-center">Remove</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {docLineItems.map((li, idx) => (
+                          <tr key={`${li.productId}-${li.unitMode}`} className="hover:bg-slate-50">
+                            <td className="py-2 px-3 font-mono font-bold text-[#0A006E]">{li.sku}</td>
+                            <td className="py-2 px-3 font-semibold text-slate-900">{li.name}</td>
+                            <td className="py-2 px-3 text-slate-600">{li.unitMode}</td>
+                            <td className="py-2 px-3 text-right font-mono font-bold">{li.quantityUnits}</td>
+                            <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700">{li.totalBottles}</td>
+                            <td className="py-2 px-3 text-right font-mono-tabular">{formatKes(li.unitPrice)}</td>
+                            <td className="py-2 px-3 text-right font-mono-tabular font-black text-[#0A006E]">
+                              {formatKes(li.lineTotal)}
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveLineItem(idx)}
+                                className="p-1 text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="p-3 text-center border-2 border-dashed border-slate-200 rounded-xl text-slate-400">
+                    No items added yet. Pick a SKU above and click Add to build this {docType}.
+                  </div>
+                )}
+              </div>
+
+              {/* Step 4: Terms, Tax, Stock Deduction & Summary */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <label className="font-montserrat font-bold text-slate-700">Payment Method / Terms</label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold"
+                  >
+                    <option value="M-Pesa Paybill / Till">M-Pesa Paybill / Till</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Bank Transfer (EFT/RTGS)">Bank Transfer (EFT/RTGS)</option>
+                    <option value="Net 14 Days Credit">Net 14 Days Credit</option>
+                    <option value="Net 30 Days Credit">Net 30 Days Credit</option>
+                    <option value="Cheque">Cheque</option>
+                    <option value="Quotation / Proforma">Quotation / Proforma</option>
+                    <option value="Internal Dispatch / Bonded">Internal Dispatch / Bonded</option>
+                    <option value="Ledger Credit Offset">Ledger Credit Offset</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-montserrat font-bold text-slate-700">VAT / Tax Mode</label>
+                  <select
+                    value={taxMode}
+                    onChange={(e) => setTaxMode(e.target.value as typeof taxMode)}
+                    className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold"
+                  >
+                    <option value="EXCLUSIVE_16">+16% VAT Exclusive</option>
+                    <option value="INCLUSIVE_16">16% VAT Included in Price</option>
+                    <option value="EXEMPT_0">0% Exempt / Logistics Dispatch</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-montserrat font-bold text-slate-700">Document Status</label>
+                  <select
+                    value={docStatus}
+                    onChange={(e) => setDocStatus(e.target.value as TransactionDoc['status'])}
+                    className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold"
+                  >
+                    <option value="Issued">Issued</option>
+                    <option value="Paid">Paid</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Fulfilled">Fulfilled</option>
+                    <option value="Pending Verification">Pending Verification</option>
+                    <option value="Credited">Credited</option>
+                  </select>
+                </div>
+
+                {docType === 'Quote' ? (
+                  <div>
+                    <label className="font-montserrat font-bold text-slate-700">Quotation Valid Until</label>
+                    <input
+                      type="date"
+                      value={validUntil}
+                      onChange={(e) => setValidUntil(e.target.value)}
+                      className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-mono-tabular"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="font-montserrat font-bold text-slate-700">
+                      {docType === 'Credit Note' ? 'Ref Invoice Number *' : 'Ref PO / Related Doc No'}
+                    </label>
+                    <input
+                      type="text"
+                      required={docType === 'Credit Note'}
+                      value={refInvoiceNo}
+                      onChange={(e) => setRefInvoiceNo(e.target.value)}
+                      placeholder="e.g. INV-849201 or PO-44"
+                      className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-mono-tabular"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                {docType === 'Credit Note' ? (
+                  <div>
+                    <label className="font-montserrat font-bold text-slate-700">Credit Reason</label>
+                    <input
+                      type="text"
+                      value={creditReason}
+                      onChange={(e) => setCreditReason(e.target.value)}
+                      className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="font-montserrat font-bold text-slate-700">Commercial Terms / Delivery Notes</label>
+                    <input
+                      type="text"
+                      value={docNotes}
+                      onChange={(e) => setDocNotes(e.target.value)}
+                      placeholder="e.g. Deliver before 4PM · Excise seals verified"
+                      className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl"
+                    />
+                  </div>
+                )}
+
+                <div className="flex flex-col justify-end">
+                  {(docType === 'Invoice' || docType === 'Receipt' || docType === 'Delivery Note') && (
+                    <label className="flex items-center gap-2 bg-white px-3 py-2.5 rounded-xl border border-slate-200 font-bold text-[#0A006E] cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={deductFacilityStock}
+                        onChange={(e) => setDeductFacilityStock(e.target.checked)}
+                        className="rounded border-slate-300"
+                      />
+                      <span>
+                        Deduct quantities from {selectedIssuerBranch?.name || 'issuing facility'} stock
+                      </span>
+                    </label>
+                  )}
+                </div>
+              </div>
+
+              {creatorError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">
+                  {creatorError}
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-200">
+                <div className="flex flex-wrap items-center gap-4 text-xs font-mono-tabular">
+                  <span className="text-slate-700">Subtotal: <strong>{formatKes(docFinancials.subtotal)}</strong></span>
+                  <span className="text-slate-700">VAT / Tax: <strong>{formatKes(docFinancials.tax)}</strong></span>
+                  <span className="text-sm font-black text-[#0A006E]">
+                    Grand Total: {formatKes(docFinancials.total)}
+                  </span>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isCreatingDoc || docLineItems.length === 0 || (docType === 'Credit Note' && !canIssueCreditNote)}
+                  className={`px-5 py-3 rounded-xl font-montserrat font-black text-xs flex items-center justify-center gap-2 cursor-pointer shadow-sm ${
+                    docLineItems.length > 0 && !isCreatingDoc && !(docType === 'Credit Note' && !canIssueCreditNote)
+                      ? 'bg-[#FFDE00] hover:bg-amber-400 border-2 border-[#0A006E] text-[#0A006E]'
+                      : 'bg-slate-200 text-slate-500 cursor-not-allowed border border-slate-300'
+                  }`}
+                >
+                  <Plus className="w-4 h-4" />
+                  {isCreatingDoc
+                    ? `Saving ${docType}...`
+                    : `Save & Print ${docType} (${selectedIssuerBranch?.name || 'Facility'})`}
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       )}
 
-      {/* Document Filter & Table */}
-      <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-4">
-        <div className="flex flex-wrap items-center gap-1.5">
-          {['All', 'Receipt', 'Invoice', 'Quote', 'Packing List', 'Delivery Note', 'Credit Note', 'Online Order'].map(
-            (dt) => (
-              <button
-                key={dt}
-                onClick={() => setFilterDocType(dt)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-montserrat font-black cursor-pointer ${
-                  filterDocType === dt
-                    ? 'bg-[#0A006E] text-[#FFDE00]'
-                    : 'bg-white text-slate-700 border border-slate-200'
-                }`}
-              >
-                {dt}
-              </button>
-            )
+      {/* Document Filter & Ledger */}
+      <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {['All', 'Invoice', 'Quote', 'Delivery Note', 'Packing List', 'Receipt', 'Credit Note', 'Online Order'].map(
+              (dt) => (
+                <button
+                  key={dt}
+                  onClick={() => setFilterDocType(dt)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-montserrat font-black cursor-pointer ${
+                    filterDocType === dt
+                      ? 'bg-[#0A006E] text-[#FFDE00]'
+                      : 'bg-white text-slate-700 border border-slate-200'
+                  }`}
+                >
+                  {dt}
+                </button>
+              )
+            )}
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2 text-xs">
+            <select
+              value={filterFacilityId}
+              onChange={(e) => setFilterFacilityId(e.target.value)}
+              className="px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold text-slate-800"
+            >
+              <option value="ALL">All Branches &amp; Warehouses</option>
+              {directoryBranches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name} ({b.code})
+                </option>
+              ))}
+            </select>
+            <input
+              type="text"
+              value={searchDocQuery}
+              onChange={(e) => setSearchDocQuery(e.target.value)}
+              placeholder="Search Doc No, Customer, Batch..."
+              className="px-3 py-2 bg-white border border-slate-200 rounded-xl min-w-[200px]"
+            />
+          </div>
+        </div>
+
+        {/* Mobile Cards View */}
+        <div className="grid grid-cols-1 gap-3 md:hidden">
+          {visibleDocs.length === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-xl p-6 text-center text-xs text-slate-500">
+              No documents found for filter "{filterDocType}".
+            </div>
+          ) : (
+            visibleDocs.map((tx) => (
+              <div key={tx.id} className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-2.5 text-xs">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-mono-tabular font-black text-[#0A006E]">{tx.docNumber}</div>
+                    <div className="font-montserrat font-bold text-slate-900">
+                      {tx.docType} · <span className="text-emerald-700">{tx.status}</span>
+                    </div>
+                  </div>
+                  <div className="text-right font-mono-tabular font-black text-[#0A006E]">
+                    {formatKes(tx.totalAmount)}
+                  </div>
+                </div>
+                <div className="text-[11px] text-slate-600">
+                  <div><strong>Facility:</strong> {tx.branchName} ({tx.regionName})</div>
+                  <div><strong>Recipient:</strong> {tx.customerName}</div>
+                  {tx.linkedTransferNo && <div><strong>Batch:</strong> {tx.linkedTransferNo}</div>}
+                </div>
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  <button
+                    onClick={() => onPreviewDoc(tx)}
+                    className="px-2.5 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-black cursor-pointer"
+                  >
+                    Print {tx.docType}
+                  </button>
+                  <button
+                    onClick={() => exportCommercialDocumentPDF(tx)}
+                    className="px-2.5 py-1.5 bg-[#FFDE00] text-[#0A006E] rounded-lg text-[11px] font-montserrat font-black cursor-pointer"
+                  >
+                    PDF
+                  </button>
+                  {tx.docType === 'Quote' && (
+                    <button
+                      onClick={() => handleSaveDerivedDoc(tx, 'Invoice')}
+                      className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg text-[11px] font-bold cursor-pointer"
+                    >
+                      Convert → Invoice
+                    </button>
+                  )}
+                  {tx.docType === 'Invoice' && tx.status !== 'Paid' && tx.status !== 'Credited' && (
+                    <button
+                      onClick={() => handleSaveDerivedDoc(tx, 'Receipt')}
+                      className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg text-[11px] font-bold cursor-pointer"
+                    >
+                      Settle → Receipt
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleSaveDerivedDoc(tx, 'Delivery Note')}
+                    className="px-2.5 py-1.5 bg-slate-100 text-slate-800 rounded-lg text-[11px] font-semibold cursor-pointer"
+                  >
+                    + Delivery Note
+                  </button>
+                </div>
+              </div>
+            ))
           )}
         </div>
 
-        <div className="overflow-x-auto bg-white border border-slate-200 rounded-xl">
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto bg-white border border-slate-200 rounded-xl">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
                 <th className="py-2.5 px-3 font-black">Doc No</th>
-                <th className="py-2.5 px-3 font-black">Type</th>
-                <th className="py-2.5 px-3 font-black">Customer & Geo-Zone</th>
+                <th className="py-2.5 px-3 font-black">Type &amp; Status</th>
+                <th className="py-2.5 px-3 font-black">Issuing Facility</th>
+                <th className="py-2.5 px-3 font-black">Customer / Consignee</th>
                 <th className="py-2.5 px-3 font-black text-right">Total (KES)</th>
-                <th className="py-2.5 px-3 font-black">Issued By</th>
                 <th className="py-2.5 px-3 font-black text-right">
-                  Print / Convert Document (PDF)
+                  Print / Convert / Issue Linked Docs
                 </th>
               </tr>
             </thead>
@@ -1105,19 +1982,39 @@ export const DocumentsAndCreditNotesModule: React.FC<{
                 visibleDocs.map((tx) => (
                   <tr key={tx.id} className="hover:bg-slate-50">
                     <td className="py-2.5 px-3 font-mono-tabular font-bold text-[#0A006E]">
-                      {tx.docNumber}
+                      <div>{tx.docNumber}</div>
+                      {tx.orderCategory === 'WAREHOUSE_PURCHASE' && (
+                        <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 text-[9px] font-black uppercase">
+                          Warehouse Purchase
+                        </span>
+                      )}
                     </td>
-                    <td className="py-2.5 px-3 font-montserrat font-bold text-slate-900">
-                      {tx.docType}
+                    <td className="py-2.5 px-3">
+                      <div className="font-montserrat font-bold text-slate-900">{tx.docType}</div>
+                      <span
+                        className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                          tx.status === 'Paid' || tx.status === 'Fulfilled' || tx.status === 'Approved'
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : tx.status === 'Credited'
+                            ? 'bg-amber-50 text-amber-800'
+                            : 'bg-blue-50 text-blue-800'
+                        }`}
+                      >
+                        {tx.status}
+                      </span>
                     </td>
                     <td className="py-2.5 px-3 text-slate-700">
-                      {tx.customerName} · <span className="text-slate-500">{tx.regionName}</span>
+                      <div className="font-semibold text-slate-900">{tx.branchName}</div>
+                      <div className="text-[10px] text-slate-500">{tx.regionName} · By {tx.createdBy}</div>
                     </td>
-                    <td className="py-2.5 px-3 text-right font-mono-tabular font-bold">
+                    <td className="py-2.5 px-3 text-slate-700">
+                      <div className="font-semibold text-slate-900">{tx.customerName}</div>
+                      {tx.relatedInvoiceNo && (
+                        <div className="text-[10px] text-slate-500 font-mono">Ref: {tx.relatedInvoiceNo}</div>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono-tabular font-bold text-[#0A006E]">
                       {formatKes(tx.totalAmount)}
-                    </td>
-                    <td className="py-2.5 px-3 text-slate-600">
-                      {tx.createdBy} ({tx.createdByRole})
                     </td>
                     <td className="py-2.5 px-3 text-right">
                       <div className="flex items-center justify-end gap-1.5 flex-wrap">
@@ -1132,8 +2029,8 @@ export const DocumentsAndCreditNotesModule: React.FC<{
                             }`}
                           >
                             {tx.docType === 'Online Order' || tx.deliveryAddress
-                              ? 'View Order & Process Delivery'
-                              : 'Order Details'}
+                              ? 'Details & Delivery'
+                              : 'Details'}
                           </button>
                         )}
                         <button
@@ -1142,17 +2039,37 @@ export const DocumentsAndCreditNotesModule: React.FC<{
                         >
                           Print {tx.docType}
                         </button>
+                        {tx.docType === 'Quote' && (
+                          <button
+                            type="button"
+                            onClick={() => handleSaveDerivedDoc(tx, 'Invoice')}
+                            className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold cursor-pointer"
+                          >
+                            Convert → Invoice
+                          </button>
+                        )}
+                        {tx.docType === 'Invoice' && tx.status !== 'Paid' && tx.status !== 'Credited' && (
+                          <button
+                            type="button"
+                            onClick={() => handleSaveDerivedDoc(tx, 'Receipt')}
+                            className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold cursor-pointer"
+                          >
+                            Settle → Receipt
+                          </button>
+                        )}
                         <button
-                          onClick={() => handlePrintDerivedDoc(tx, 'Packing List')}
+                          type="button"
+                          onClick={() => handleSaveDerivedDoc(tx, 'Packing List')}
                           className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-[11px] font-semibold cursor-pointer"
                         >
-                          Packing List
+                          + Packing List
                         </button>
                         <button
-                          onClick={() => handlePrintDerivedDoc(tx, 'Delivery Note')}
+                          type="button"
+                          onClick={() => handleSaveDerivedDoc(tx, 'Delivery Note')}
                           className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-[11px] font-semibold cursor-pointer"
                         >
-                          Delivery Note
+                          + Delivery Note
                         </button>
                         <button
                           onClick={() => exportCommercialDocumentPDF(tx)}
@@ -1542,7 +2459,8 @@ export const HrAndRbacModule: React.FC<{
   staffList: StaffMember[];
   branches: Branch[];
   payrollRuns?: PayrollRun[];
-  initialTab?: 'roster' | 'payroll' | 'master_security';
+  leaveRequests?: LeaveRequest[];
+  initialTab?: 'roster' | 'payroll' | 'leave_requests' | 'master_security';
   customDeductionCatalog?: HrDeductionCatalogItem[];
   onCreateCatalogDeduction?: (
     draft: Omit<HrDeductionCatalogItem, 'id' | 'createdAt'>
@@ -1553,6 +2471,15 @@ export const HrAndRbacModule: React.FC<{
   onSetStaffStatus?: (staffId: string, status: 'Active' | 'Suspended' | 'Terminated') => Promise<void>;
   onDeleteStaff?: (staffId: string) => Promise<void>;
   onExecutePayrollRun?: (runDraft: Omit<PayrollRun, 'id' | 'createdAt'>) => Promise<void>;
+  onSubmitLeaveRequest?: (
+    draft: Omit<LeaveRequest, 'id' | 'requestNo' | 'createdAt' | 'status'>
+  ) => Promise<LeaveRequest | null>;
+  onReviewLeaveRequest?: (
+    requestId: string,
+    decision: 'Approved' | 'Declined',
+    decisionNote: string
+  ) => Promise<void>;
+  onCancelLeaveRequest?: (requestId: string) => Promise<void>;
   onOpenPayslip?: (record: PayrollRecord) => void;
   onOpenAccessMatrix?: () => void;
   onOpenUserFeatureModal?: (staff: StaffMember) => void;
@@ -1563,6 +2490,7 @@ export const HrAndRbacModule: React.FC<{
   staffList,
   branches,
   payrollRuns = [],
+  leaveRequests = [],
   initialTab,
   customDeductionCatalog = [],
   onCreateCatalogDeduction,
@@ -1572,6 +2500,9 @@ export const HrAndRbacModule: React.FC<{
   onSetStaffStatus,
   onDeleteStaff,
   onExecutePayrollRun,
+  onSubmitLeaveRequest,
+  onReviewLeaveRequest,
+  onCancelLeaveRequest,
   onOpenPayslip,
   onOpenAccessMatrix,
   onOpenUserFeatureModal,
@@ -1582,19 +2513,40 @@ export const HrAndRbacModule: React.FC<{
   const canManagePayroll =
     (currentUser.role === 'HR' || currentUser.role === 'Admin') &&
     isUserFeaturePermitted(currentUser, 'manage_staff_salaries');
+  const canManageLeaveRequests = currentUser.role === 'HR' || currentUser.role === 'Admin';
 
-  const [activeTab, setActiveTab] = useState<'roster' | 'payroll' | 'master_security'>(() => {
+  const pendingLeaveCount = useMemo(
+    () => leaveRequests.filter((r) => r.status === 'Pending HR Approval').length,
+    [leaveRequests]
+  );
+  const urgentPendingLeaveCount = useMemo(
+    () =>
+      leaveRequests.filter(
+        (r) =>
+          r.status === 'Pending HR Approval' &&
+          (r.leaveType === 'Emergency Leave' ||
+            r.leaveType === 'Maternity Leave' ||
+            r.urgency === 'Emergency' ||
+            r.urgency === 'Urgent')
+      ).length,
+    [leaveRequests]
+  );
+
+  const [activeTab, setActiveTab] = useState<'roster' | 'payroll' | 'leave_requests' | 'master_security'>(() => {
     if (initialTab === 'payroll' && canManagePayroll) return 'payroll';
+    if (initialTab === 'leave_requests' && canManageLeaveRequests) return 'leave_requests';
     return initialTab || 'roster';
   });
 
   useEffect(() => {
     if (initialTab === 'payroll' && canManagePayroll) {
       setActiveTab('payroll');
+    } else if (initialTab === 'leave_requests' && canManageLeaveRequests) {
+      setActiveTab('leave_requests');
     } else if (initialTab === 'roster') {
       setActiveTab('roster');
     }
-  }, [initialTab, canManagePayroll]);
+  }, [initialTab, canManagePayroll, canManageLeaveRequests]);
 
   const fullDeductionCatalog = useMemo<HrDeductionCatalogItem[]>(() => {
     const presetIds = new Set(STANDARD_HR_DEDUCTION_CATALOG.map((c) => c.id));
@@ -2252,6 +3204,32 @@ export const HrAndRbacModule: React.FC<{
             {payrollRuns.length > 0 && (
               <span className="px-1.5 py-0.5 rounded-md text-[10px] bg-[#34D186] text-[#0A006E]">
                 {payrollRuns.length} Runs
+              </span>
+            )}
+          </button>
+        )}
+
+        {canManageLeaveRequests && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('leave_requests')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-montserrat font-black flex items-center gap-2 cursor-pointer transition whitespace-nowrap ${
+              activeTab === 'leave_requests'
+                ? 'bg-[#0A006E] text-[#FFDE00] shadow-md'
+                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <Calendar className="w-4 h-4 text-amber-500" />
+            Leave, Off &amp; Emergency Requests
+            {pendingLeaveCount > 0 && (
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-mono-tabular font-black ${
+                  urgentPendingLeaveCount > 0
+                    ? 'bg-rose-600 text-white animate-pulse'
+                    : 'bg-[#FFDE00] text-[#0A006E]'
+                }`}
+              >
+                {pendingLeaveCount} Pending
               </span>
             )}
           </button>
@@ -3535,6 +4513,23 @@ export const HrAndRbacModule: React.FC<{
             )}
           </div>
         </div>
+      )}
+
+      {activeTab === 'leave_requests' && canManageLeaveRequests && (
+        <LeaveManagementPortal
+          mode="hr_inbox"
+          currentUser={currentUser}
+          leaveRequests={leaveRequests}
+          staffList={staffList}
+          branches={branches}
+          onSubmitLeaveRequest={
+            onSubmitLeaveRequest ||
+            (async () => null)
+          }
+          onReviewLeaveRequest={onReviewLeaveRequest}
+          onCancelLeaveRequest={onCancelLeaveRequest}
+          onTriggerToast={onTriggerToast}
+        />
       )}
 
       {/* Quick Compensation & Selectable Deductions Modal */}
