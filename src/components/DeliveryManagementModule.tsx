@@ -19,6 +19,8 @@ import {
   Navigation,
   Calendar,
 } from 'lucide-react';
+import { useDashboardPrefs } from '../utils/dashboardPrefs';
+import { MinimalDashboardBar } from './common/MinimalDashboardBar';
 
 interface DeliveryManagementModuleProps {
   currentUser: StaffMember;
@@ -52,6 +54,19 @@ export const DeliveryManagementModule: React.FC<DeliveryManagementModuleProps> =
   } = useErp();
 
   const [activeTab, setActiveTab] = useState<'orders' | 'riders' | 'mpesa_payments' | 'transactions'>('orders');
+
+  const isRider = currentUser.role === 'Delivery Rider';
+  const {
+    schema: dashSchema,
+    prefs: dashPrefs,
+    isMinimal,
+    setMode: setDashMode,
+    toggleKpi,
+    toggleWidget,
+    isKpiVisible,
+    isWidgetVisible,
+    resetToDefault,
+  } = useDashboardPrefs(currentUser);
 
   // Rider employment state
   const [isEmployRiderModalOpen, setIsEmployRiderModalOpen] = useState(false);
@@ -171,8 +186,38 @@ export const DeliveryManagementModule: React.FC<DeliveryManagementModuleProps> =
     }
   };
 
+  const isOrderAssignedToMe = (ord: TransactionDoc) => {
+    const matchId = Boolean(ord.assignedRiderId && ord.assignedRiderId === currentUser.id);
+    const matchName = Boolean(
+      ord.assignedRiderName && ord.assignedRiderName.trim().toLowerCase() === currentUser.name.trim().toLowerCase()
+    );
+    const matchPhone = Boolean(
+      currentUser.phone && ord.assignedRiderPhone && ord.assignedRiderPhone === currentUser.phone
+    );
+    return matchId || matchName || matchPhone;
+  };
+
+  const myOrdersList = useMemo(() => {
+    return unifiedCustomerOrders.filter(isOrderAssignedToMe);
+  }, [unifiedCustomerOrders, currentUser.id, currentUser.name, currentUser.phone]);
+
+  const dispatchKpis = useMemo(() => {
+    const source = isRider && isWidgetVisible('only_my_orders') ? myOrdersList : unifiedCustomerOrders;
+    let pending = 0;
+    let transit = 0;
+    let delivered = 0;
+    source.forEach((ord) => {
+      const s = ord.deliveryStatus || (ord.status === 'Fulfilled' ? 'Delivered' : 'Pending Dispatch');
+      if (s === 'Delivered') delivered++;
+      else if (s === 'Out for Delivery') transit++;
+      else pending++;
+    });
+    return { pending, transit, delivered };
+  }, [unifiedCustomerOrders, myOrdersList, isRider, isWidgetVisible]);
+
   const filteredOrders = useMemo(() => {
-    return unifiedCustomerOrders.filter((ord) => {
+    const base = isRider && isWidgetVisible('only_my_orders') ? myOrdersList : unifiedCustomerOrders;
+    return base.filter((ord) => {
       const effectiveStatus =
         ord.deliveryStatus || (ord.status === 'Fulfilled' ? 'Delivered' : 'Pending Dispatch');
       const matchStatus = statusFilter === 'ALL' || effectiveStatus === statusFilter;
@@ -187,7 +232,7 @@ export const DeliveryManagementModule: React.FC<DeliveryManagementModuleProps> =
 
       return matchStatus && matchBranch && matchSearch;
     });
-  }, [unifiedCustomerOrders, statusFilter, selectedBranchFilter, orderSearchQuery]);
+  }, [unifiedCustomerOrders, myOrdersList, isRider, isWidgetVisible, statusFilter, selectedBranchFilter, orderSearchQuery]);
 
   const handleQuickAssignRider = async (ord: TransactionDoc, rider: StaffMember) => {
     const phone =
@@ -230,53 +275,107 @@ export const DeliveryManagementModule: React.FC<DeliveryManagementModuleProps> =
   };
 
   return (
-    <div className="space-y-6">
-      {/* Delivery & Customer Order Control Banner */}
-      <div className="bg-gradient-to-r from-[#0A006E] via-[#15078a] to-[#1E3A8A] text-white p-6 md:p-8 rounded-3xl shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-montserrat font-black bg-[#FFDE00] text-[#0A006E] mb-2">
-            <Truck className="w-4 h-4" />
-            Customer Order Details &amp; Delivery Fulfillment Hub
-          </div>
-          <h1 className="text-2xl md:text-3xl font-montserrat font-black tracking-tight text-white">
-            Inspect Customer Orders, Assign Riders &amp; Process Deliveries
-          </h1>
-          <p className="text-xs md:text-sm text-slate-200 mt-1 max-w-2xl font-medium">
-            View complete itemized customer orders, street delivery addresses, contact phones, M-Pesa payment statuses, and dispatch riders in real time.
-          </p>
-        </div>
+    <div className="space-y-4">
+      {/* Unified Minimal Customizable Delivery / Rider Command Bar */}
+      <MinimalDashboardBar
+        currentUser={currentUser}
+        schema={dashSchema}
+        prefs={dashPrefs}
+        onChangeMode={setDashMode}
+        onToggleKpi={toggleKpi}
+        onToggleWidget={toggleWidget}
+        onReset={resetToDefault}
+        minimalLabel="Compact"
+        expandedLabel="Detailed"
+        actions={
+          <>
+            {!isRider && onCreateStaff && (
+              <button
+                type="button"
+                onClick={() => setIsEmployRiderModalOpen(true)}
+                className="px-3 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                Employ Rider
+              </button>
+            )}
+            {onNavigateModule && (
+              <button
+                type="button"
+                onClick={() => onNavigateModule('leave_management')}
+                className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              >
+                <Calendar className="w-3.5 h-3.5 text-fuchsia-600" />
+                Leave / Off
+              </button>
+            )}
+          </>
+        }
+      />
 
-        <div className="flex items-center gap-3 flex-wrap">
-          {onNavigateModule && (
-            <button
-              type="button"
-              onClick={() => onNavigateModule('leave_management')}
-              className="px-4 py-3 bg-white hover:bg-slate-50 text-[#0A006E] rounded-2xl text-xs font-montserrat font-black flex items-center gap-2 cursor-pointer shadow-lg transition active:scale-95"
-            >
-              <Calendar className="w-4 h-4 text-fuchsia-600" />
-              Request Leave / Off
-            </button>
+      {/* Toggleable Role-Specific KPI Strip */}
+      {isWidgetVisible('kpi_strip') && (
+        <div className={`grid grid-cols-2 ${isRider ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-2.5 sm:gap-3`}>
+          {(isRider ? isKpiVisible('my_pending') : isKpiVisible('pending_dispatch')) && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
+                {isRider ? 'Ready for Pickup' : 'Pending Dispatch'}
+              </div>
+              <div className="text-base sm:text-lg font-montserrat font-black text-sky-700 font-mono-tabular mt-0.5">
+                {dispatchKpis.pending} Orders
+              </div>
+            </div>
           )}
-          {onCreateStaff && (
-            <button
-              type="button"
-              onClick={() => setIsEmployRiderModalOpen(true)}
-              className="px-4 py-3 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-2xl text-xs font-montserrat font-black flex items-center gap-2 cursor-pointer shadow-lg transition active:scale-95"
-            >
-              <UserPlus className="w-4 h-4" />
-              Employ New Rider
-            </button>
+          {(isRider ? isKpiVisible('my_active') : isKpiVisible('in_transit')) && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
+                In Transit
+              </div>
+              <div className="text-base sm:text-lg font-montserrat font-black text-amber-700 font-mono-tabular mt-0.5">
+                {dispatchKpis.transit} Active
+              </div>
+            </div>
+          )}
+          {(isRider ? isKpiVisible('my_completed') : isKpiVisible('delivered')) && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
+                Delivered
+              </div>
+              <div className="text-base sm:text-lg font-montserrat font-black text-emerald-700 font-mono-tabular mt-0.5">
+                {dispatchKpis.delivered} Completed
+              </div>
+            </div>
+          )}
+          {!isRider && isKpiVisible('riders') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
+                Active Riders
+              </div>
+              <div className="text-base sm:text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                {activeRiders.length} Riders
+              </div>
+            </div>
           )}
         </div>
-      </div>
+      )}
 
       {/* Sub-Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-200">
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 border-b border-slate-200">
         {[
-          { id: 'orders', label: `Customer Delivery Queue (${unifiedCustomerOrders.length})`, icon: Truck },
-          { id: 'riders', label: `Dispatch Team / Riders (${activeRiders.length})`, icon: Users },
-          { id: 'mpesa_payments', label: `Order Payments Audit`, icon: Smartphone },
-          { id: 'transactions', label: `Fulfillment History`, icon: Activity },
+          {
+            id: 'orders',
+            label: isRider
+              ? `Delivery Queue (${filteredOrders.length})`
+              : `Customer Queue (${unifiedCustomerOrders.length})`,
+            icon: Truck,
+          },
+          ...(!isRider
+            ? [
+                { id: 'riders', label: `Dispatch Team (${activeRiders.length})`, icon: Users },
+                { id: 'mpesa_payments', label: `Payments Audit`, icon: Smartphone },
+              ]
+            : []),
+          { id: 'transactions', label: `History`, icon: Activity },
         ].map((tab) => {
           const IconC = tab.icon;
           const active = activeTab === tab.id;
@@ -285,13 +384,13 @@ export const DeliveryManagementModule: React.FC<DeliveryManagementModuleProps> =
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id as any)}
-              className={`px-4 py-2.5 rounded-2xl text-xs font-montserrat font-bold flex items-center gap-2 whitespace-nowrap cursor-pointer transition ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-montserrat font-bold flex items-center gap-1.5 whitespace-nowrap cursor-pointer transition ${
                 active
-                  ? 'bg-[#0A006E] text-[#FFDE00] shadow-sm'
+                  ? 'bg-[#0A006E] text-[#FFDE00]'
                   : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
               }`}
             >
-              <IconC className={`w-4 h-4 ${active ? 'text-[#FFDE00]' : 'text-slate-500'}`} />
+              <IconC className={`w-3.5 h-3.5 ${active ? 'text-[#FFDE00]' : 'text-slate-500'}`} />
               <span>{tab.label}</span>
             </button>
           );
@@ -300,54 +399,64 @@ export const DeliveryManagementModule: React.FC<DeliveryManagementModuleProps> =
 
       {/* Tab 1: Customer Orders Queue */}
       {activeTab === 'orders' && (
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={orderSearchQuery}
-                onChange={(e) => setOrderSearchQuery(e.target.value)}
-                placeholder="Search customer orders by order #, customer name, phone, or delivery address..."
-                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-              />
-            </div>
+        <div className="space-y-3">
+          {isWidgetVisible('filters_bar') && (
+            <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center justify-between bg-white p-3 rounded-xl border border-slate-200">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={orderSearchQuery}
+                  onChange={(e) => setOrderSearchQuery(e.target.value)}
+                  placeholder="Search order #, customer name, phone, or address..."
+                  className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-[#0A006E]"
+                />
+              </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-montserrat font-semibold text-slate-700 cursor-pointer"
-              >
-                <option value="ALL">All Delivery Statuses</option>
-                <option value="Pending Dispatch">Pending Dispatch</option>
-                <option value="Out for Delivery">Out for Delivery</option>
-                <option value="Delivered">Delivered &amp; Fulfilled</option>
-              </select>
+              <div className="flex items-center gap-2 flex-wrap">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-montserrat font-semibold text-slate-700 cursor-pointer"
+                >
+                  <option value="ALL">All Statuses</option>
+                  <option value="Pending Dispatch">Pending Dispatch</option>
+                  <option value="Out for Delivery">Out for Delivery</option>
+                  <option value="Delivered">Delivered</option>
+                </select>
 
-              <select
-                value={selectedBranchFilter}
-                onChange={(e) => setSelectedBranchFilter(e.target.value)}
-                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-montserrat font-semibold text-slate-700 cursor-pointer"
-              >
-                <option value="ALL">All Branches</option>
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
+                {!isRider && (
+                  <select
+                    value={selectedBranchFilter}
+                    onChange={(e) => setSelectedBranchFilter(e.target.value)}
+                    className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-montserrat font-semibold text-slate-700 cursor-pointer"
+                  >
+                    <option value="ALL">All Branches</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {filteredOrders.length === 0 ? (
-            <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center shadow-xs">
-              <Truck className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <h3 className="text-base font-montserrat font-bold text-slate-800">No Customer Delivery Orders Found</h3>
+            <div className="bg-white border border-slate-200 rounded-xl p-8 text-center">
+              <Truck className="w-9 h-9 text-slate-300 mx-auto mb-2" />
+              <h3 className="text-sm font-montserrat font-bold text-slate-800">
+                {isRider && isWidgetVisible('only_my_orders')
+                  ? 'No Deliveries Assigned to You Yet'
+                  : 'No Customer Delivery Orders Found'}
+              </h3>
               <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
-                Orders placed by customers on the Online Storefront Portal automatically appear here with full itemized details and delivery addresses for Admin processing.
+                {isRider && isWidgetVisible('only_my_orders')
+                  ? 'Assigned orders appear here automatically. Toggle "Filter to My Assigned Orders First" in Customize to view all branch dispatches.'
+                  : 'Orders placed on the online storefront appear here with customer addresses for dispatch.'}
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 gap-3">
               {filteredOrders.map((ord) => {
                 let items: LineItem[] = [];
                 try {
@@ -358,33 +467,29 @@ export const DeliveryManagementModule: React.FC<DeliveryManagementModuleProps> =
                   ord.deliveryStatus || (ord.status === 'Fulfilled' ? 'Delivered' : 'Pending Dispatch');
 
                 return (
-                  <div key={ord.id} className="bg-white border-2 border-slate-200 rounded-2xl p-5 shadow-xs space-y-4 hover:border-[#0A006E]/50 transition">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-                      <div className="flex items-center gap-2.5 flex-wrap">
-                        <span className="px-3 py-1 bg-[#0A006E] text-[#FFDE00] font-jakarta font-black text-xs rounded-lg font-mono-tabular">
+                  <div key={ord.id} className={`bg-white border border-slate-200 rounded-xl ${isMinimal ? 'p-3.5 space-y-2.5' : 'p-4 sm:p-5 space-y-3.5'} hover:border-[#0A006E]/50 transition`}>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="px-2.5 py-0.5 bg-[#0A006E] text-[#FFDE00] font-jakarta font-bold text-xs rounded-md font-mono-tabular">
                           {ord.docNumber}
                         </span>
                         <span
-                          className={`px-2.5 py-1 text-[11px] font-montserrat font-black rounded-lg ${
+                          className={`px-2 py-0.5 text-[11px] font-montserrat font-bold rounded-md ${
                             effectiveStatus === 'Delivered'
-                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                               : effectiveStatus === 'Out for Delivery'
-                              ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                              : 'bg-sky-100 text-sky-900 border border-sky-300'
+                              ? 'bg-amber-50 text-amber-900 border border-amber-200'
+                              : 'bg-sky-50 text-sky-900 border border-sky-200'
                           }`}
                         >
                           {effectiveStatus}
                         </span>
-                        <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[11px] font-bold rounded-md">
-                          {ord.paymentMethod}
-                        </span>
-                        <span className="text-xs text-slate-500 font-jakarta font-mono-tabular">
-                          {new Date(ord.createdAt).toLocaleString()}
+                        <span className="text-xs text-slate-500 font-medium">
+                          {ord.paymentMethod} · {new Date(ord.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
                       <div className="text-right">
-                        <div className="text-[10px] text-slate-400 font-semibold uppercase">Order Total</div>
-                        <div className="text-lg font-jakarta font-black text-[#0A006E] font-mono-tabular">
+                        <div className="text-sm sm:text-base font-jakarta font-black text-[#0A006E] font-mono-tabular">
                           {formatKes(ord.totalAmount)}
                         </div>
                       </div>
@@ -453,14 +558,14 @@ export const DeliveryManagementModule: React.FC<DeliveryManagementModuleProps> =
                           <button
                             type="button"
                             onClick={() => onInspectCustomerOrder(ord)}
-                            className="px-3.5 py-2 bg-[#FFDE00] hover:bg-amber-400 border-2 border-[#0A006E] text-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-xs transition"
+                            className="px-3 py-1.5 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-lg text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer transition"
                           >
                             <Eye className="w-3.5 h-3.5" />
-                            View Order Details &amp; Process Delivery
+                            Inspect &amp; Process
                           </button>
                         )}
 
-                        {activeRiders.length > 0 && effectiveStatus !== 'Delivered' && (
+                        {!isRider && activeRiders.length > 0 && effectiveStatus !== 'Delivered' && (
                           <select
                             onChange={(e) => {
                               const rId = e.target.value;
@@ -468,9 +573,9 @@ export const DeliveryManagementModule: React.FC<DeliveryManagementModuleProps> =
                               if (r) handleQuickAssignRider(ord, r);
                             }}
                             value={ord.assignedRiderId || ''}
-                            className="px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-montserrat font-semibold cursor-pointer"
+                            className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-montserrat font-semibold cursor-pointer"
                           >
-                            <option value="">-- Quick Assign Rider --</option>
+                            <option value="">-- Assign Rider --</option>
                             {activeRiders.map((r) => (
                               <option key={r.id} value={r.id}>
                                 {r.name} ({r.branchName})

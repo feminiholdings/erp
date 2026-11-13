@@ -136,11 +136,8 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <>
-      {/* VAAIRO Signature Deep Navy Header (2x Height) with Curved Single-Wave Bottom Edge */}
-      <header className="sticky top-0 z-30 pt-5 pb-12 px-4 sm:px-6 bg-[#0A006E] text-white flex items-center justify-between gap-4 sm:gap-8 relative overflow-hidden shadow-lg">
-        {/* Animated silent scanner sweep across header */}
-        <div className="silent-scanner-beam" />
-
+      {/* VAAIRO Compact Signature Deep Navy Header with Curved Single-Wave Bottom Edge */}
+      <header className="sticky top-0 z-30 pt-2.5 pb-6 sm:pt-3 sm:pb-7 px-4 sm:px-6 bg-[#0A006E] text-white flex items-center justify-between gap-4 sm:gap-8 relative overflow-hidden shadow-md">
         {/* Zone 1: VAAIRO Wordmark & Wine Brand Icon */}
         <a
           href="#top"
@@ -152,14 +149,14 @@ export const Header: React.FC<HeaderProps> = ({
               onSelectModule('overview');
             }
           }}
-          className="flex items-center gap-3 sm:gap-3.5 relative z-10 whitespace-nowrap shrink-0 group cursor-pointer"
+          className="flex items-center gap-2.5 sm:gap-3 relative z-10 whitespace-nowrap shrink-0 group cursor-pointer"
         >
-          <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-2xl bg-white text-[#0A006E] flex items-center justify-center shadow-md border-2 border-white group-hover:scale-105 transition-transform duration-200">
-            <Wine className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.5]" />
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white text-[#0A006E] flex items-center justify-center shadow-sm border border-white group-hover:scale-105 transition-transform duration-200">
+            <Wine className="w-5 h-5 stroke-[2.4]" />
           </div>
-          <span className="font-montserrat font-black italic text-2xl sm:text-3xl lg:text-4xl tracking-tighter text-white">
+          <span className="font-montserrat font-black italic text-xl sm:text-2xl tracking-tighter text-white">
             VAAIRO{' '}
-            <span className="bg-[#FFDE00] text-[#0A006E] not-italic text-xs sm:text-sm font-black px-2.5 py-0.5 rounded-xl ml-1.5 align-middle shadow-xs">
+            <span className="bg-[#FFDE00] text-[#0A006E] not-italic text-[11px] font-black px-2 py-0.5 rounded-lg ml-1 align-middle">
               ERP
             </span>
           </span>
@@ -170,11 +167,10 @@ export const Header: React.FC<HeaderProps> = ({
           <>
             {/* Mobile Header: Customer Website + Hamburger Button (< md) */}
             <div className="flex md:hidden items-center gap-2 shrink-0 relative z-10">
-              {/* Customer Website Icon Button (just before hamburger) */}
               <button
                 type="button"
                 onClick={handleCustomerWebsiteClick}
-                className={`w-11 h-11 rounded-2xl flex items-center justify-center border-2 transition-all cursor-pointer shadow-md active:scale-95 ${
+                className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-all cursor-pointer active:scale-95 ${
                   activeModule === 'customer_portal'
                     ? 'bg-[#FFDE00] text-[#0A006E] border-white'
                     : 'bg-white text-[#0A006E] hover:bg-[#FFDE00] border-white'
@@ -182,13 +178,13 @@ export const Header: React.FC<HeaderProps> = ({
                 title="Customer Website / Online Storefront"
                 aria-label="Customer Website / Online Storefront"
               >
-                <Globe className="w-5 h-5 stroke-[2.2]" />
+                <Globe className="w-4 h-4 stroke-[2.2]" />
               </button>
 
               <button
                 type="button"
                 onClick={onToggleMobileDrawer}
-                className={`relative w-11 h-11 rounded-2xl flex items-center justify-center border-2 shadow-md cursor-pointer transition active:scale-95 ${
+                className={`relative w-9 h-9 rounded-xl flex items-center justify-center border cursor-pointer transition active:scale-95 ${
                   !mobileDrawerOpen && unreadInboxCount > 0
                     ? 'bg-red-600 text-white border-white'
                     : 'bg-white text-[#0A006E] border-white'
@@ -197,25 +193,24 @@ export const Header: React.FC<HeaderProps> = ({
                 aria-label={mobileDrawerOpen ? 'Close Menu' : 'Open Navigation Menu'}
               >
                 {mobileDrawerOpen ? (
-                  <X className="w-6 h-6 stroke-[2.5]" />
+                  <X className="w-5 h-5 stroke-[2.4]" />
                 ) : (
-                  <Menu className="w-6 h-6 stroke-[2.5]" />
+                  <Menu className="w-5 h-5 stroke-[2.4]" />
                 )}
                 {!mobileDrawerOpen && unreadInboxCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 rounded-full bg-white text-red-700 border-2 border-red-600 text-[10px] font-mono-tabular font-black flex items-center justify-center">
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-4.5 px-1 rounded-full bg-white text-red-700 border border-red-600 text-[9px] font-mono-tabular font-black flex items-center justify-center">
                     {unreadInboxCount > 99 ? '99+' : unreadInboxCount}
                   </span>
                 )}
               </button>
             </div>
 
-            {/* Desktop Header: Header Right Action Icons (White Background) */}
-            <div className="hidden md:flex items-center gap-2.5 sm:gap-3.5 shrink-0 relative z-10">
-              {/* 1. Customer Website icon */}
+            {/* Desktop Header: Header Right Action Icons */}
+            <div className="hidden md:flex items-center gap-2 shrink-0 relative z-10">
               <button
                 type="button"
                 onClick={handleCustomerWebsiteClick}
-                className={`w-11 h-11 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center border-2 transition-all cursor-pointer shadow-md relative group ${
+                className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-all cursor-pointer relative group ${
                   activeModule === 'customer_portal'
                     ? 'bg-[#FFDE00] text-[#0A006E] border-white'
                     : 'bg-white text-[#0A006E] hover:bg-[#FFDE00] border-white'
@@ -223,55 +218,52 @@ export const Header: React.FC<HeaderProps> = ({
                 title="Customer Website / Online Storefront"
                 aria-label="Customer Website / Online Storefront"
               >
-                <Globe className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.2] group-hover:rotate-12 transition-transform" />
-                <span className="absolute -bottom-9 right-0 hidden group-hover:block bg-slate-900 text-white text-[11px] font-montserrat font-bold py-1 px-2.5 rounded-lg whitespace-nowrap shadow-lg z-50 pointer-events-none">
+                <Globe className="w-4.5 h-4.5 stroke-[2.2] group-hover:rotate-12 transition-transform" />
+                <span className="absolute -bottom-8 right-0 hidden group-hover:block bg-slate-900 text-white text-[10px] font-montserrat font-bold py-1 px-2 rounded-md whitespace-nowrap shadow-md z-50 pointer-events-none">
                   Customer Website
                 </span>
               </button>
 
-              {/* 1.5 Target Access Model Matrix button */}
               {onOpenAccessMatrix && (
                 <button
                   type="button"
                   onClick={onOpenAccessMatrix}
-                  className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center border-2 transition-all cursor-pointer shadow-md relative group bg-[#FFDE00] text-[#0A006E] hover:bg-amber-400 border-white"
-                  title="Target Access Model & 8-Role RBAC Boundaries"
+                  className="w-9 h-9 rounded-xl flex items-center justify-center border transition-all cursor-pointer relative group bg-[#FFDE00] text-[#0A006E] hover:bg-amber-400 border-white"
+                  title="Target Access Model & 10-Role RBAC Boundaries"
                   aria-label="Target Access Model & RBAC Boundaries"
                 >
-                  <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.4]" />
-                  <span className="absolute -bottom-9 right-0 hidden group-hover:block bg-slate-900 text-white text-[11px] font-montserrat font-bold py-1 px-2.5 rounded-lg whitespace-nowrap shadow-lg z-50 pointer-events-none">
-                    Access Model (8 Roles)
+                  <ShieldCheck className="w-4.5 h-4.5 stroke-[2.4]" />
+                  <span className="absolute -bottom-8 right-0 hidden group-hover:block bg-slate-900 text-white text-[10px] font-montserrat font-bold py-1 px-2 rounded-md whitespace-nowrap shadow-md z-50 pointer-events-none">
+                    Access Model
                   </span>
                 </button>
               )}
 
-              {/* 2. User icon */}
               {currentUser && onOpenUserProfile && (
                 <button
                   type="button"
                   onClick={onOpenUserProfile}
-                  className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center border-2 transition-all cursor-pointer shadow-md relative group bg-white text-[#0A006E] hover:bg-slate-100 border-white"
+                  className="h-9 px-2.5 rounded-xl flex items-center gap-1.5 border transition-all cursor-pointer bg-white text-[#0A006E] hover:bg-slate-100 border-white"
                   title={`${currentUser.name} (${currentUser.role})`}
                   aria-label="User Profile"
                 >
-                  <User className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.2]" />
-                  <span className="absolute -bottom-9 right-0 hidden group-hover:block bg-slate-900 text-white text-[11px] font-montserrat font-bold py-1 px-2.5 rounded-lg whitespace-nowrap shadow-lg z-50 pointer-events-none">
-                    {currentUser.name} ({currentUser.role})
+                  <User className="w-4 h-4 stroke-[2.2]" />
+                  <span className="hidden lg:inline text-xs font-montserrat font-bold max-w-[130px] truncate">
+                    {currentUser.name.split(' ')[0]}
                   </span>
                 </button>
               )}
 
-              {/* 3. Lock icon */}
               {onLogout && (
                 <button
                   type="button"
                   onClick={onLogout}
-                  className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center border-2 transition-all cursor-pointer shadow-md relative group bg-white text-[#0A006E] hover:text-rose-600 hover:bg-rose-50 border-white"
+                  className="w-9 h-9 rounded-xl flex items-center justify-center border transition-all cursor-pointer relative group bg-white text-[#0A006E] hover:text-rose-600 hover:bg-rose-50 border-white"
                   title="Lock Terminal / Sign Out"
                   aria-label="Lock Terminal / Sign Out"
                 >
-                  <Lock className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.2]" />
-                  <span className="absolute -bottom-9 right-0 hidden group-hover:block bg-slate-900 text-white text-[11px] font-montserrat font-bold py-1 px-2.5 rounded-lg whitespace-nowrap shadow-lg z-50 pointer-events-none">
+                  <Lock className="w-4.5 h-4.5 stroke-[2.2]" />
+                  <span className="absolute -bottom-8 right-0 hidden group-hover:block bg-slate-900 text-white text-[10px] font-montserrat font-bold py-1 px-2 rounded-md whitespace-nowrap shadow-md z-50 pointer-events-none">
                     Lock Terminal
                   </span>
                 </button>
@@ -314,7 +306,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Single Smooth Curved Wave Bottom Edge with Gold Stroke */}
         <svg
-          className="absolute bottom-0 left-0 w-full h-9 sm:h-11 pointer-events-none block"
+          className="absolute bottom-0 left-0 w-full h-4 sm:h-5 pointer-events-none block"
           viewBox="0 0 1440 80"
           preserveAspectRatio="none"
         >

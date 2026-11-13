@@ -66,6 +66,8 @@ import { PhoneScannerCompanion } from './PhoneScannerCompanion';
 import { db } from '../firebase';
 import { collection, query, where, onSnapshot, doc, setDoc } from 'firebase/firestore';
 import { subscribeToProductScans } from '../utils/productScanBroadcast';
+import { useDashboardPrefs } from '../utils/dashboardPrefs';
+import { MinimalDashboardBar } from './common/MinimalDashboardBar';
 
 interface PosViewsProps {
   mode: 'retail' | 'wholesale';
@@ -133,6 +135,18 @@ export const PosViews: React.FC<PosViewsProps> = ({
   const [stockCategoryFilter, setStockCategoryFilter] = useState<'ALL' | StockCategory>('ALL');
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>('ALL');
   const [visibleLimit, setVisibleLimit] = useState<number>(36);
+
+  const {
+    schema: dashSchema,
+    prefs: dashPrefs,
+    isMinimal,
+    setMode: setDashMode,
+    toggleKpi,
+    toggleWidget,
+    isKpiVisible,
+    isWidgetVisible,
+    resetToDefault,
+  } = useDashboardPrefs(currentUser);
 
   // Outlets under current active branch
   const branchOutlets = useMemo(() => {
@@ -925,394 +939,315 @@ export const PosViews: React.FC<PosViewsProps> = ({
 
   return (
     <div className="space-y-3.5">
-      {/* Minimized Cashier Header Bar - Ultra Streamlined & Space-Saving */}
-      <div className="bg-[#FFDE00] border-2 border-[#0A006E] rounded-xl sm:rounded-2xl px-3.5 py-2 sm:px-4 sm:py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 relative overflow-hidden shadow-xs">
-        <div className="silent-scanner-beam-dark" />
-        
-        {/* Terminal Title & Active Zone Pill */}
-        <div className="relative z-10 flex items-center gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 shadow-xs">
-            {mode === 'retail' ? (
-              <Store className="w-4 h-4" />
-            ) : (
-              <Briefcase className="w-4 h-4" />
+      {/* Minimal Customizable Cashier Command Bar */}
+      <MinimalDashboardBar
+        currentUser={currentUser}
+        title={mode === 'retail' ? 'Retail Checkout' : 'Wholesale POS'}
+        subtitle={`${activeBranch?.name || 'Central Outlet'} · ${activeRegion?.name || 'Default Zone'}`}
+        schema={dashSchema}
+        prefs={dashPrefs}
+        onChangeMode={setDashMode}
+        onToggleKpi={toggleKpi}
+        onToggleWidget={toggleWidget}
+        onReset={resetToDefault}
+        minimalLabel="Focus"
+        expandedLabel="Full"
+        actions={
+          <>
+            {isKpiVisible('branch_zone') && (
+              <>
+                <select
+                  disabled={isScopedBranch}
+                  value={activeBranch?.id || ''}
+                  onChange={(e) => {
+                    setSelectedBranchId(e.target.value);
+                    const br = branches.find((b) => b.id === e.target.value);
+                    if (br) setSelectedRegionId(br.regionId);
+                  }}
+                  className="px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-montserrat font-bold text-[#0A006E] cursor-pointer"
+                >
+                  {(isScopedBranch && currentUser.branchId
+                    ? branches.filter(
+                        (b) =>
+                          b.id === currentUser.branchId ||
+                          b.name === currentUser.branchName
+                      )
+                    : branches
+                  ).map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.code} · {b.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={activeRegion?.id || ''}
+                  onChange={(e) => setSelectedRegionId(e.target.value)}
+                  className="px-2 py-1.5 bg-[#0A006E] text-white rounded-lg text-[11px] font-montserrat font-bold cursor-pointer"
+                  title="Geo-Pricing Zone"
+                >
+                  {regions.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name} ({r.tierType})
+                    </option>
+                  ))}
+                </select>
+              </>
             )}
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-sm font-extrabold font-montserrat text-[#0A006E] tracking-tight">
-                {mode === 'retail' ? 'Retail Checkout' : 'Wholesale POS'}
-              </h2>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-montserrat font-bold bg-[#0A006E]/10 text-[#0A006E] border border-[#0A006E]/15">
-                <MapPin className="w-2.5 h-2.5 text-[#0A006E]" />
-                {activeRegion?.name || 'Default Zone'}
-              </span>
-              {currentUser.role === 'Affiliate Sales Representative' && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-montserrat font-bold bg-violet-100 text-violet-800 border border-violet-200">
-                  <Sparkles className="w-2.5 h-2.5" />
-                  Sales Rep Mode
-                </span>
-              )}
-            </div>
-            <p className="text-[10px] sm:text-[11px] font-semibold text-[#0A006E]/80 truncate">
-              {branches.find((b) => b.id === activeBranch?.id)?.name || 'Central Outlet'} · Suburb vs. Lower-Region Geo-Pricing Active
-            </p>
-          </div>
-        </div>
+            {onNavigateModule && (
+              <button
+                type="button"
+                onClick={() => onNavigateModule('leave_management')}
+                className="px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                title="Request Annual Leave, Off-Day, Emergency or Maternity Leave"
+              >
+                <Calendar className="w-3.5 h-3.5 text-fuchsia-600 shrink-0" />
+                <span>Leave / Off</span>
+              </button>
+            )}
+          </>
+        }
+      />
 
-        {/* Compact Branch & Geo-Pricing Dropdowns */}
-        <div className="flex items-center gap-2 relative z-10 shrink-0 flex-wrap">
-          <div className="flex items-center bg-white border border-[#0A006E]/30 rounded-lg px-2 py-1 shadow-xs">
-            <span className="text-[9px] font-montserrat font-black text-slate-500 uppercase mr-1 hidden sm:inline">
-              Branch:
-            </span>
-            <select
-              disabled={isScopedBranch}
-              value={activeBranch?.id || ''}
-              onChange={(e) => {
-                setSelectedBranchId(e.target.value);
-                const br = branches.find((b) => b.id === e.target.value);
-                if (br) setSelectedRegionId(br.regionId);
-              }}
-              className="text-[11px] font-montserrat font-black text-[#0A006E] bg-transparent focus:outline-none cursor-pointer"
-            >
-              {(isScopedBranch && currentUser.branchId
-                ? branches.filter(
-                    (b) =>
-                      b.id === currentUser.branchId ||
-                      b.name === currentUser.branchName
-                  )
-                : branches
-              ).map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.code} · {b.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center bg-[#0A006E] text-white border border-[#0A006E] rounded-lg px-2 py-1 shadow-xs">
-            <MapPin className="w-3 h-3 text-[#FFDE00] mr-1 shrink-0" />
-            <select
-              value={activeRegion?.id || ''}
-              onChange={(e) => setSelectedRegionId(e.target.value)}
-              className="text-[11px] font-montserrat font-bold text-white bg-[#0A006E] focus:outline-none cursor-pointer"
-              title="Geo-Pricing Zone"
-            >
-              {regions.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name} ({r.tierType})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {onNavigateModule && (
-            <button
-              type="button"
-              onClick={() => onNavigateModule('leave_management')}
-              className="px-2.5 py-1 bg-white hover:bg-slate-50 border border-[#0A006E] text-[#0A006E] rounded-lg text-[11px] font-montserrat font-black flex items-center gap-1 cursor-pointer shadow-xs transition whitespace-nowrap"
-              title="Request Annual Leave, Off-Day, Emergency or Maternity Leave"
-            >
-              <Calendar className="w-3.5 h-3.5 text-fuchsia-600 shrink-0" />
-              <span>Leave / Off</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* RETAIL CHECKOUT BARCODE SCANNER STATION (Phone Camera + Desktop USB + Bluetooth Scanners) */}
-      <div className="bg-white border-2 border-[#0A006E] rounded-2xl p-3.5 sm:p-4 shadow-sm space-y-3 relative overflow-hidden">
-        <div className="silent-scanner-beam" />
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 border-b border-slate-100 pb-2.5 relative z-10">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shadow-xs shrink-0">
-              <Barcode className="w-5 h-5 stroke-[2.2]" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-montserrat font-black text-sm text-[#0A006E]">
-                  Barcode Scanner Checkout Station
+      {/* BARCODE SCANNER STATION (Compact in Focus Mode, Detailed in Full Mode) */}
+      {isWidgetVisible('scanner_station') && (
+        <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-2.5">
+          {(!isMinimal || isWidgetVisible('quick_tips')) && (
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-100 pb-2">
+              <div className="flex items-center gap-2">
+                <Barcode className="w-4 h-4 text-[#0A006E] shrink-0" />
+                <h3 className="font-montserrat font-bold text-xs text-[#0A006E]">
+                  Barcode Scanner Station
                 </h3>
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-montserrat font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Scanner Active
+                <span className="text-[11px] text-slate-500">
+                  USB gun, camera, or Bluetooth paired scanner ready
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 font-medium">
-                Phone camera, desktop USB laser gun, or Bluetooth scanner adds items instantly.
-              </p>
             </div>
-          </div>
+          )}
 
-          {/* Scanner Controls & Modalities */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Unified Scanner Toolbar */}
-            <div className="flex items-center gap-1 bg-[#0A006E] p-1 rounded-xl text-xs font-montserrat font-black shadow-md">
-              <button
-                type="button"
-                onClick={() => setIsPhoneScannerOpen(true)}
-                className="px-3 py-2 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-lg flex items-center gap-1.5 cursor-pointer transition active:scale-95"
-                title="Use device camera / webcam to scan barcodes"
-              >
-                <Camera className="w-4 h-4 text-[#0A006E]" />
-                <span>Scan Barcode</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsPhonePairModalOpen(true)}
-                className="px-2.5 py-2 text-[#FFDE00] hover:text-white rounded-lg flex items-center gap-1 cursor-pointer transition"
-                title="Pair another phone as remote barcode scanner"
-              >
-                <Smartphone className="w-4 h-4" />
-                <span className="text-[10px]">Pair Phone</span>
-                {isPhoneSyncActive && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />}
-              </button>
-            </div>
-
-            {/* Sound Mute/Unmute Toggle */}
-            <button
-              type="button"
-              onClick={() => {
-                const next = toggleAudioMuted();
-                setSoundMuted(next);
-              }}
-              className={`px-3 py-2 rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer border transition ${
-                !soundMuted
-                  ? 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                  : 'bg-rose-50 border-rose-200 text-rose-700'
-              }`}
-              title={soundMuted ? 'Unmute POS Chime' : 'Mute POS Chime'}
-            >
-              {soundMuted ? (
-                <>
-                  <VolumeX className="w-3.5 h-3.5 text-rose-600" />
-                  <span>Beep Muted</span>
-                </>
-              ) : (
-                <>
-                  <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Beep ON</span>
-                </>
-              )}
-            </button>
-
-            {/* Auto-focus Gun Input */}
-            <button
-              type="button"
-              onClick={() => barcodeInputRef.current?.focus()}
-              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer transition"
-              title="Click to focus input for barcode gun"
-            >
-              <Bluetooth className="w-3.5 h-3.5 text-[#0A006E]" />
-              <span>Focus Gun</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Barcode Quick-Scan Input Row */}
-        <div className="relative z-10">
-          <div className="relative">
-            <div className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none text-slate-400">
-              <ScanLine className="w-5 h-5 text-[#0A006E]" />
-            </div>
-            <input
-              ref={barcodeInputRef}
-              id="barcode-scanner-quick-input"
-              type="text"
-              value={barcodeInput}
-              onChange={(e) => setBarcodeInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleScanBarcode(barcodeInput);
-                }
-              }}
-              placeholder="Scan product barcode (Desktop USB gun, Bluetooth scanner, or type EAN-13 & press Enter)..."
-              className="w-full pl-12 pr-28 py-3 bg-slate-50 border-2 border-slate-200 focus:border-[#0A006E] focus:bg-white rounded-2xl text-xs sm:text-sm font-mono-tabular text-slate-900 transition focus:outline-none focus:ring-4 focus:ring-[#0A006E]/10"
-            />
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-              {barcodeInput && (
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            {/* Barcode Quick-Scan Input */}
+            <div className="relative flex-1">
+              <ScanLine className="w-4 h-4 text-[#0A006E] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                ref={barcodeInputRef}
+                id="barcode-scanner-quick-input"
+                type="text"
+                value={barcodeInput}
+                onChange={(e) => setBarcodeInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleScanBarcode(barcodeInput);
+                  }
+                }}
+                placeholder="Scan barcode or type EAN-13 & press Enter..."
+                className="w-full pl-9 pr-20 py-2 bg-slate-50 border border-slate-200 focus:border-[#0A006E] focus:bg-white rounded-lg text-xs font-mono-tabular text-slate-900 focus:outline-none"
+              />
+              <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                {barcodeInput && (
+                  <button
+                    type="button"
+                    onClick={() => setBarcodeInput('')}
+                    className="p-1 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => setBarcodeInput('')}
-                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 cursor-pointer"
+                  onClick={() => handleScanBarcode(barcodeInput)}
+                  disabled={!barcodeInput.trim()}
+                  className="px-2.5 py-1 bg-[#FFDE00] hover:bg-amber-400 disabled:opacity-40 text-[#0A006E] font-montserrat font-bold text-[11px] rounded cursor-pointer"
                 >
-                  <X className="w-4 h-4" />
+                  Scan
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={() => handleScanBarcode(barcodeInput)}
-                disabled={!barcodeInput.trim()}
-                className="px-3 py-1.5 bg-[#FFDE00] hover:bg-amber-400 disabled:opacity-40 text-[#0A006E] font-montserrat font-black text-xs rounded-xl cursor-pointer transition shadow-xs"
-              >
-                Scan Item
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Live Scan Notification Toast Banner */}
-        {scanNotification && (
-          <div
-            className={`p-3.5 rounded-2xl border-2 flex items-center justify-between gap-3 text-xs font-montserrat font-bold shadow-md animate-fade-in relative z-10 ${
-              scanNotification.type === 'error'
-                ? 'bg-rose-50 border-rose-400 text-rose-950'
-                : 'bg-emerald-50 border-emerald-500 text-emerald-950'
-            }`}
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
-              {scanNotification.type === 'error' ? (
-                <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
-              ) : (
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-              )}
-              <div className="truncate">
-                <span>{scanNotification.text}</span>
-                {scanNotification.price && (
-                  <span className="ml-2 font-mono-tabular text-emerald-700">
-                    · {formatKes(scanNotification.price)}
-                    {scanNotification.qtyInCart && ` (Cart Qty: ${scanNotification.qtyInCart})`}
-                  </span>
-                )}
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setScanNotification(null)}
-              className="text-slate-400 hover:text-slate-600 cursor-pointer p-1"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Main 2-Column POS Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left 7 Columns: SKU Catalog & Geo-Tariff Cards */}
-        <div className="lg:col-span-7 space-y-4">
-          {/* Persistent Scan-to-Activate Box & Guidance with Scanned Items inside */}
-          <div className="bg-white border-2 border-dashed border-[#0A006E]/30 rounded-3xl p-6 sm:p-8 text-center space-y-5 shadow-sm">
-            <div className="relative inline-block mx-auto">
-              <div className="w-16 h-16 rounded-3xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shadow-lg">
-                <Barcode className="w-8 h-8 stroke-[2.2]" />
-              </div>
-              <span className="absolute -top-1 -right-1 flex h-4 w-4">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500"></span>
-              </span>
-            </div>
-
-            <div className="max-w-md mx-auto space-y-1.5">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-montserrat font-black bg-[#FFDE00] text-[#0A006E]">
-                <ScanLine className="w-3.5 h-3.5" />
-                Barcode Scan-To-Activate POS Mode
-              </div>
-              <h3 className="font-montserrat font-black text-lg text-[#0A006E]">
-                {activatedProducts.length === 0
-                  ? 'No Products Scanned Yet'
-                  : `Scanned Products Ready for POS Checkout (${activatedProducts.length} Items)`}
-              </h3>
-              <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                {activatedProducts.length === 0
-                  ? 'Products with verified real barcodes or scanned in inventory appear here. Use phone scanner, camera, or laser gun to scan and add.'
-                  : `Displaying all ${activatedProducts.length} verified products with scanned barcodes. Scan with phone, camera, or laser gun to add directly to cart.`}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
-              <button
-                type="button"
-                onClick={() => setIsPhonePairModalOpen(true)}
-                className="px-4 py-2.5 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] border-2 border-[#FFDE00] rounded-2xl font-montserrat font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-md transition hover:scale-105"
-              >
-                <Smartphone className="w-3.5 h-3.5 text-[#FFDE00]" />
-                Scan with Phone
-              </button>
+            {/* Compact Hardware Controls */}
+            <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
               <button
                 type="button"
                 onClick={() => setIsPhoneScannerOpen(true)}
-                className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-montserrat font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-md transition hover:scale-105"
+                className="px-2.5 py-2 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
               >
-                <Camera className="w-3.5 h-3.5 text-[#FFDE00]" />
-                Camera Scanner
+                <Camera className="w-3.5 h-3.5" />
+                <span>Camera</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsPhonePairModalOpen(true)}
+                className="px-2.5 py-2 bg-white border border-slate-200 text-[#0A006E] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              >
+                <Smartphone className="w-3.5 h-3.5" />
+                <span>{isPhoneSyncActive ? 'Phone Paired' : 'Pair Phone'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = toggleAudioMuted();
+                  setSoundMuted(next);
+                }}
+                className={`px-2.5 py-2 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer border whitespace-nowrap ${
+                  !soundMuted
+                    ? 'bg-slate-50 border-slate-200 text-slate-700'
+                    : 'bg-rose-50 border-rose-200 text-rose-700'
+                }`}
+                title={soundMuted ? 'Unmute POS Chime' : 'Mute POS Chime'}
+              >
+                {soundMuted ? <VolumeX className="w-3.5 h-3.5 text-rose-600" /> : <Volume2 className="w-3.5 h-3.5 text-emerald-600" />}
+                <span className="hidden md:inline">{soundMuted ? 'Muted' : 'Beep'}</span>
               </button>
               <button
                 type="button"
                 onClick={() => barcodeInputRef.current?.focus()}
-                className="px-4 py-2.5 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-2xl font-montserrat font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-md transition hover:scale-105"
+                className="px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
               >
-                <Barcode className="w-3.5 h-3.5 text-[#0A006E]" />
-                Focus Laser Gun
+                <Bluetooth className="w-3.5 h-3.5 text-[#0A006E]" />
+                <span className="hidden md:inline">Focus</span>
               </button>
-              {cart.length > 0 && (
+            </div>
+          </div>
+
+          {scanNotification && (
+            <div
+              className={`p-2.5 rounded-lg border flex items-center justify-between gap-2 text-xs font-montserrat font-bold ${
+                scanNotification.type === 'error'
+                  ? 'bg-rose-50 border-rose-300 text-rose-950'
+                  : 'bg-emerald-50 border-emerald-400 text-emerald-950'
+              }`}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                {scanNotification.type === 'error' ? (
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                )}
+                <div className="truncate">
+                  <span>{scanNotification.text}</span>
+                  {scanNotification.price && (
+                    <span className="ml-2 font-mono-tabular text-emerald-700">
+                      · {formatKes(scanNotification.price)}
+                      {scanNotification.qtyInCart && ` (Qty: ${scanNotification.qtyInCart})`}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setScanNotification(null)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer p-0.5"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Main 2-Column POS Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+        {/* Left 7 Columns: SKU Catalog */}
+        <div className="lg:col-span-7 space-y-3">
+          {activatedProducts.length === 0 ? (
+            <div className="bg-white border border-dashed border-slate-300 rounded-xl p-8 text-center space-y-4">
+              <div className="w-12 h-12 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center mx-auto">
+                <Barcode className="w-6 h-6" />
+              </div>
+              <div className="max-w-md mx-auto space-y-1">
+                <h3 className="font-montserrat font-bold text-base text-[#0A006E]">
+                  No Products Scanned Yet
+                </h3>
+                <p className="text-xs text-slate-600">
+                  Use the camera scanner, pair a phone, or scan with a USB laser gun to add items directly to the cart.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setCart([])}
-                  className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-montserrat font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-md transition"
+                  onClick={() => setIsPhonePairModalOpen(true)}
+                  className="px-3.5 py-2 bg-[#0A006E] text-[#FFDE00] rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 cursor-pointer"
                 >
-                  Clear Cart ({cart.length})
+                  <Smartphone className="w-3.5 h-3.5" />
+                  Scan with Phone
                 </button>
-              )}
+                <button
+                  type="button"
+                  onClick={() => setIsPhoneScannerOpen(true)}
+                  className="px-3.5 py-2 bg-slate-900 text-white rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Camera className="w-3.5 h-3.5 text-[#FFDE00]" />
+                  Camera Scanner
+                </button>
+              </div>
             </div>
-
-            {/* Scanned/Activated Products Displayed INSIDE the same box */}
-            {activatedProducts.length > 0 && (
-              <div className="pt-5 border-t border-slate-200 text-left space-y-4">
-                <div className="flex items-center justify-between text-xs font-montserrat font-bold text-[#0A006E]">
-                  <span>Scanned &amp; Activated Items ({filteredProducts.length}{filteredProducts.length !== activatedProducts.length ? ` of ${activatedProducts.length}` : ''})</span>
+          ) : (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-3">
+              <div className="flex items-center justify-between gap-2 text-xs font-montserrat font-bold text-[#0A006E]">
+                <span>
+                  Scanned &amp; Activated Items ({filteredProducts.length}
+                  {filteredProducts.length !== activatedProducts.length ? ` of ${activatedProducts.length}` : ''})
+                </span>
+                <div className="flex items-center gap-2">
+                  {cart.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setCart([])}
+                      className="text-[11px] text-rose-600 hover:underline cursor-pointer"
+                    >
+                      Clear Cart ({cart.length})
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setIsPhoneScannerOpen(true)}
-                    className="text-xs text-[#0A006E] hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-[11px] text-[#0A006E] hover:underline flex items-center gap-1 cursor-pointer"
                   >
-                    <Camera className="w-3.5 h-3.5" /> Scan Next Bottle
+                    <Camera className="w-3.5 h-3.5" /> Scan Next
                   </button>
                 </div>
+              </div>
 
-                {/* Search & Categories within Activated Items */}
-                <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-3 space-y-2">
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <div className="relative flex-1">
-                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => {
-                          setSearchQuery(e.target.value);
+              {isWidgetVisible('category_filters') && (
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        setVisibleLimit(36);
+                      }}
+                      placeholder={`Filter among ${activatedProducts.length} items...`}
+                      className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-[#0A006E]"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 shrink-0">
+                    {(['ALL', 'IPS', 'LPS'] as const).map((sc) => (
+                      <button
+                        key={sc}
+                        type="button"
+                        onClick={() => {
+                          setStockCategoryFilter(sc);
                           setVisibleLimit(36);
                         }}
-                        placeholder={`Filter among ${activatedProducts.length} activated items...`}
-                        className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#0A006E]"
-                      />
-                    </div>
-
-                    <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shrink-0">
-                      {(['ALL', 'IPS', 'LPS'] as const).map((sc) => (
-                        <button
-                          key={sc}
-                          type="button"
-                          onClick={() => {
-                            setStockCategoryFilter(sc);
-                            setVisibleLimit(36);
-                          }}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-montserrat font-black transition-colors cursor-pointer ${
-                            stockCategoryFilter === sc
-                              ? 'bg-[#0A006E] text-[#FFDE00]'
-                              : 'text-slate-600 hover:text-slate-900'
-                          }`}
-                        >
-                          {sc === 'ALL' ? `All (${activatedProducts.length})` : sc}
-                        </button>
-                      ))}
-                    </div>
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-montserrat font-bold transition-colors cursor-pointer ${
+                          stockCategoryFilter === sc
+                            ? 'bg-[#0A006E] text-[#FFDE00]'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        {sc === 'ALL' ? `All (${activatedProducts.length})` : sc}
+                      </button>
+                    ))}
                   </div>
                 </div>
+              )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {displayedProducts.map((product) => {
                     const packSize = product.packSize || product.bottlesPerCase || 12;
                     const abv = product.alcoholPercentage ?? product.abv ?? 40;
@@ -1393,21 +1328,18 @@ export const PosViews: React.FC<PosViewsProps> = ({
                 </div>
 
                 {filteredProducts.length > displayedProducts.length && (
-                  <div className="pt-3 text-center">
+                  <div className="pt-2 text-center">
                     <button
                       type="button"
                       onClick={() => setVisibleLimit((prev) => prev + 48)}
-                      className="px-6 py-2.5 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-2xl text-xs font-montserrat font-black cursor-pointer shadow-md transition hover:scale-105 inline-flex items-center gap-2"
+                      className="px-4 py-2 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-lg text-xs font-montserrat font-bold cursor-pointer inline-flex items-center gap-1.5"
                     >
-                      <span>Load More Scanned Products ({filteredProducts.length - displayedProducts.length} more)</span>
+                      <span>Load More ({filteredProducts.length - displayedProducts.length} remaining)</span>
                     </button>
                   </div>
                 )}
               </div>
-            )}
-          </div>
-
-
+          )}
         </div>
 
         {/* Right 5 Columns: Active Order Register & Document Generator with Permanently Floating Total */}

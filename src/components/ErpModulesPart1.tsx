@@ -92,6 +92,8 @@ import { SalesPeriodTracker } from './SalesPeriodTracker';
 import { InventoryBarcodeAssignmentModal } from './InventoryBarcodeAssignmentModal';
 import { ExecutiveVisualAnalytics, BarGraph, PieChart } from './common/AnalyticsCharts';
 import { KraReturnScheduleType } from '../utils/kraReturnsExport';
+import { useDashboardPrefs } from '../utils/dashboardPrefs';
+import { MinimalDashboardBar } from './common/MinimalDashboardBar';
 
 // ---------------------------------------------------------------------------
 // 1. OVERVIEW DASHBOARD
@@ -157,22 +159,32 @@ export const OverviewModule: React.FC<{
 }) => {
   const isAccountant = currentUser.role === 'Accountant';
   const [adminOverviewView, setAdminOverviewView] = useState<'executive' | 'accounting'>('executive');
-  const [adminSimpleView, setAdminSimpleView] = useState(true);
-  const [adminFocusSection, setAdminFocusSection] = useState<
-    'hub' | 'sales_performance' | 'charts' | 'branch_performance' | 'recent_docs' | 'transfers_queue' | 'delivery_queue'
-  >(() => {
-    if (typeof window !== 'undefined') {
-      return (localStorage.getItem('erp_admin_focus_section') as any) || 'hub';
-    }
-    return 'hub';
-  });
-  const selectAdminFocusSection = (
-    sec: 'hub' | 'sales_performance' | 'charts' | 'branch_performance' | 'recent_docs' | 'transfers_queue' | 'delivery_queue'
-  ) => {
-    setAdminFocusSection(sec);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('erp_admin_focus_section', sec);
-    }
+  const {
+    schema: dashSchema,
+    prefs: dashPrefs,
+    isMinimal,
+    setMode: setDashMode,
+    toggleKpi,
+    toggleWidget,
+    isKpiVisible,
+    isWidgetVisible,
+    resetToDefault,
+  } = useDashboardPrefs(currentUser);
+
+  const [focusSection, setFocusSection] = useState<
+    | 'hub'
+    | 'sales_performance'
+    | 'charts'
+    | 'branch_performance'
+    | 'recent_docs'
+    | 'transfers_queue'
+    | 'delivery_queue'
+    | 'hr_roles'
+    | 'hr_branches'
+    | 'inventory_branches'
+  >('hub');
+  const selectAdminFocusSection = (sec: typeof focusSection) => {
+    setFocusSection(sec);
   };
   const scopedBranchId =
     ROLE_PERMISSIONS[currentUser.role].scopeToAssignedBranch ? currentUser.branchId : '';
@@ -406,7 +418,9 @@ export const OverviewModule: React.FC<{
     );
   }
 
-  // Specialized HR KPIs Command Dashboard
+  // =========================================================================
+  // ROLE 2: HR MINIMAL CUSTOMIZABLE DASHBOARD
+  // =========================================================================
   if (currentUser.role === 'HR') {
     const activeStaff = staffList.filter((s) => s.status === 'Active');
     const suspendedStaff = staffList.filter((s) => s.status !== 'Active');
@@ -426,309 +440,323 @@ export const OverviewModule: React.FC<{
         r.urgency === 'Urgent'
     );
 
-    return (
-      <div className="space-y-6">
-        {/* HR Banner */}
-        <div className="bg-[#0A006E] text-white border-2 border-[#FFDE00] rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden shadow-md">
-          <div>
-            <span className="text-[11px] font-montserrat font-black text-[#FFDE00] uppercase tracking-wider block">
-              Human Resources &amp; Access Controller Command · RBAC Scope
+    if (isMinimal && (focusSection === 'hr_roles' || focusSection === 'hr_branches')) {
+      return (
+        <div className="space-y-4 pb-8">
+          <div className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => setFocusSection('hub')}
+              className="px-3 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-xs font-montserrat font-bold cursor-pointer whitespace-nowrap"
+            >
+              ← Back to HR Hub
+            </button>
+            <span className="text-xs font-montserrat font-bold text-slate-800 truncate">
+              {focusSection === 'hr_roles' ? 'Staff Distribution Across Roles' : 'Branch Personnel Deployment'}
             </span>
-            <h2 className="text-xl font-montserrat font-black italic text-white mt-1">
-              Personnel Roster, Statutory Compliance &amp; Payroll KPIs
-            </h2>
-            <p className="text-xs text-slate-300 mt-0.5">
-              Approved management of personnel directory, leave &amp; emergency requests, 6-digit PINs, and statutory deductions.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={() => (onOpenHrLeaveTab ? onOpenHrLeaveTab() : onNavigateModule?.('hr_rbac'))}
-              className={`px-3.5 py-2 rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 transition shadow-xs ${
-                urgentLeaveList.length > 0
-                  ? 'bg-rose-600 hover:bg-rose-700 text-white'
-                  : 'bg-white hover:bg-slate-100 text-[#0A006E]'
-              }`}
-            >
-              <Calendar className="w-3.5 h-3.5" />
-              Leave &amp; Emergency Inbox ({pendingLeaveList.length})
-            </button>
-            {onOpenKraReturns && (
-              <button
-                onClick={() => onOpenKraReturns('PAYE_P10_SEC_B')}
-                className="px-3.5 py-2 bg-[#34D186] hover:bg-[#28B873] text-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 transition"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5" />
-                KRA P10 &amp; AHL (.xlsx)
-              </button>
-            )}
-            <button
-              onClick={() => onNavigateModule?.('hr_rbac')}
-              className="px-4 py-2 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-xl text-xs font-montserrat font-black cursor-pointer shadow-xs transition whitespace-nowrap shrink-0"
-            >
-              Manage Staff Directory
-            </button>
-            <button
-              onClick={() => {
-                const headers = ['Staff Name', 'Role', 'Branch', 'Email', 'Status', 'KRA PIN', 'NSSF'];
-                const rows = staffList.map((s) => [s.name, s.role, s.branchName, s.email, s.status, s.kraPin || '-', s.nssfNo || '-']);
-                exportToCSV('Vaairo_Staff_Roster', headers, rows);
-              }}
-              className="px-3.5 py-2 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-montserrat font-bold cursor-pointer transition whitespace-nowrap shrink-0"
-            >
-              Export CSV
-            </button>
-          </div>
-        </div>
-
-        {/* High-Visibility HR Leave, Off & Emergency Alert Banner */}
-        <div
-          className={`rounded-2xl p-4 sm:p-5 border-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm ${
-            urgentLeaveList.length > 0
-              ? 'bg-rose-50 border-rose-500'
-              : pendingLeaveList.length > 0
-              ? 'bg-amber-50 border-amber-400'
-              : 'bg-white border-slate-200'
-          }`}
-        >
-          <div className="flex items-start sm:items-center gap-3.5">
-            <div
-              className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
-                urgentLeaveList.length > 0
-                  ? 'bg-rose-600 text-white'
-                  : pendingLeaveList.length > 0
-                  ? 'bg-amber-500 text-white'
-                  : 'bg-[#0A006E] text-[#FFDE00]'
-              }`}
-            >
-              <Calendar className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E] flex items-center gap-2 flex-wrap">
-                <span>Company Leave, Off-Day, Emergency &amp; Maternity Portal</span>
-                {pendingLeaveList.length > 0 && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono-tabular font-black bg-[#0A006E] text-[#FFDE00]">
-                    {pendingLeaveList.length} Awaiting Review
-                  </span>
-                )}
-                {urgentLeaveList.length > 0 && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono-tabular font-black bg-rose-600 text-white">
-                    {urgentLeaveList.length} Emergency / Maternity Priority
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-600 mt-0.5">
-                {pendingLeaveList.length > 0
-                  ? `${pendingLeaveList.length} staff leave/off request(s) await HR approval or decline decision.`
-                  : 'All staff leave, off-day, emergency, and maternity submissions appear here in real time.'}
-              </p>
-            </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0 flex-wrap">
-            <button
-              type="button"
-              onClick={() => onNavigateModule?.('leave_management')}
-              className="px-3.5 py-2 bg-white hover:bg-slate-50 border border-[#0A006E]/30 text-[#0A006E] rounded-xl text-xs font-montserrat font-bold cursor-pointer transition"
-            >
-              Request Own Leave
-            </button>
-            <button
-              type="button"
-              onClick={() => (onOpenHrLeaveTab ? onOpenHrLeaveTab() : onNavigateModule?.('hr_rbac'))}
-              className="px-4 py-2 bg-[#0A006E] hover:bg-[#12009E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black cursor-pointer shadow-xs transition"
-            >
-              Review &amp; Approve / Decline →
-            </button>
-          </div>
-        </div>
-
-        {/* HR KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-            <div className="text-xs font-montserrat font-bold text-slate-600">Total Workforce Headcount</div>
-            <div className="text-3xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1">
-              {staffList.length} Staff
-            </div>
-            <div className="text-xs text-[#1E9E60] font-bold mt-1">
-              {activeStaff.length} Active · {suspendedStaff.length} On Hold
-            </div>
-          </div>
-
-          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-            <div className="text-xs font-montserrat font-bold text-slate-600">Statutory Tax Compliance</div>
-            <div className="text-3xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1">
-              {kraCoverage}%
-            </div>
-            <div className="text-xs text-slate-600 mt-1">
-              KRA PIN: {kraCoverage}% · NSSF / SHIF: {nssfCoverage}%
-            </div>
-          </div>
-
-          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-            <div className="text-xs font-montserrat font-bold text-slate-600">Latest Payroll Cycle</div>
-            <div className="text-2xl font-montserrat font-black text-[#0A006E] truncate mt-1">
-              {latestRun ? latestRun.period : 'Awaiting Run'}
-            </div>
-            <div className="text-xs text-slate-600 mt-1">
-              {latestRun ? `Disbursed: KES ${latestRun.totalDisbursed.toLocaleString()} (${latestRun.totalEmployees} staff)` : 'Ready to prepare current cycle'}
-            </div>
-          </div>
-
-          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-            <div className="text-xs font-montserrat font-bold text-slate-600">Regional Branch Deployment</div>
-            <div className="text-3xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1">
-              {branches.length} Branches
-            </div>
-            <div className="text-xs text-slate-600 mt-1">
-              All retail &amp; wholesale depots staffed
-            </div>
-          </div>
-        </div>
-
-        {/* Roles Distribution & Branch Deployment Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
-            <h3 className="text-sm font-montserrat font-black text-[#0A006E] uppercase tracking-wider flex items-center gap-2">
-              <Users className="w-4 h-4 text-[#0A006E]" />
-              Staff Distribution Across 8 Roles
-            </h3>
-            <div className="divide-y divide-slate-100">
+          {focusSection === 'hr_roles' && (
+            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2 divide-y divide-slate-100">
               {[
                 'Admin',
                 'Accountant',
+                'HR',
                 'Sales Manager',
                 'Branch Manager',
                 'Inventory Controller',
                 'Counter Cashier',
                 'Affiliate Sales Representative',
-              ].map((role) => {
-                const count = staffList.filter((s) => s.role === role).length;
-                return (
-                  <div key={role} className="py-2.5 flex items-center justify-between text-xs">
-                    <span className="font-montserrat font-bold text-slate-800">{role}</span>
-                    <span className="px-2.5 py-1 rounded-lg bg-slate-100 font-mono-tabular font-bold text-[#0A006E]">
-                      {count} staff
-                    </span>
-                  </div>
-                );
-              })}
+                'Delivery Manager',
+                'Delivery Rider',
+              ].map((role) => (
+                <div key={role} className="pt-2 first:pt-0 flex items-center justify-between text-xs">
+                  <span className="font-montserrat font-semibold text-slate-800">{role}</span>
+                  <span className="font-mono-tabular font-bold text-[#0A006E]">
+                    {staffList.filter((s) => s.role === role).length} staff
+                  </span>
+                </div>
+              ))}
             </div>
-          </div>
+          )}
 
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
-            <h3 className="text-sm font-montserrat font-black text-[#0A006E] uppercase tracking-wider flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-[#0A006E]" />
-              Branch Personnel Deployment
-            </h3>
-            <div className="divide-y divide-slate-100">
-              {branches.map((b) => {
-                const branchStaff = staffList.filter((s) => s.branchId === b.id);
-                return (
-                  <div key={b.id} className="py-2.5 flex items-center justify-between text-xs">
-                    <div>
-                      <div className="font-montserrat font-bold text-slate-900">{b.name}</div>
-                      <div className="text-[11px] text-slate-500">{b.regionName} · {b.code}</div>
-                    </div>
-                    <span className="px-2.5 py-1 rounded-lg bg-[#FFDE00]/30 border border-[#FFDE00] font-mono-tabular font-bold text-[#0A006E]">
-                      {branchStaff.length} stationed
-                    </span>
+          {focusSection === 'hr_branches' && (
+            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2 divide-y divide-slate-100">
+              {branches.map((b) => (
+                <div key={b.id} className="pt-2 first:pt-0 flex items-center justify-between text-xs">
+                  <div>
+                    <div className="font-montserrat font-bold text-slate-900">{b.name}</div>
+                    <div className="text-[11px] text-slate-500">{b.regionName} · {b.code}</div>
                   </div>
-                );
-              })}
+                  <span className="font-mono-tabular font-bold text-[#0A006E]">
+                    {staffList.filter((s) => s.branchId === b.id).length} stationed
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        <MinimalDashboardBar
+          currentUser={currentUser}
+          schema={dashSchema}
+          prefs={dashPrefs}
+          onChangeMode={setDashMode}
+          onToggleKpi={toggleKpi}
+          onToggleWidget={toggleWidget}
+          onReset={resetToDefault}
+          actions={
+            <>
+              <button
+                type="button"
+                onClick={() => (onOpenHrLeaveTab ? onOpenHrLeaveTab() : onNavigateModule?.('hr_rbac'))}
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  urgentLeaveList.length > 0
+                    ? 'bg-rose-600 text-white'
+                    : pendingLeaveList.length > 0
+                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                    : 'bg-slate-100 text-slate-800 hover:bg-slate-200'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                Leave Inbox ({pendingLeaveList.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigateModule?.('hr_rbac')}
+                className="px-3 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold cursor-pointer whitespace-nowrap"
+              >
+                Staff Roster
+              </button>
+            </>
+          }
+        />
+
+        {/* Pending Leave / Emergency Action Strip */}
+        {isWidgetVisible('leave_alerts') && (pendingLeaveList.length > 0 || !isMinimal) && (
+          <div
+            className={`rounded-xl px-4 py-3 border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+              urgentLeaveList.length > 0
+                ? 'bg-rose-50 border-rose-300'
+                : pendingLeaveList.length > 0
+                ? 'bg-amber-50 border-amber-300'
+                : 'bg-white border-slate-200'
+            }`}
+          >
+            <div className="text-xs">
+              <span className="font-montserrat font-bold text-slate-900">
+                Leave, Off &amp; Emergency Queue:{' '}
+              </span>
+              <span className="text-slate-600">
+                {pendingLeaveList.length > 0
+                  ? `${pendingLeaveList.length} pending review${urgentLeaveList.length > 0 ? ` · ${urgentLeaveList.length} priority` : ''}`
+                  : 'All caught up — no pending leave submissions'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => onNavigateModule?.('leave_management')}
+                className="px-2.5 py-1 bg-white border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold cursor-pointer"
+              >
+                My Leave
+              </button>
+              <button
+                type="button"
+                onClick={() => (onOpenHrLeaveTab ? onOpenHrLeaveTab() : onNavigateModule?.('hr_rbac'))}
+                className="px-3 py-1 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold cursor-pointer"
+              >
+                Review Requests →
+              </button>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* HR KPI Strip */}
+        {isWidgetVisible('kpi_strip') && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {isKpiVisible('headcount') && (
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Workforce Headcount</div>
+                <div className="text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                  {staffList.length}
+                </div>
+                <div className="text-[11px] text-emerald-700 font-semibold mt-0.5">
+                  {activeStaff.length} Active · {suspendedStaff.length} Hold
+                </div>
+              </div>
+            )}
+            {isKpiVisible('compliance') && (
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+                <div className="text-[11px] font-montserrat font-semibold text-slate-500">KRA / NSSF Coverage</div>
+                <div className="text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                  {kraCoverage}%
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">NSSF/SHIF: {nssfCoverage}%</div>
+              </div>
+            )}
+            {isKpiVisible('payroll') && (
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Latest Payroll</div>
+                <div className="text-base sm:text-lg font-montserrat font-black text-[#0A006E] truncate mt-0.5">
+                  {latestRun ? latestRun.period : 'Awaiting Run'}
+                </div>
+                <div className="text-[11px] text-slate-500 font-mono-tabular mt-0.5">
+                  {latestRun ? formatKes(latestRun.totalDisbursed) : 'Ready'}
+                </div>
+              </div>
+            )}
+            {isKpiVisible('branches') && (
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Depots Staffed</div>
+                <div className="text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                  {branches.length} Branches
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">10 RBAC Roles</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Quick Focus Workspace Tiles */}
+        {isWidgetVisible('focus_tiles') && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+            <button
+              type="button"
+              onClick={() => (onOpenHrLeaveTab ? onOpenHrLeaveTab() : onNavigateModule?.('hr_rbac'))}
+              className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1.5 cursor-pointer transition"
+            >
+              <Calendar className="w-4 h-4 text-fuchsia-600" />
+              <div className="text-xs font-montserrat font-bold text-slate-900">Leave Approvals</div>
+              <div className="text-[11px] text-slate-500">{pendingLeaveList.length} awaiting decision</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('hr_rbac')}
+              className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1.5 cursor-pointer transition"
+            >
+              <Users className="w-4 h-4 text-[#0A006E]" />
+              <div className="text-xs font-montserrat font-bold text-slate-900">Staff &amp; Payroll</div>
+              <div className="text-[11px] text-slate-500">Directory &amp; PINs</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFocusSection('hr_roles')}
+              className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1.5 cursor-pointer transition"
+            >
+              <ShieldCheck className="w-4 h-4 text-indigo-600" />
+              <div className="text-xs font-montserrat font-bold text-slate-900">Role Breakdown</div>
+              <div className="text-[11px] text-slate-500">Staff across 10 roles</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFocusSection('hr_branches')}
+              className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1.5 cursor-pointer transition"
+            >
+              <Building2 className="w-4 h-4 text-emerald-600" />
+              <div className="text-xs font-montserrat font-bold text-slate-900">Branch Staffing</div>
+              <div className="text-[11px] text-slate-500">{branches.length} active locations</div>
+            </button>
+            {onOpenKraReturns && (
+              <button
+                type="button"
+                onClick={() => onOpenKraReturns('PAYE_P10_SEC_B')}
+                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1.5 cursor-pointer transition"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
+                <div className="text-xs font-montserrat font-bold text-slate-900">KRA P10 &amp; AHL</div>
+                <div className="text-[11px] text-slate-500">Export statutory .xlsx</div>
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Expanded Full Details (Only when Full mode selected) */}
+        {!isMinimal && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {isWidgetVisible('role_distribution') && (
+              <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2.5">
+                <h3 className="text-xs font-montserrat font-bold text-[#0A006E] uppercase tracking-wider">
+                  Staff Distribution Across Roles
+                </h3>
+                <div className="divide-y divide-slate-100">
+                  {[
+                    'Admin',
+                    'Accountant',
+                    'HR',
+                    'Sales Manager',
+                    'Branch Manager',
+                    'Inventory Controller',
+                    'Counter Cashier',
+                    'Affiliate Sales Representative',
+                    'Delivery Manager',
+                    'Delivery Rider',
+                  ].map((role) => (
+                    <div key={role} className="py-2 flex items-center justify-between text-xs">
+                      <span className="font-montserrat font-semibold text-slate-800">{role}</span>
+                      <span className="font-mono-tabular font-bold text-[#0A006E]">
+                        {staffList.filter((s) => s.role === role).length} staff
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {isWidgetVisible('branch_deployment') && (
+              <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2.5">
+                <h3 className="text-xs font-montserrat font-bold text-[#0A006E] uppercase tracking-wider">
+                  Branch Personnel Deployment
+                </h3>
+                <div className="divide-y divide-slate-100">
+                  {branches.map((b) => (
+                    <div key={b.id} className="py-2 flex items-center justify-between text-xs">
+                      <div>
+                        <div className="font-montserrat font-bold text-slate-900">{b.name}</div>
+                        <div className="text-[11px] text-slate-500">{b.regionName} · {b.code}</div>
+                      </div>
+                      <span className="font-mono-tabular font-bold text-[#0A006E]">
+                        {staffList.filter((s) => s.branchId === b.id).length} stationed
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }
 
-  // Specialized Sales Manager KPIs Command Dashboard
+  // =========================================================================
+  // ROLE 3: SALES MANAGER MINIMAL CUSTOMIZABLE DASHBOARD
+  // =========================================================================
   if (currentUser.role === 'Sales Manager') {
-    const wholesaleRevenue = visibleTransactions
+    const wholesaleRevenue = externalVisibleTransactions
       .filter((t) => t.channel === 'B2B Wholesale POS')
       .reduce((s, t) => s + t.totalAmount, 0);
-    const retailRevenue = visibleTransactions
+    const retailRevenue = externalVisibleTransactions
       .filter((t) => t.channel === 'Retail Counter POS')
       .reduce((s, t) => s + t.totalAmount, 0);
 
-    return (
-      <div className="space-y-6">
-        {/* Sales Manager Banner */}
-        <div className="bg-[#34D186] text-[#0A006E] border-2 border-[#0A006E] rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden shadow-md">
-          <div>
-            <span className="text-[11px] font-montserrat font-black text-[#0A006E] uppercase tracking-wider block">
-              National Distribution Sales Manager Command
-            </span>
-            <h2 className="text-xl font-montserrat font-black italic text-[#0A006E] mt-1">
-              Commercial Turnover, Channel Pipeline &amp; Partner Performance
-            </h2>
-            <p className="text-xs text-slate-900 font-semibold mt-0.5">
-              Live tracking of B2B wholesale dispatches, retail counters, and partner accounts.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+    if (isMinimal && focusSection === 'sales_performance') {
+      return (
+        <div className="space-y-4 pb-8">
+          <div className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 flex items-center justify-between gap-3">
             <button
-              onClick={() => onNavigateModule?.('sales_pos')}
-              className="px-4 py-2 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black cursor-pointer shadow-xs transition"
+              type="button"
+              onClick={() => setFocusSection('hub')}
+              className="px-3 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-xs font-montserrat font-bold cursor-pointer"
             >
-              Wholesale POS
+              ← Back to Sales Hub
             </button>
-            <button
-              onClick={() => onNavigateModule?.('geo_pricing')}
-              className="px-3.5 py-2 bg-white border border-[#0A006E] text-[#0A006E] rounded-xl text-xs font-montserrat font-bold cursor-pointer transition"
-            >
-              Review Pricing
-            </button>
+            <span className="text-xs font-montserrat font-bold text-slate-800">Sales Period Tracker</span>
           </div>
-        </div>
-
-        {/* Sales KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-            <div className="text-xs font-montserrat font-bold text-slate-600">Total Commercial Sales</div>
-            <div className="text-3xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1">
-              {formatKes(totalRevenue)}
-            </div>
-            <div className="text-xs text-slate-600 mt-1">
-              {visibleTransactions.length} Total Documents Issued
-            </div>
-          </div>
-
-          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-            <div className="text-xs font-montserrat font-bold text-slate-600">Wholesale B2B Volume</div>
-            <div className="text-3xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1">
-              {formatKes(wholesaleRevenue)}
-            </div>
-            <div className="text-xs text-[#1E9E60] font-bold mt-1">
-              Major distributor &amp; retailer orders
-            </div>
-          </div>
-
-          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-            <div className="text-xs font-montserrat font-bold text-slate-600">Retail Counter POS Volume</div>
-            <div className="text-3xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1">
-              {formatKes(retailRevenue)}
-            </div>
-            <div className="text-xs text-slate-600 mt-1">
-              Counter walk-in direct collections
-            </div>
-          </div>
-
-          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-            <div className="text-xs font-montserrat font-bold text-slate-600">Commercial Partners</div>
-            <div className="text-3xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1">
-              {partners.length} Accounts
-            </div>
-            <div className="text-xs text-slate-600 mt-1">
-              Licensed retail distributors &amp; logistics
-            </div>
-          </div>
-        </div>
-
-        {/* Sales Period Section */}
-        <div id="sales-period-section">
           <SalesPeriodTracker
             transactions={visibleTransactions}
             currentUser={currentUser}
@@ -739,11 +767,141 @@ export const OverviewModule: React.FC<{
             staff={staffList}
           />
         </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        <MinimalDashboardBar
+          currentUser={currentUser}
+          schema={dashSchema}
+          prefs={dashPrefs}
+          onChangeMode={setDashMode}
+          onToggleKpi={toggleKpi}
+          onToggleWidget={toggleWidget}
+          onReset={resetToDefault}
+          actions={
+            <>
+              <button
+                type="button"
+                onClick={() => onNavigateModule?.('sales_pos')}
+                className="px-3 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold cursor-pointer whitespace-nowrap"
+              >
+                Wholesale POS
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigateModule?.('leave_management')}
+                className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold cursor-pointer whitespace-nowrap"
+              >
+                Leave / Off
+              </button>
+            </>
+          }
+        />
+
+        {isWidgetVisible('kpi_strip') && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {isKpiVisible('total_sales') && (
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Total Sales</div>
+                <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                  {formatKes(totalRevenue)}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">{externalVisibleTransactions.length} documents</div>
+              </div>
+            )}
+            {isKpiVisible('wholesale') && (
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Wholesale B2B</div>
+                <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                  {formatKes(wholesaleRevenue)}
+                </div>
+                <div className="text-[11px] text-emerald-700 font-semibold mt-0.5">Distributor orders</div>
+              </div>
+            )}
+            {isKpiVisible('retail') && (
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Retail Counter</div>
+                <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                  {formatKes(retailRevenue)}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">Direct collections</div>
+              </div>
+            )}
+            {isKpiVisible('partners') && (
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Commercial Partners</div>
+                <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                  {partners.length}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">Licensed accounts</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {isWidgetVisible('quick_actions') && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <button
+              type="button"
+              onClick={() => setFocusSection('sales_performance')}
+              className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1 cursor-pointer transition"
+            >
+              <TrendingUp className="w-4 h-4 text-[#0A006E]" />
+              <div className="text-xs font-montserrat font-bold text-slate-900">Sales Tracker</div>
+              <div className="text-[11px] text-slate-500">Today · Week · Month</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('retail_pos')}
+              className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1 cursor-pointer transition"
+            >
+              <ShoppingCart className="w-4 h-4 text-emerald-600" />
+              <div className="text-xs font-montserrat font-bold text-slate-900">Retail POS</div>
+              <div className="text-[11px] text-slate-500">Counter terminal</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('geo_pricing')}
+              className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1 cursor-pointer transition"
+            >
+              <MapPin className="w-4 h-4 text-amber-600" />
+              <div className="text-xs font-montserrat font-bold text-slate-900">Geo-Pricing</div>
+              <div className="text-[11px] text-slate-500">{regions.length} regional zones</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('partners')}
+              className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1 cursor-pointer transition"
+            >
+              <Users className="w-4 h-4 text-indigo-600" />
+              <div className="text-xs font-montserrat font-bold text-slate-900">Partners</div>
+              <div className="text-[11px] text-slate-500">{partners.length} active accounts</div>
+            </button>
+          </div>
+        )}
+
+        {!isMinimal && isWidgetVisible('sales_tracker') && (
+          <div id="sales-period-section">
+            <SalesPeriodTracker
+              transactions={visibleTransactions}
+              currentUser={currentUser}
+              onPreviewDoc={onPreviewDoc}
+              onInspectOrder={onInspectOrder}
+              onNavigateToPos={(mode) => onNavigateModule?.(mode === 'retail' ? 'retail_pos' : 'sales_pos')}
+              branches={branches}
+              staff={staffList}
+            />
+          </div>
+        )}
       </div>
     );
   }
 
-  // Specialized Inventory Controller Stock Command Dashboard
+  // =========================================================================
+  // ROLE 4: INVENTORY CONTROLLER MINIMAL CUSTOMIZABLE DASHBOARD
+  // =========================================================================
   if (currentUser.role === 'Inventory Controller') {
     const totalInventoryValue = products.reduce((acc, p) => {
       const btls = p.totalBottles ?? (p.packSize || 12) * 30;
@@ -756,202 +914,217 @@ export const OverviewModule: React.FC<{
     const pendingTransfersCount = transfers.filter((t) => t.status === 'Pending Authorization').length;
     const activeTransfersCount = transfers.filter((t) => t.status === 'Dispatched' || t.status === 'In Transit').length;
 
-    return (
-      <div className="space-y-6 pb-12">
-        {/* Inventory Controller App Banner */}
-        <div className="bg-[#0A006E] text-white border-2 border-[#34D186] rounded-3xl p-5 sm:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-5 relative overflow-hidden shadow-xl">
-          <div className="absolute right-0 top-0 w-80 h-80 bg-[#34D186]/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="relative z-10 space-y-1.5">
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#34D186]/20 border border-[#34D186]/40 text-[#34D186] text-[10px] font-montserrat font-black uppercase tracking-wider">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              Bonded Warehouse &amp; Inventory Controller Command
-            </div>
-            <h2 className="text-xl sm:text-2xl font-montserrat font-black tracking-tight text-white">
-              Inventory Valuation, Barcode Health &amp; Transit Logistics
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-              Real-time oversight of master liquor batches, customs excise stamps, bonded warehousing, and inter-branch dispatch.
-            </p>
-          </div>
-
-        </div>
-
-        {/* Inventory Manager App Menu of Box Buttons */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <button
-            type="button"
-            onClick={() => onNavigateModule?.('inventory')}
-            className="p-4 bg-white border-2 border-slate-200 hover:border-[#34D186] rounded-3xl text-left flex flex-col justify-between gap-3 shadow-xs hover:shadow-md transition cursor-pointer group"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 group-hover:bg-[#34D186] group-hover:text-[#0A006E] flex items-center justify-center transition">
-              <Package className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-xs sm:text-sm font-montserrat font-black text-slate-900 group-hover:text-[#0A006E]">
-                Master Inventory
-              </div>
-              <div className="text-[11px] text-slate-500 font-medium">SKUs &amp; Bonded Stock</div>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onNavigateModule?.('branches_transfers')}
-            className="p-4 bg-white border-2 border-slate-200 hover:border-amber-400 rounded-3xl text-left flex flex-col justify-between gap-3 shadow-xs hover:shadow-md transition cursor-pointer group relative"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 group-hover:bg-amber-500 group-hover:text-white flex items-center justify-center transition">
-              <ArrowRightLeft className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center justify-between gap-1">
-                <span className="text-xs sm:text-sm font-montserrat font-black text-slate-900 group-hover:text-amber-800">
-                  Stock Transfers
-                </span>
-                {pendingTransfersCount > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-mono-tabular font-black">
-                    {pendingTransfersCount}
-                  </span>
-                )}
-              </div>
-              <div className="text-[11px] text-slate-500 font-medium">Inter-Depot Dispatch</div>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onNavigateModule?.('internal_inbox')}
-            className="p-4 bg-white border-2 border-slate-200 hover:border-red-400 rounded-3xl text-left flex flex-col justify-between gap-3 shadow-xs hover:shadow-md transition cursor-pointer group"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 group-hover:bg-red-600 group-hover:text-white flex items-center justify-center transition">
-              <Inbox className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-xs sm:text-sm font-montserrat font-black text-slate-900 group-hover:text-red-700">
-                Internal Inbox
-              </div>
-              <div className="text-[11px] text-slate-500 font-medium">Dept &amp; Colleague Chat</div>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onNavigateModule?.('inventory')}
-            className="p-4 bg-white border-2 border-slate-200 hover:border-cyan-400 rounded-3xl text-left flex flex-col justify-between gap-3 shadow-xs hover:shadow-md transition cursor-pointer group"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-cyan-50 text-cyan-700 group-hover:bg-cyan-600 group-hover:text-white flex items-center justify-center transition">
-              <Barcode className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-xs sm:text-sm font-montserrat font-black text-slate-900 group-hover:text-cyan-800">
-                Barcode Audit
-              </div>
-              <div className="text-[11px] text-slate-500 font-medium">Scan &amp; Verify Stamps</div>
-            </div>
-          </button>
-        </div>
-
-        {/* Inventory KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white border-2 border-slate-200 hover:border-[#0A006E] rounded-3xl p-5 shadow-sm transition space-y-1">
-            <div className="text-[11px] font-montserrat font-black uppercase tracking-wider text-slate-500">
-              Bonded Stock Valuation
-            </div>
-            <div className="text-2xl sm:text-3xl font-montserrat font-black text-[#0A006E] font-mono-tabular tracking-tight">
-              {formatKes(totalInventoryValue)}
-            </div>
-            <div className="text-xs text-emerald-700 font-bold pt-1 flex items-center gap-1">
-              <span>{totalBottlesInBond.toLocaleString()} btls in bonded warehouses</span>
-            </div>
-          </div>
-
-          <div className="bg-white border-2 border-slate-200 hover:border-[#0A006E] rounded-3xl p-5 shadow-sm transition space-y-1">
-            <div className="text-[11px] font-montserrat font-black uppercase tracking-wider text-slate-500">
-              IPS vs LPS Catalog
-            </div>
-            <div className="text-2xl sm:text-3xl font-montserrat font-black text-[#0A006E] font-mono-tabular tracking-tight">
-              {products.length} SKUs
-            </div>
-            <div className="text-xs text-slate-600 pt-1 font-semibold">
-              IPS Imported: <strong className="text-slate-900">{ipsCount}</strong> · LPS Local: <strong className="text-slate-900">{lpsCount}</strong>
-            </div>
-          </div>
-
-          <div className="bg-white border-2 border-slate-200 hover:border-[#0A006E] rounded-3xl p-5 shadow-sm transition space-y-1">
-            <div className="text-[11px] font-montserrat font-black uppercase tracking-wider text-slate-500">
-              Inter-Branch Logistics
-            </div>
-            <div className="text-2xl sm:text-3xl font-montserrat font-black text-[#0A006E] font-mono-tabular tracking-tight">
-              {transfers.length} Transfers
-            </div>
-            <div className="text-xs text-amber-800 font-bold pt-1 flex items-center gap-1">
-              <span>{pendingTransfersCount} pending auth · {activeTransfersCount} active</span>
-            </div>
-          </div>
-
-          <div className="bg-white border-2 border-slate-200 hover:border-rose-300 rounded-3xl p-5 shadow-sm transition space-y-1">
-            <div className="text-[11px] font-montserrat font-black uppercase tracking-wider text-slate-500">
-              Damages &amp; Spoilage
-            </div>
-            <div className="text-2xl sm:text-3xl font-montserrat font-black text-rose-600 font-mono-tabular tracking-tight">
-              {damagedCount + spoiledCount} btls
-            </div>
-            <div className="text-xs text-rose-700 font-bold pt-1">
-              {damagedCount} Damaged · {spoiledCount} Spoiled quarantined
-            </div>
-          </div>
-        </div>
-
-        {/* Bonded Stock Distribution by Branch Table */}
-        <div className="bg-white border-2 border-slate-200 rounded-3xl p-5 sm:p-6 space-y-4 shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h3 className="text-base font-montserrat font-black text-[#0A006E] flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-[#0A006E]" />
-                Bonded Stock Distribution by Branch Depot
-              </h3>
-              <p className="text-xs text-slate-500">
-                Official customs bonded warehouses and regional retail branches
-              </p>
-            </div>
+    if (isMinimal && focusSection === 'inventory_branches') {
+      return (
+        <div className="space-y-4 pb-8">
+          <div className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 flex items-center justify-between gap-3">
             <button
               type="button"
-              onClick={() => onNavigateModule?.('branches_transfers')}
-              className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-[#0A006E] hover:text-[#FFDE00] text-[#0A006E] text-xs font-montserrat font-bold transition cursor-pointer"
+              onClick={() => setFocusSection('hub')}
+              className="px-3 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-xs font-montserrat font-bold cursor-pointer"
             >
-              View Branch Manifests →
+              ← Back to Inventory Hub
             </button>
+            <span className="text-xs font-montserrat font-bold text-slate-800">Bonded Branch Depots</span>
           </div>
-
-          <div className="overflow-x-auto">
+          <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
-                  <th className="py-3 px-3.5 font-black rounded-l-xl">Depot Code</th>
-                  <th className="py-3 px-3.5 font-black">Branch Depot Name</th>
-                  <th className="py-3 px-3.5 font-black">Excise Bond License</th>
-                  <th className="py-3 px-3.5 font-black">Region</th>
-                  <th className="py-3 px-3.5 font-black text-right rounded-r-xl">Status</th>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-montserrat">
+                  <th className="py-2.5 px-3 font-bold">Code</th>
+                  <th className="py-2.5 px-3 font-bold">Depot Name</th>
+                  <th className="py-2.5 px-3 font-bold">Excise Bond</th>
+                  <th className="py-2.5 px-3 font-bold">Region</th>
+                  <th className="py-2.5 px-3 font-bold text-right">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {branches.map((b) => (
-                  <tr key={b.id} className="hover:bg-slate-50 transition">
-                    <td className="py-3 px-3.5 font-mono-tabular font-black text-[#0A006E]">{b.code}</td>
-                    <td className="py-3 px-3.5 font-montserrat font-black text-slate-900">{b.name}</td>
-                    <td className="py-3 px-3.5 font-mono-tabular text-slate-700">{b.exciseBondLicense}</td>
-                    <td className="py-3 px-3.5 text-slate-600 font-medium">{b.regionName}</td>
-                    <td className="py-3 px-3.5 text-right font-bold text-emerald-700">{b.status}</td>
+                  <tr key={b.id} className="hover:bg-slate-50">
+                    <td className="py-2.5 px-3 font-mono-tabular font-bold text-[#0A006E]">{b.code}</td>
+                    <td className="py-2.5 px-3 font-montserrat font-bold text-slate-900">{b.name}</td>
+                    <td className="py-2.5 px-3 font-mono-tabular text-slate-600">{b.exciseBondLicense}</td>
+                    <td className="py-2.5 px-3 text-slate-600">{b.regionName}</td>
+                    <td className="py-2.5 px-3 text-right font-bold text-emerald-700">{b.status}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4 pb-8">
+        <MinimalDashboardBar
+          currentUser={currentUser}
+          schema={dashSchema}
+          prefs={dashPrefs}
+          onChangeMode={setDashMode}
+          onToggleKpi={toggleKpi}
+          onToggleWidget={toggleWidget}
+          onReset={resetToDefault}
+          actions={
+            <>
+              {onOpenOnboardItems && (
+                <button
+                  type="button"
+                  onClick={onOpenOnboardItems}
+                  className="px-3 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                >
+                  <Barcode className="w-3.5 h-3.5" />
+                  Onboard Items
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => onNavigateModule?.('leave_management')}
+                className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold cursor-pointer whitespace-nowrap"
+              >
+                Leave / Off
+              </button>
+            </>
+          }
+        />
+
+        {isWidgetVisible('kpi_strip') && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {isKpiVisible('valuation') && (
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Bonded Value</div>
+                <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                  {formatKes(totalInventoryValue)}
+                </div>
+                <div className="text-[11px] text-emerald-700 font-semibold mt-0.5">
+                  {totalBottlesInBond.toLocaleString()} btls
+                </div>
+              </div>
+            )}
+            {isKpiVisible('ips_lps') && (
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Catalog SKUs</div>
+                <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                  {products.length} SKUs
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">
+                  IPS {ipsCount} · LPS {lpsCount}
+                </div>
+              </div>
+            )}
+            {isKpiVisible('transfers') && (
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Transfers</div>
+                <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                  {transfers.length} Total
+                </div>
+                <div className="text-[11px] text-amber-700 font-semibold mt-0.5">
+                  {pendingTransfersCount} pending · {activeTransfersCount} active
+                </div>
+              </div>
+            )}
+            {isKpiVisible('damages') && (
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Damages &amp; Spoilage</div>
+                <div className="text-lg sm:text-xl font-montserrat font-black text-rose-600 font-mono-tabular mt-0.5">
+                  {damagedCount + spoiledCount} btls
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">
+                  {damagedCount} damaged · {spoiledCount} spoiled
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {isWidgetVisible('quick_tiles') && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('inventory')}
+              className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1 cursor-pointer transition"
+            >
+              <Package className="w-4 h-4 text-emerald-600" />
+              <div className="text-xs font-montserrat font-bold text-slate-900">Master Inventory</div>
+              <div className="text-[11px] text-slate-500">{products.length} SKUs &amp; batches</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('branches_transfers')}
+              className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1 cursor-pointer transition"
+            >
+              <ArrowRightLeft className="w-4 h-4 text-amber-600" />
+              <div className="text-xs font-montserrat font-bold text-slate-900">Stock Transfers</div>
+              <div className="text-[11px] text-slate-500">{pendingTransfersCount} pending auth</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFocusSection('inventory_branches')}
+              className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1 cursor-pointer transition"
+            >
+              <Building2 className="w-4 h-4 text-[#0A006E]" />
+              <div className="text-xs font-montserrat font-bold text-slate-900">Branch Depots</div>
+              <div className="text-[11px] text-slate-500">{branches.length} excise bonds</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('internal_inbox')}
+              className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1 cursor-pointer transition"
+            >
+              <Inbox className="w-4 h-4 text-rose-600" />
+              <div className="text-xs font-montserrat font-bold text-slate-900">Dept Inbox</div>
+              <div className="text-[11px] text-slate-500">Staff requests</div>
+            </button>
+          </div>
+        )}
+
+        {!isMinimal && isWidgetVisible('branch_table') && (
+          <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-montserrat font-bold text-[#0A006E] uppercase tracking-wider">
+                Bonded Stock Distribution by Branch Depot
+              </h3>
+              <button
+                type="button"
+                onClick={() => onNavigateModule?.('branches_transfers')}
+                className="text-xs font-montserrat font-bold text-[#0A006E] hover:underline cursor-pointer"
+              >
+                View Transfers →
+              </button>
+            </div>
+            <div className="overflow-x-auto border border-slate-200 rounded-lg">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-montserrat">
+                    <th className="py-2 px-3 font-bold">Code</th>
+                    <th className="py-2 px-3 font-bold">Branch Depot</th>
+                    <th className="py-2 px-3 font-bold">Excise Bond</th>
+                    <th className="py-2 px-3 font-bold">Region</th>
+                    <th className="py-2 px-3 font-bold text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {branches.map((b) => (
+                    <tr key={b.id} className="hover:bg-slate-50">
+                      <td className="py-2 px-3 font-mono-tabular font-bold text-[#0A006E]">{b.code}</td>
+                      <td className="py-2 px-3 font-montserrat font-bold text-slate-900">{b.name}</td>
+                      <td className="py-2 px-3 font-mono-tabular text-slate-600">{b.exciseBondLicense}</td>
+                      <td className="py-2 px-3 text-slate-600">{b.regionName}</td>
+                      <td className="py-2 px-3 text-right font-bold text-emerald-700">{b.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
-  // Specialized Affiliate Sales Representative Personal Command Dashboard
+  // =========================================================================
+  // ROLE 5: AFFILIATE SALES REP MINIMAL OVERVIEW
+  // =========================================================================
   if (currentUser.role === 'Affiliate Sales Representative') {
     const ownTransactions = transactions.filter(
       (t) =>
@@ -964,141 +1137,236 @@ export const OverviewModule: React.FC<{
     const earnedCommission = Math.round((ownSalesTotal * commPct) / 100);
 
     return (
-      <div className="space-y-6">
-        {/* Affiliate Banner */}
-        <div className="bg-[#FFDE00] text-[#0A006E] border-2 border-[#0A006E] rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden shadow-md">
-          <div>
-            <span className="text-[11px] font-montserrat font-black text-[#0A006E] uppercase tracking-wider block">
-              Field &amp; Affiliate Sales Representative Command
-            </span>
-            <h2 className="text-xl font-montserrat font-black italic text-[#0A006E] mt-1">
-              Personal Sales Volume &amp; Earned Commission Tracker
-            </h2>
-            <p className="text-xs text-slate-900 font-semibold mt-0.5">
-              Authorized to create and track your own wholesale orders and client quotes at approved prices.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => onNavigateModule?.('sales_pos')}
-              className="px-4 py-2 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black cursor-pointer shadow-xs transition"
-            >
-              New Wholesale Order
-            </button>
-            <button
-              onClick={() => onNavigateModule?.('inventory')}
-              className="px-3.5 py-2 bg-white border border-[#0A006E] text-[#0A006E] rounded-xl text-xs font-montserrat font-bold cursor-pointer transition"
-            >
-              Browse Catalog
-            </button>
-          </div>
-        </div>
+      <div className="space-y-4">
+        <MinimalDashboardBar
+          currentUser={currentUser}
+          schema={dashSchema}
+          prefs={dashPrefs}
+          onChangeMode={setDashMode}
+          onToggleKpi={toggleKpi}
+          onToggleWidget={toggleWidget}
+          onReset={resetToDefault}
+          hideModeSwitch
+          actions={
+            <>
+              <button
+                type="button"
+                onClick={() => onNavigateModule?.('sales_pos')}
+                className="px-3 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold cursor-pointer whitespace-nowrap"
+              >
+                Open Field POS
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigateModule?.('leave_management')}
+                className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold cursor-pointer whitespace-nowrap"
+              >
+                Leave / Off
+              </button>
+            </>
+          }
+        />
 
-        {/* Affiliate Personal KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-            <div className="text-xs font-montserrat font-bold text-slate-600">Personal Sales Volume</div>
-            <div className="text-2xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1">
-              {formatKes(ownSalesTotal)}
-            </div>
-            <div className="text-xs text-slate-600 mt-1">
-              {ownTransactions.length} Total Orders Generated
-            </div>
+        {isWidgetVisible('kpi_strip') && (
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+            {isKpiVisible('sales_volume') && (
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+                <div className="text-[11px] font-montserrat font-semibold text-slate-500">My Sales Volume</div>
+                <div className="text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                  {formatKes(ownSalesTotal)}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">{ownTransactions.length} orders</div>
+              </div>
+            )}
+            {isKpiVisible('commission') && (
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Earned Commission</div>
+                <div className="text-xl font-montserrat font-black text-emerald-700 font-mono-tabular mt-0.5">
+                  {formatKes(earnedCommission)}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">{commPct}% rate</div>
+              </div>
+            )}
+            {isKpiVisible('queued_orders') && (
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Assigned Base</div>
+                <div className="text-sm font-montserrat font-bold text-[#0A006E] truncate mt-1">
+                  {currentUser.branchName}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">{products.length} catalog SKUs</div>
+              </div>
+            )}
           </div>
+        )}
 
-          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-            <div className="text-xs font-montserrat font-bold text-slate-600">Earned Commissions</div>
-            <div className="text-2xl font-montserrat font-black text-[#1E9E60] font-mono-tabular mt-1">
-              {formatKes(earnedCommission)}
+        {isWidgetVisible('recent_orders') && (
+          <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-montserrat font-bold text-[#0A006E] uppercase tracking-wider">
+                My Recent Orders ({ownTransactions.length})
+              </h3>
             </div>
-            <div className="text-xs text-slate-600 mt-1">
-              Agreed Rate: <strong>{commPct}%</strong> on fulfilled orders
-            </div>
-          </div>
-
-          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-            <div className="text-xs font-montserrat font-bold text-slate-600">Assigned Branch &amp; Depot</div>
-            <div className="text-lg font-montserrat font-black text-[#0A006E] truncate mt-1">
-              {currentUser.branchName}
-            </div>
-            <div className="text-xs text-slate-600 mt-1">
-              Regional pickup &amp; delivery base
-            </div>
-          </div>
-
-          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-            <div className="text-xs font-montserrat font-bold text-slate-600">Approved Catalog Access</div>
-            <div className="text-2xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1">
-              {products.length} SKUs
-            </div>
-            <div className="text-xs text-slate-600 mt-1">
-              Live pricing with case multipliers
-            </div>
-          </div>
-        </div>
-
-        {/* Affiliate Orders Table */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
-          <h3 className="text-sm font-montserrat font-black text-[#0A006E] uppercase tracking-wider flex items-center gap-2">
-            <FileText className="w-4 h-4 text-[#0A006E]" />
-            My Recent Orders &amp; Commercial Invoices
-          </h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
-                  <th className="py-2.5 px-3 font-black">Document No</th>
-                  <th className="py-2.5 px-3 font-black">Type</th>
-                  <th className="py-2.5 px-3 font-black">Customer</th>
-                  <th className="py-2.5 px-3 font-black text-right">Amount (KES)</th>
-                  <th className="py-2.5 px-3 font-black text-right">Commission (KES)</th>
-                  <th className="py-2.5 px-3 font-black text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {ownTransactions.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-6 text-center text-slate-500">
-                      You haven&apos;t created any orders yet. Click &ldquo;New Wholesale Order&rdquo; to generate commercial quotes.
-                    </td>
+            <div className="overflow-x-auto border border-slate-200 rounded-lg">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-montserrat">
+                    <th className="py-2 px-3 font-bold">Document</th>
+                    <th className="py-2 px-3 font-bold">Customer</th>
+                    <th className="py-2 px-3 font-bold text-right">Amount</th>
+                    <th className="py-2 px-3 font-bold text-right">PDF</th>
                   </tr>
-                ) : (
-                  ownTransactions.slice(0, 8).map((tx) => (
-                    <tr key={tx.id} className="hover:bg-slate-50">
-                      <td className="py-2.5 px-3 font-mono-tabular font-bold text-[#0A006E]">{tx.docNumber}</td>
-                      <td className="py-2.5 px-3 font-montserrat font-bold text-slate-900">{tx.docType}</td>
-                      <td className="py-2.5 px-3 text-slate-800">{tx.customerName}</td>
-                      <td className="py-2.5 px-3 text-right font-mono-tabular font-bold">{formatKes(tx.totalAmount)}</td>
-                      <td className="py-2.5 px-3 text-right font-mono-tabular font-bold text-[#1E9E60]">
-                        {formatKes(Math.round((tx.totalAmount * commPct) / 100))}
-                      </td>
-                      <td className="py-2.5 px-3 text-right">
-                        <button
-                          onClick={() => onPreviewDoc(tx)}
-                          className="px-3 py-1 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-black cursor-pointer"
-                        >
-                          View PDF
-                        </button>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {ownTransactions.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="py-6 text-center text-slate-500">
+                        No orders yet — open Field POS to create your first order.
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    ownTransactions.slice(0, 6).map((tx) => (
+                      <tr key={tx.id} className="hover:bg-slate-50">
+                        <td className="py-2 px-3 font-mono-tabular font-bold text-[#0A006E]">{tx.docNumber}</td>
+                        <td className="py-2 px-3 text-slate-800">{tx.customerName}</td>
+                        <td className="py-2 px-3 text-right font-mono-tabular font-bold">{formatKes(tx.totalAmount)}</td>
+                        <td className="py-2 px-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => onPreviewDoc(tx)}
+                            className="px-2.5 py-1 bg-slate-100 hover:bg-[#0A006E] hover:text-[#FFDE00] text-[#0A006E] rounded-md text-[11px] font-montserrat font-bold cursor-pointer transition"
+                          >
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
+        )}
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // ROLE 6: DELIVERY MANAGER DEDICATED MINIMAL OVERVIEW
+  // =========================================================================
+  if (currentUser.role === 'Delivery Manager') {
+    const deliveryTxs = visibleTransactions.filter(
+      (t) => t.docType === 'Online Order' || t.channel === 'Customer Online Portal' || Boolean(t.deliveryAddress)
+    );
+    const pendingDispatch = deliveryTxs.filter(
+      (t) => (!t.deliveryStatus || t.deliveryStatus === 'Pending Dispatch') && t.status !== 'Fulfilled'
+    ).length;
+    const inTransit = deliveryTxs.filter((t) => t.deliveryStatus === 'Out for Delivery').length;
+    const delivered = deliveryTxs.filter((t) => t.deliveryStatus === 'Delivered' || t.status === 'Fulfilled').length;
+    const activeRiders = staffList.filter(
+      (s) => s.role === 'Delivery Rider' || (s.role as string).toLowerCase().includes('rider')
+    ).length;
+
+    return (
+      <div className="space-y-4">
+        <MinimalDashboardBar
+          currentUser={currentUser}
+          schema={dashSchema}
+          prefs={dashPrefs}
+          onChangeMode={setDashMode}
+          onToggleKpi={toggleKpi}
+          onToggleWidget={toggleWidget}
+          onReset={resetToDefault}
+          hideModeSwitch
+          actions={
+            <>
+              <button
+                type="button"
+                onClick={() => onNavigateModule?.('delivery_management')}
+                className="px-3 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold cursor-pointer whitespace-nowrap"
+              >
+                Open Dispatch Queue
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigateModule?.('leave_management')}
+                className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold cursor-pointer whitespace-nowrap"
+              >
+                Leave / Off
+              </button>
+            </>
+          }
+        />
+
+        {isWidgetVisible('kpi_strip') && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {isKpiVisible('pending_dispatch') && (
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Pending Dispatch</div>
+                <div className="text-xl font-montserrat font-black text-amber-600 font-mono-tabular mt-0.5">
+                  {pendingDispatch}
+                </div>
+              </div>
+            )}
+            {isKpiVisible('in_transit') && (
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Out for Delivery</div>
+                <div className="text-xl font-montserrat font-black text-sky-700 font-mono-tabular mt-0.5">
+                  {inTransit}
+                </div>
+              </div>
+            )}
+            {isKpiVisible('delivered') && (
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Delivered</div>
+                <div className="text-xl font-montserrat font-black text-emerald-700 font-mono-tabular mt-0.5">
+                  {delivered}
+                </div>
+              </div>
+            )}
+            {isKpiVisible('riders') && (
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Active Riders</div>
+                <div className="text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                  {activeRiders}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="text-xs font-montserrat font-bold text-slate-900">
+              Active Customer Delivery Orders ({pendingDispatch + inTransit})
+            </div>
+            <p className="text-[11px] text-slate-500">
+              Assign dispatch riders, verify M-Pesa settlement, and inspect route drops.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onNavigateModule?.('delivery_management')}
+            className="px-3.5 py-2 bg-[#0A006E] text-[#FFDE00] rounded-lg text-xs font-montserrat font-bold cursor-pointer self-start sm:self-auto"
+          >
+            Process Deliveries →
+          </button>
         </div>
       </div>
     );
   }
 
-  if (currentUser.role === 'Admin' && adminSimpleView) {
-    const pendingTransfers = transfers.filter((tr) => tr.status === 'Pending Authorization');
-    const activeDeliveriesCount = visibleTransactions.filter(
-      (t) =>
-        (t.docType === 'Online Order' || t.channel === 'Customer Online Portal' || t.deliveryAddress) &&
-        t.deliveryStatus !== 'Delivered' &&
-        t.status !== 'Fulfilled'
-    ).length;
+  const pendingTransfers = transfers.filter((tr) => tr.status === 'Pending Authorization');
+  const activeDeliveriesCount = visibleTransactions.filter(
+    (t) =>
+      (t.docType === 'Online Order' || t.channel === 'Customer Online Portal' || t.deliveryAddress) &&
+      t.deliveryStatus !== 'Delivered' &&
+      t.status !== 'Fulfilled'
+  ).length;
+
+  // =========================================================================
+  // ROLE 7: ADMIN & BRANCH MANAGER CUSTOMIZABLE MINIMAL HUB
+  // =========================================================================
+  if ((currentUser.role === 'Admin' || currentUser.role === 'Branch Manager') && isMinimal) {
 
     const sectionTitles: Record<string, string> = {
       sales_performance: 'Sales Performance (Today · Week · Month · Year)',
@@ -1109,28 +1377,25 @@ export const OverviewModule: React.FC<{
       delivery_queue: 'Customer Orders & Delivery Fulfillment',
     };
 
-    if (adminFocusSection !== 'hub') {
+    if (focusSection !== 'hub') {
       return (
         <div className="space-y-4 pb-8">
-          <div className="bg-[#0A006E] text-white border-2 border-[#FFDE00] rounded-2xl p-3.5 sm:p-4 flex items-center justify-between gap-3 shadow-md sticky top-0 z-20">
+          <div className="bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 flex items-center justify-between gap-3 sticky top-0 z-20">
             <button
               type="button"
               onClick={() => selectAdminFocusSection('hub')}
-              className="px-3.5 py-2 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-xl text-xs font-montserrat font-black cursor-pointer shadow-xs transition shrink-0 flex items-center gap-1.5 active:scale-95"
+              className="px-3 py-1.5 bg-[#0A006E] hover:bg-[#12009E] text-[#FFDE00] rounded-lg text-xs font-montserrat font-bold cursor-pointer shrink-0 flex items-center gap-1.5"
             >
-              <span>← Back to Admin Hub</span>
+              <span>← Back to Hub</span>
             </button>
             <div className="min-w-0 flex-1 text-right sm:text-left">
-              <div className="text-[10px] font-montserrat font-bold text-[#FFDE00] uppercase tracking-wider">
-                Admin Focus View
-              </div>
-              <div className="text-xs sm:text-sm font-montserrat font-black text-white truncate">
-                {sectionTitles[adminFocusSection]}
+              <div className="text-xs sm:text-sm font-montserrat font-bold text-slate-900 truncate">
+                {sectionTitles[focusSection]}
               </div>
             </div>
           </div>
 
-          {adminFocusSection === 'sales_performance' && (
+          {focusSection === 'sales_performance' && (
             <div id="sales-period-section">
               <SalesPeriodTracker
                 transactions={visibleTransactions}
@@ -1144,7 +1409,7 @@ export const OverviewModule: React.FC<{
             </div>
           )}
 
-          {adminFocusSection === 'charts' && (
+          {focusSection === 'charts' && (
             <ExecutiveVisualAnalytics
               branchData={branchBarData}
               channelData={channelPieData}
@@ -1153,55 +1418,56 @@ export const OverviewModule: React.FC<{
             />
           )}
 
-          {adminFocusSection === 'branch_performance' && (
-            <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4">
+          {focusSection === 'branch_performance' && (
+            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                  <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
-                    Regional Branch Performance &amp; Bonded Stock Distribution
+                  <h3 className="text-sm font-montserrat font-bold text-[#0A006E]">
+                    Regional Branch Performance &amp; Bonded Stock
                   </h3>
-                  <p className="text-xs text-slate-600">
-                    Live oversight of branch revenue, assigned geo-pricing zone, and KRA excise bond license.
+                  <p className="text-xs text-slate-500">
+                    Branch revenue, geo-pricing zone, and KRA excise bond status.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => onNavigateModule?.('branches_transfers')}
-                  className="px-3.5 py-2 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black cursor-pointer self-start sm:self-auto"
+                  className="px-3 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-xs font-montserrat font-bold cursor-pointer self-start sm:self-auto"
                 >
-                  Open Branches &amp; Transfers →
+                  Open Branches Hub →
                 </button>
               </div>
-              <div className="overflow-x-auto bg-white border border-slate-200 rounded-xl">
+              <div className="overflow-x-auto border border-slate-200 rounded-lg">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
-                      <th className="py-2.5 px-3 font-black">Branch Code</th>
-                      <th className="py-2.5 px-3 font-black">Depot / Branch Name</th>
-                      <th className="py-2.5 px-3 font-black">Geo-Pricing Zone</th>
-                      <th className="py-2.5 px-3 font-black">Excise Bond License</th>
-                      <th className="py-2.5 px-3 font-black">Status</th>
-                      <th className="py-2.5 px-3 font-black text-right">Logged Sales (KES)</th>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-montserrat">
+                      <th className="py-2 px-3 font-bold">Code</th>
+                      <th className="py-2 px-3 font-bold">Branch Name</th>
+                      <th className="py-2 px-3 font-bold">Geo-Zone</th>
+                      <th className="py-2 px-3 font-bold">Excise Bond</th>
+                      <th className="py-2 px-3 font-bold">Status</th>
+                      <th className="py-2 px-3 font-bold text-right">Sales (KES)</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200">
+                  <tbody className="divide-y divide-slate-100">
                     {branches.map((b) => {
                       const branchSales = transactions
                         .filter(
                           (t) =>
                             t.branchId === b.id &&
+                            t.orderCategory !== 'WAREHOUSE_PURCHASE' &&
                             (t.docType === 'Receipt' || t.docType === 'Invoice' || t.docType === 'Online Order')
                         )
                         .reduce((s, t) => s + t.totalAmount, 0);
 
                       return (
                         <tr key={b.id} className="hover:bg-slate-50">
-                          <td className="py-2.5 px-3 font-mono-tabular font-bold text-[#0A006E]">{b.code}</td>
-                          <td className="py-2.5 px-3 font-montserrat font-bold text-slate-900">{b.name}</td>
-                          <td className="py-2.5 px-3 text-slate-600">{b.regionName}</td>
-                          <td className="py-2.5 px-3 font-mono-tabular text-slate-700">{b.exciseBondLicense}</td>
-                          <td className="py-2.5 px-3 text-[#1E9E60] font-bold">{b.status}</td>
-                          <td className="py-2.5 px-3 text-right font-mono-tabular font-bold text-slate-900">
+                          <td className="py-2 px-3 font-mono-tabular font-bold text-[#0A006E]">{b.code}</td>
+                          <td className="py-2 px-3 font-montserrat font-bold text-slate-900">{b.name}</td>
+                          <td className="py-2 px-3 text-slate-600">{b.regionName}</td>
+                          <td className="py-2 px-3 font-mono-tabular text-slate-700">{b.exciseBondLicense}</td>
+                          <td className="py-2 px-3 text-emerald-700 font-bold">{b.status}</td>
+                          <td className="py-2 px-3 text-right font-mono-tabular font-bold text-slate-900">
                             {formatKes(branchSales)}
                           </td>
                         </tr>
@@ -1213,63 +1479,61 @@ export const OverviewModule: React.FC<{
             </div>
           )}
 
-          {adminFocusSection === 'recent_docs' && (
-            <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4">
+          {focusSection === 'recent_docs' && (
+            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                  <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
-                    Latest Commercial Documents (Receipts, Invoices, Quotes &amp; Credit Notes)
+                  <h3 className="text-sm font-montserrat font-bold text-[#0A006E]">
+                    Latest Commercial Documents
                   </h3>
-                  <span className="text-xs font-mono-tabular font-bold text-slate-600">
+                  <span className="text-xs font-mono-tabular text-slate-500">
                     Showing {Math.min(15, visibleTransactions.length)} of {visibleTransactions.length}
                   </span>
                 </div>
                 <button
                   type="button"
                   onClick={() => onNavigateModule?.('documents_credit')}
-                  className="px-3.5 py-2 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black cursor-pointer self-start sm:self-auto"
+                  className="px-3 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-xs font-montserrat font-bold cursor-pointer self-start sm:self-auto"
                 >
                   Open All Documents →
                 </button>
               </div>
-              <div className="overflow-x-auto bg-white border border-slate-200 rounded-xl">
+              <div className="overflow-x-auto border border-slate-200 rounded-lg">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
-                      <th className="py-2.5 px-3 font-black">Document No</th>
-                      <th className="py-2.5 px-3 font-black">Type</th>
-                      <th className="py-2.5 px-3 font-black">Branch &amp; Geo-Zone</th>
-                      <th className="py-2.5 px-3 font-black">Customer / Retailer</th>
-                      <th className="py-2.5 px-3 font-black text-right">Amount (KES)</th>
-                      <th className="py-2.5 px-3 font-black text-right">Action</th>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-montserrat">
+                      <th className="py-2 px-3 font-bold">Document No</th>
+                      <th className="py-2 px-3 font-bold">Type</th>
+                      <th className="py-2 px-3 font-bold">Branch</th>
+                      <th className="py-2 px-3 font-bold">Customer</th>
+                      <th className="py-2 px-3 font-bold text-right">Amount</th>
+                      <th className="py-2 px-3 font-bold text-right">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200">
+                  <tbody className="divide-y divide-slate-100">
                     {visibleTransactions.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="py-6 text-center text-slate-500">
-                          No commercial transactions issued yet. Use Retail POS, Wholesale Sales POS, or Customer Portal.
+                          No commercial transactions issued yet.
                         </td>
                       </tr>
                     ) : (
                       visibleTransactions.slice(0, 15).map((tx) => (
                         <tr key={tx.id} className="hover:bg-slate-50">
-                          <td className="py-2.5 px-3 font-mono-tabular font-bold text-[#0A006E]">{tx.docNumber}</td>
-                          <td className="py-2.5 px-3 font-montserrat font-bold text-slate-900">{tx.docType}</td>
-                          <td className="py-2.5 px-3 text-slate-600">
-                            {tx.branchName} · {tx.regionName}
-                          </td>
-                          <td className="py-2.5 px-3 text-slate-800">{tx.customerName}</td>
-                          <td className="py-2.5 px-3 text-right font-mono-tabular font-bold">
+                          <td className="py-2 px-3 font-mono-tabular font-bold text-[#0A006E]">{tx.docNumber}</td>
+                          <td className="py-2 px-3 font-montserrat font-semibold text-slate-900">{tx.docType}</td>
+                          <td className="py-2 px-3 text-slate-600">{tx.branchName}</td>
+                          <td className="py-2 px-3 text-slate-800">{tx.customerName}</td>
+                          <td className="py-2 px-3 text-right font-mono-tabular font-bold">
                             {formatKes(tx.totalAmount)}
                           </td>
-                          <td className="py-2.5 px-3 text-right">
+                          <td className="py-2 px-3 text-right">
                             <button
                               type="button"
                               onClick={() => onPreviewDoc(tx)}
-                              className="px-3 py-1 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-black cursor-pointer"
+                              className="px-2.5 py-1 bg-slate-100 hover:bg-[#0A006E] hover:text-[#FFDE00] text-[#0A006E] rounded-md text-[11px] font-montserrat font-bold cursor-pointer transition"
                             >
-                              Print / PDF
+                              PDF
                             </button>
                           </td>
                         </tr>
@@ -1281,51 +1545,40 @@ export const OverviewModule: React.FC<{
             </div>
           )}
 
-          {adminFocusSection === 'transfers_queue' && (
-            <div className="bg-amber-50 border-2 border-[#0A006E] rounded-2xl p-4 sm:p-5 space-y-4 shadow-md">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-200 pb-3">
-                <div>
-                  <h3 className="text-sm sm:text-base font-montserrat font-black text-[#0A006E]">
-                    Pending Stock Transfers Awaiting Authorization ({pendingTransfers.length})
-                  </h3>
-                </div>
+          {focusSection === 'transfers_queue' && (
+            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                <h3 className="text-sm font-montserrat font-bold text-[#0A006E]">
+                  Pending Stock Transfers ({pendingTransfers.length})
+                </h3>
                 <button
                   type="button"
                   onClick={() => onNavigateModule?.('branches_transfers')}
-                  className="px-3.5 py-2 bg-white hover:bg-slate-50 border border-[#0A006E] text-[#0A006E] rounded-xl text-xs font-montserrat font-black cursor-pointer shrink-0"
+                  className="px-3 py-1.5 bg-slate-100 text-[#0A006E] rounded-lg text-xs font-montserrat font-bold cursor-pointer"
                 >
-                  Open Full Transfers Hub →
+                  Open Transfers Hub →
                 </button>
               </div>
               {pendingTransfers.length === 0 ? (
-                <div className="p-6 bg-white rounded-xl text-center text-xs text-slate-600">
-                  No stock transfers currently awaiting authorization.
+                <div className="p-6 text-center text-xs text-slate-500">
+                  No stock transfers awaiting authorization.
                 </div>
               ) : (
-                <div className="space-y-2.5">
+                <div className="space-y-2">
                   {pendingTransfers.map((tr) => (
                     <div
                       key={tr.id}
-                      className="bg-white border border-amber-300 rounded-xl p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-2xs"
+                      className="border border-slate-200 rounded-lg p-3 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5"
                     >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="px-2.5 py-0.5 rounded-md bg-[#0A006E] text-[#FFDE00] font-jakarta font-black text-xs font-mono-tabular">
-                            {tr.transferNo}
-                          </span>
-                          <span className="px-2.5 py-0.5 rounded-md bg-amber-100 text-amber-900 text-[11px] font-jakarta font-black font-mono-tabular">
-                            {tr.quantityBottles} Bottles · {tr.sku}
-                          </span>
-                          <span className="text-[11px] text-slate-500 font-medium">
-                            Initiated by <strong>{tr.initiatedBy}</strong>
-                          </span>
+                      <div className="space-y-0.5 text-xs">
+                        <div className="flex items-center gap-2 font-mono-tabular font-bold text-[#0A006E]">
+                          <span>{tr.transferNo}</span>
+                          <span>·</span>
+                          <span>{tr.quantityBottles} Btls ({tr.sku})</span>
                         </div>
-                        <div className="text-xs sm:text-sm font-montserrat font-black text-slate-900">
-                          {tr.productName}
-                        </div>
-                        <div className="text-xs text-slate-600">
-                          Source: <strong className="text-slate-900">{tr.fromBranchName}</strong> → Destination:{' '}
-                          <strong className="text-[#0A006E]">{tr.toBranchName}</strong>
+                        <div className="font-montserrat font-bold text-slate-900">{tr.productName}</div>
+                        <div className="text-slate-600">
+                          {tr.fromBranchName} → <strong className="text-[#0A006E]">{tr.toBranchName}</strong> · By {tr.initiatedBy}
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
@@ -1333,9 +1586,8 @@ export const OverviewModule: React.FC<{
                           <button
                             type="button"
                             onClick={() => onRejectStockTransfer(tr.id)}
-                            className="px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer transition"
+                            className="px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-lg text-xs font-montserrat font-bold cursor-pointer"
                           >
-                            <XCircle className="w-4 h-4" />
                             Reject
                           </button>
                         )}
@@ -1343,10 +1595,9 @@ export const OverviewModule: React.FC<{
                           <button
                             type="button"
                             onClick={() => onAuthorizeStockTransfer(tr.id)}
-                            className="px-4 py-2.5 bg-[#1E9E60] hover:bg-emerald-700 text-white rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-md transition active:scale-95"
+                            className="px-3.5 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-montserrat font-bold cursor-pointer"
                           >
-                            <ShieldCheck className="w-4 h-4" />
-                            Authorize Transfer
+                            Authorize
                           </button>
                         )}
                       </div>
@@ -1357,43 +1608,40 @@ export const OverviewModule: React.FC<{
             </div>
           )}
 
-          {adminFocusSection === 'delivery_queue' && (
-            <div className="bg-white border-2 border-[#0A006E]/20 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
-                <div>
-                  <h3 className="text-sm sm:text-base font-montserrat font-black text-slate-900">
-                    Incoming Customer Orders · Inspect &amp; Process Delivery
-                  </h3>
-                </div>
+          {focusSection === 'delivery_queue' && (
+            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                <h3 className="text-sm font-montserrat font-bold text-slate-900">
+                  Incoming Customer Orders
+                </h3>
                 <button
                   type="button"
                   onClick={() => onNavigateModule?.('delivery_management')}
-                  className="px-3.5 py-2 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shrink-0 shadow-xs"
+                  className="px-3 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-xs font-montserrat font-bold cursor-pointer"
                 >
-                  <Truck className="w-3.5 h-3.5" />
-                  Open Full Delivery Hub →
+                  Open Delivery Hub →
                 </button>
               </div>
               {visibleTransactions.filter(
                 (t) => t.docType === 'Online Order' || t.channel === 'Customer Online Portal' || Boolean(t.deliveryAddress)
               ).length === 0 ? (
-                <div className="p-6 bg-[#F0F2F0] rounded-xl text-center text-xs text-slate-600">
-                  No online customer delivery orders placed yet.
+                <div className="p-6 text-center text-xs text-slate-500">
+                  No customer delivery orders placed yet.
                 </div>
               ) : (
-                <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                <div className="overflow-x-auto border border-slate-200 rounded-lg">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
-                      <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
-                        <th className="py-2.5 px-3 font-black">Order No</th>
-                        <th className="py-2.5 px-3 font-black">Customer &amp; Phone</th>
-                        <th className="py-2.5 px-3 font-black">Delivery Address</th>
-                        <th className="py-2.5 px-3 font-black">Status</th>
-                        <th className="py-2.5 px-3 font-black text-right">Total</th>
-                        <th className="py-2.5 px-3 font-black text-right">Action</th>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-montserrat">
+                        <th className="py-2 px-3 font-bold">Order No</th>
+                        <th className="py-2 px-3 font-bold">Customer</th>
+                        <th className="py-2 px-3 font-bold">Address</th>
+                        <th className="py-2 px-3 font-bold">Status</th>
+                        <th className="py-2 px-3 font-bold text-right">Total</th>
+                        <th className="py-2 px-3 font-bold text-right">Action</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-200 bg-white">
+                    <tbody className="divide-y divide-slate-100 bg-white">
                       {visibleTransactions
                         .filter(
                           (t) =>
@@ -1407,25 +1655,25 @@ export const OverviewModule: React.FC<{
                             tx.deliveryStatus || (tx.status === 'Fulfilled' ? 'Delivered' : 'Pending Dispatch');
                           return (
                             <tr key={tx.id} className="hover:bg-slate-50">
-                              <td className="py-2.5 px-3 font-jakarta font-black text-[#0A006E] font-mono-tabular">
+                              <td className="py-2 px-3 font-mono-tabular font-bold text-[#0A006E]">
                                 {tx.docNumber}
                               </td>
-                              <td className="py-2.5 px-3">
+                              <td className="py-2 px-3">
                                 <div className="font-montserrat font-bold text-slate-900">{tx.customerName}</div>
-                                <div className="text-[11px] font-mono-tabular text-[#0A006E]">{tx.customerPhone || '—'}</div>
+                                <div className="text-[11px] font-mono-tabular text-slate-500">{tx.customerPhone || '—'}</div>
                               </td>
-                              <td className="py-2.5 px-3 text-slate-700 max-w-[200px] truncate">
+                              <td className="py-2 px-3 text-slate-700 max-w-[200px] truncate">
                                 {tx.deliveryAddress || tx.regionName}
                               </td>
-                              <td className="py-2.5 px-3 font-bold text-sky-800">{delStatus}</td>
-                              <td className="py-2.5 px-3 text-right font-mono-tabular font-bold">
+                              <td className="py-2 px-3 font-bold text-sky-700">{delStatus}</td>
+                              <td className="py-2 px-3 text-right font-mono-tabular font-bold">
                                 {formatKes(tx.totalAmount)}
                               </td>
-                              <td className="py-2.5 px-3 text-right">
+                              <td className="py-2 px-3 text-right">
                                 <button
                                   type="button"
                                   onClick={() => onInspectOrder?.(tx)}
-                                  className="px-3 py-1.5 bg-[#FFDE00] border-2 border-[#0A006E] text-[#0A006E] rounded-xl text-[11px] font-montserrat font-black cursor-pointer"
+                                  className="px-2.5 py-1 bg-[#0A006E] text-[#FFDE00] rounded-md text-[11px] font-montserrat font-bold cursor-pointer"
                                 >
                                   Process
                                 </button>
@@ -1443,735 +1691,529 @@ export const OverviewModule: React.FC<{
       );
     }
 
+    const pendingLeaveCount = leaveRequests.filter((r) => r.status === 'Pending HR Approval').length;
+
     return (
-      <div className="space-y-4 sm:space-y-5 pb-6">
-        {/* Sleek Admin App Header Bar */}
-        <div className="bg-[#0A006E] text-white border-2 border-[#FFDE00] rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#FFDE00] text-[#0A006E] flex items-center justify-center font-black shrink-0">
-              <Sparkles className="w-5 h-5 stroke-[2.4]" />
-            </div>
-            <div className="min-w-0">
-              <div className="font-montserrat font-black text-xs sm:text-sm text-[#FFDE00] truncate">
-                Admin App Command Hub
-              </div>
-              <p className="text-[11px] text-slate-300 font-medium truncate">
-                Tap any box to open that section · Zero scroll clutter
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setAdminSimpleView(false)}
-            className="px-3.5 py-2 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-xl text-xs font-montserrat font-black cursor-pointer shadow-xs transition shrink-0 whitespace-nowrap self-start sm:self-auto"
-          >
-            Switch to Detailed View
-          </button>
-        </div>
+      <div className="space-y-4 pb-6">
+        <MinimalDashboardBar
+          currentUser={currentUser}
+          schema={dashSchema}
+          prefs={dashPrefs}
+          onChangeMode={setDashMode}
+          onToggleKpi={toggleKpi}
+          onToggleWidget={toggleWidget}
+          onReset={resetToDefault}
+          actions={
+            <>
+              {onOpenOnboardItems && (
+                <button
+                  type="button"
+                  onClick={onOpenOnboardItems}
+                  className="px-2.5 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                >
+                  <Barcode className="w-3.5 h-3.5" />
+                  Onboard
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => onNavigateModule?.('leave_management')}
+                className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold cursor-pointer whitespace-nowrap"
+              >
+                Leave / Off
+              </button>
+            </>
+          }
+        />
 
-        {/* Compact 2x2 / 4-col Executive Summary Strip */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
-          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-3 sm:p-4">
-            <div className="text-[11px] font-montserrat font-bold text-slate-600 truncate">Gross Turnover</div>
-            <div className="text-base sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5 truncate">
-              {formatKes(totalRevenue)}
-            </div>
-          </div>
-          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-3 sm:p-4">
-            <div className="text-[11px] font-montserrat font-bold text-slate-600 truncate">Liquor Catalog</div>
-            <div className="text-base sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5 truncate">
-              {products.length} SKUs
-            </div>
-          </div>
-          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-3 sm:p-4">
-            <div className="text-[11px] font-montserrat font-bold text-slate-600 truncate">Branches &amp; Zones</div>
-            <div className="text-base sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5 truncate">
-              {branches.length} Depots · {regions.length} Zones
-            </div>
-          </div>
-          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-3 sm:p-4">
-            <div className="text-[11px] font-montserrat font-bold text-slate-600 truncate">Staff &amp; Transfers</div>
-            <div className="text-base sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5 truncate">
-              {staffList.length} Staff · {transfers.length} Trf
-            </div>
-          </div>
-        </div>
-
-        {/* Customized Executive Report & Insights Box Buttons (Replaces Congested Scroll Tables) */}
-        <div className="space-y-2">
-          <div className="text-[11px] font-montserrat font-black text-[#0A006E] uppercase tracking-wider px-1">
-            Performance &amp; Reports (Tap to Open)
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
-            <button
-              type="button"
-              onClick={() => selectAdminFocusSection('sales_performance')}
-              className="p-3.5 sm:p-5 bg-white hover:bg-slate-50 active:scale-95 border-2 border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-sm transition cursor-pointer group min-h-[104px]"
-            >
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                <TrendingUp className="w-5 h-5 stroke-[2.4]" />
-              </div>
-              <div>
-                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E] leading-tight">
-                  Sales Performance
+        {/* Compact KPI Strip */}
+        {(isWidgetVisible('kpi_strip') || currentUser.role === 'Branch Manager') && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+            {(isKpiVisible('turnover') || isKpiVisible('branch_sales')) && (
+              <div className="bg-white border border-slate-200 rounded-xl p-3">
+                <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
+                  {currentUser.role === 'Branch Manager' ? 'Branch Turnover' : 'Gross Turnover'}
                 </div>
-                <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 line-clamp-2">
-                  Today, Week, Month &amp; Year sales tracker
-                </p>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => selectAdminFocusSection('charts')}
-              className="p-3.5 sm:p-5 bg-white hover:bg-slate-50 active:scale-95 border-2 border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-sm transition cursor-pointer group min-h-[104px]"
-            >
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                <BarChart3 className="w-5 h-5 stroke-[2.4]" />
-              </div>
-              <div>
-                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E] leading-tight">
-                  Interactive Charts
+                <div className="text-base sm:text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5 truncate">
+                  {formatKes(totalRevenue)}
                 </div>
-                <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 line-clamp-2">
-                  Graphical performance bar &amp; pie metrics
-                </p>
               </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => selectAdminFocusSection('branch_performance')}
-              className="p-3.5 sm:p-5 bg-white hover:bg-slate-50 active:scale-95 border-2 border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-sm transition cursor-pointer group min-h-[104px]"
-            >
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                <Building2 className="w-5 h-5 stroke-[2.4]" />
-              </div>
-              <div>
-                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E] leading-tight">
-                  Regional Branches
+            )}
+            {(isKpiVisible('catalog') || isKpiVisible('branch_stock')) && (
+              <div className="bg-white border border-slate-200 rounded-xl p-3">
+                <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">Liquor Catalog</div>
+                <div className="text-base sm:text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5 truncate">
+                  {products.length} SKUs
                 </div>
-                <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 line-clamp-2">
-                  Branch performance &amp; bonded stock
-                </p>
               </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => selectAdminFocusSection('recent_docs')}
-              className="p-3.5 sm:p-5 bg-white hover:bg-slate-50 active:scale-95 border-2 border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-sm transition cursor-pointer group min-h-[104px]"
-            >
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                <FileText className="w-5 h-5 stroke-[2.4]" />
-              </div>
-              <div>
-                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E] leading-tight">
-                  Latest Documents
+            )}
+            {(isKpiVisible('branches') || isKpiVisible('pending_transfers')) && (
+              <div className="bg-white border border-slate-200 rounded-xl p-3">
+                <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
+                  {currentUser.role === 'Branch Manager' ? 'Pending Transfers' : 'Depots & Zones'}
                 </div>
-                <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 line-clamp-2">
-                  Receipts, Invoices, Quotes &amp; Credit Notes
-                </p>
+                <div className="text-base sm:text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5 truncate">
+                  {currentUser.role === 'Branch Manager'
+                    ? `${pendingTransfers.length} Pending`
+                    : `${branches.length} Depots · ${regions.length} Zones`}
+                </div>
               </div>
-            </button>
+            )}
+            {(isKpiVisible('staff_transfers') || isKpiVisible('active_deliveries')) && (
+              <div className="bg-white border border-slate-200 rounded-xl p-3">
+                <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
+                  {currentUser.role === 'Branch Manager' ? 'Active Deliveries' : 'Staff & Transfers'}
+                </div>
+                <div className="text-base sm:text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5 truncate">
+                  {currentUser.role === 'Branch Manager'
+                    ? `${activeDeliveriesCount} Orders`
+                    : `${staffList.length} Staff · ${transfers.length} Trf`}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
+        )}
 
-        {/* App-Style Operations & Quick Actions Grid */}
-        <div className="space-y-2">
-          <div className="text-[11px] font-montserrat font-black text-[#0A006E] uppercase tracking-wider px-1">
-            Operations &amp; Departments
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
-            <button
-              type="button"
-              onClick={() => onNavigateModule?.('retail_pos')}
-              className="p-3.5 sm:p-4 bg-white hover:bg-slate-50 active:scale-95 border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px]"
-            >
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center">
-                <ShoppingCart className="w-5 h-5 stroke-[2.4]" />
-              </div>
-              <div>
-                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">Retail POS</div>
-                <div className="text-[10px] text-slate-500">Counter checkout</div>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onNavigateModule?.('sales_pos')}
-              className="p-3.5 sm:p-4 bg-white hover:bg-slate-50 active:scale-95 border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px]"
-            >
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#34D186] text-[#0A006E] flex items-center justify-center">
-                <Briefcase className="w-5 h-5 stroke-[2.4]" />
-              </div>
-              <div>
-                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">Wholesale POS</div>
-                <div className="text-[10px] text-slate-500">B2B bulk invoicing</div>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onNavigateModule?.('inventory')}
-              className="p-3.5 sm:p-4 bg-white hover:bg-slate-50 active:scale-95 border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px]"
-            >
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center">
-                <Package className="w-5 h-5 stroke-[2.4]" />
-              </div>
-              <div>
-                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">Inventory</div>
-                <div className="text-[10px] text-slate-500">Bonded stock &amp; SKUs</div>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setAdminOverviewView('accounting')}
-              className="p-3.5 sm:p-4 bg-white hover:bg-slate-50 active:scale-95 border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px]"
-            >
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center">
-                <DollarSign className="w-5 h-5 stroke-[2.4]" />
-              </div>
-              <div>
-                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">Financials</div>
-                <div className="text-[10px] text-slate-500">P&amp;L &amp; M-Pesa ledger</div>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => selectAdminFocusSection('delivery_queue')}
-              className="p-3.5 sm:p-4 bg-white hover:bg-slate-50 active:scale-95 border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px] relative"
-            >
-              <div className="flex items-center justify-between w-full">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-cyan-600 text-white flex items-center justify-center">
-                  <Truck className="w-5 h-5 stroke-[2.4]" />
-                </div>
-                {activeDeliveriesCount > 0 && (
-                  <span className="px-2 py-0.5 rounded-full bg-cyan-600 text-white text-[10px] font-mono-tabular font-black">
-                    {activeDeliveriesCount}
-                  </span>
-                )}
-              </div>
-              <div>
-                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">Deliveries</div>
-                <div className="text-[10px] text-slate-500">Orders &amp; dispatch</div>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => selectAdminFocusSection('transfers_queue')}
-              className="p-3.5 sm:p-4 bg-white hover:bg-slate-50 active:scale-95 border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px] relative"
-            >
-              <div className="flex items-center justify-between w-full">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center">
-                  <ArrowLeftRight className="w-5 h-5 stroke-[2.4]" />
-                </div>
+        {/* Actionable Pending Alerts Strip (Only when items await decision) */}
+        {(isWidgetVisible('alerts_strip') || isWidgetVisible('action_queues')) &&
+          (pendingTransfers.length > 0 || activeDeliveriesCount > 0) && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="font-montserrat font-semibold text-amber-950">
+                Action Required: {pendingTransfers.length} pending transfer(s) · {activeDeliveriesCount} active delivery order(s)
+              </span>
+              <div className="flex items-center gap-2">
                 {pendingTransfers.length > 0 && (
-                  <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-mono-tabular font-black">
-                    {pendingTransfers.length}
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => selectAdminFocusSection('transfers_queue')}
+                    className="px-2.5 py-1 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold cursor-pointer"
+                  >
+                    Authorize Transfers ({pendingTransfers.length})
+                  </button>
+                )}
+                {activeDeliveriesCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => selectAdminFocusSection('delivery_queue')}
+                    className="px-2.5 py-1 bg-white border border-amber-300 text-slate-900 rounded-lg text-[11px] font-montserrat font-bold cursor-pointer"
+                  >
+                    Process Deliveries ({activeDeliveriesCount})
+                  </button>
                 )}
               </div>
-              <div>
-                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">Transfers</div>
-                <div className="text-[10px] text-slate-500">Authorizations &amp; depots</div>
-              </div>
-            </button>
+            </div>
+          )}
 
-            <button
-              type="button"
-              onClick={() => onNavigateModule?.('hr_rbac')}
-              className="p-3.5 sm:p-4 bg-white hover:bg-slate-50 active:scale-95 border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px]"
-            >
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center">
-                <Users className="w-5 h-5 stroke-[2.4]" />
-              </div>
-              <div>
-                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">HR &amp; Staff</div>
-                <div className="text-[10px] text-slate-500">Roles, PINs &amp; payroll</div>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => (onOpenHrLeaveTab ? onOpenHrLeaveTab() : onNavigateModule?.('leave_management'))}
-              className="p-3.5 sm:p-4 bg-white hover:bg-slate-50 active:scale-95 border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px] relative"
-            >
-              <div className="flex items-center justify-between w-full">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-fuchsia-600 text-white flex items-center justify-center">
-                  <Calendar className="w-5 h-5 stroke-[2.4]" />
-                </div>
-                {leaveRequests.filter((r) => r.status === 'Pending HR Approval').length > 0 && (
-                  <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-mono-tabular font-black">
-                    {leaveRequests.filter((r) => r.status === 'Pending HR Approval').length}
-                  </span>
-                )}
-              </div>
-              <div>
-                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">Leave &amp; Off</div>
-                <div className="text-[10px] text-slate-500">Annual, emergency, maternity</div>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onNavigateModule?.('internal_inbox')}
-              className="p-3.5 sm:p-4 bg-white hover:bg-slate-50 active:scale-95 border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px]"
-            >
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-red-600 text-white flex items-center justify-center">
-                <Inbox className="w-5 h-5 stroke-[2.4]" />
-              </div>
-              <div>
-                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">Dept Inbox</div>
-                <div className="text-[10px] text-slate-500">Staff chat &amp; requests</div>
-              </div>
-            </button>
-
-            {onOpenOnboardItems && (
+        {/* Performance & Insights Focus Tiles */}
+        {(isWidgetVisible('reports_grid') || isWidgetVisible('quick_tiles')) && (
+          <div className="space-y-1.5">
+            <div className="text-[10px] font-montserrat font-bold text-slate-400 uppercase tracking-wider px-0.5">
+              Reports &amp; Insights (Tap to Focus)
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
               <button
                 type="button"
-                onClick={onOpenOnboardItems}
-                className="p-3.5 sm:p-4 bg-[#34D186]/15 hover:bg-[#34D186]/25 active:scale-95 border-2 border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px]"
+                onClick={() => selectAdminFocusSection('sales_performance')}
+                className="p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer transition"
               >
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#0A006E] text-[#34D186] flex items-center justify-center">
-                  <Barcode className="w-5 h-5 stroke-[2.4]" />
-                </div>
+                <TrendingUp className="w-4 h-4 text-[#0A006E]" />
                 <div>
-                  <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">Onboard Items</div>
-                  <div className="text-[10px] text-slate-600">Scan &amp; activate stock</div>
+                  <div className="text-xs font-montserrat font-bold text-slate-900">Sales Performance</div>
+                  <div className="text-[11px] text-slate-500">Today · Week · Month · Year</div>
                 </div>
               </button>
-            )}
 
-            {onOpenKraReturns && (
               <button
                 type="button"
-                onClick={() => onOpenKraReturns('VAT3_SALES_SEC_B')}
-                className="p-3.5 sm:p-4 bg-white hover:bg-slate-50 active:scale-95 border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px]"
+                onClick={() => selectAdminFocusSection('charts')}
+                className="p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer transition"
               >
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-600 text-[#FFDE00] flex items-center justify-center">
-                  <FileSpreadsheet className="w-5 h-5 stroke-[2.4]" />
-                </div>
+                <BarChart3 className="w-4 h-4 text-indigo-600" />
                 <div>
-                  <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">KRA Returns</div>
-                  <div className="text-[10px] text-slate-500">VAT3 &amp; P10 (.xlsx)</div>
+                  <div className="text-xs font-montserrat font-bold text-slate-900">Interactive Charts</div>
+                  <div className="text-[11px] text-slate-500">Bar &amp; pie metrics</div>
                 </div>
               </button>
-            )}
 
-            {latestPayrollRecord && (
               <button
                 type="button"
-                onClick={() => onOpenPayslip?.(latestPayrollRecord)}
-                className="p-3.5 sm:p-4 bg-[#FFDE00]/25 hover:bg-[#FFDE00]/40 active:scale-95 border-2 border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px]"
+                onClick={() => selectAdminFocusSection('branch_performance')}
+                className="p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer transition"
               >
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center">
-                  <Printer className="w-5 h-5 stroke-[2.2]" />
-                </div>
+                <Building2 className="w-4 h-4 text-emerald-600" />
                 <div>
-                  <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">My Payslip</div>
-                  <div className="text-[10px] font-mono-tabular font-bold text-slate-800">
-                    KES {latestPayrollRecord.netSalary.toLocaleString()}
-                  </div>
+                  <div className="text-xs font-montserrat font-bold text-slate-900">Regional Branches</div>
+                  <div className="text-[11px] text-slate-500">Revenue &amp; bonded stock</div>
                 </div>
               </button>
-            )}
 
-            <button
-              type="button"
-              onClick={handleDownloadStatementPDF}
-              className="p-3.5 sm:p-4 bg-white hover:bg-slate-50 active:scale-95 border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-3xl text-left flex flex-col justify-between gap-2.5 shadow-xs transition cursor-pointer min-h-[96px]"
-            >
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800 text-[#FFDE00] flex items-center justify-center">
-                <Download className="w-5 h-5 stroke-[2.2]" />
-              </div>
-              <div>
-                <div className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E]">PDF Statement</div>
-                <div className="text-[10px] text-slate-500">Full audit export</div>
-              </div>
-            </button>
+              <button
+                type="button"
+                onClick={() => selectAdminFocusSection('recent_docs')}
+                className="p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer transition"
+              >
+                <FileText className="w-4 h-4 text-amber-600" />
+                <div>
+                  <div className="text-xs font-montserrat font-bold text-slate-900">Latest Documents</div>
+                  <div className="text-[11px] text-slate-500">Receipts, invoices &amp; quotes</div>
+                </div>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Operations & Departments Grid */}
+        {(isWidgetVisible('ops_grid') || isWidgetVisible('quick_tiles')) && (
+          <div className="space-y-1.5">
+            <div className="text-[10px] font-montserrat font-bold text-slate-400 uppercase tracking-wider px-0.5">
+              Operations &amp; Tools
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+              <button
+                type="button"
+                onClick={() => onNavigateModule?.('retail_pos')}
+                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer transition"
+              >
+                <div className="w-8 h-8 rounded-lg bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0">
+                  <ShoppingCart className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-montserrat font-bold text-slate-900 truncate">Retail POS</div>
+                  <div className="text-[10px] text-slate-500 truncate">Counter checkout</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onNavigateModule?.('sales_pos')}
+                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer transition"
+              >
+                <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                  <Briefcase className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-montserrat font-bold text-slate-900 truncate">Wholesale POS</div>
+                  <div className="text-[10px] text-slate-500 truncate">B2B bulk invoicing</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onNavigateModule?.('inventory')}
+                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer transition"
+              >
+                <div className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0">
+                  <Package className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-montserrat font-bold text-slate-900 truncate">Inventory</div>
+                  <div className="text-[10px] text-slate-500 truncate">Stock &amp; SKUs</div>
+                </div>
+              </button>
+
+              {currentUser.role === 'Admin' && (
+                <button
+                  type="button"
+                  onClick={() => setAdminOverviewView('accounting')}
+                  className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer transition"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                    <DollarSign className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-montserrat font-bold text-slate-900 truncate">Financials</div>
+                    <div className="text-[10px] text-slate-500 truncate">P&amp;L &amp; Expenses</div>
+                  </div>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => selectAdminFocusSection('delivery_queue')}
+                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer transition"
+              >
+                <div className="w-8 h-8 rounded-lg bg-cyan-600 text-white flex items-center justify-center shrink-0">
+                  <Truck className="w-4 h-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-montserrat font-bold text-slate-900 truncate">
+                    Deliveries {activeDeliveriesCount > 0 ? `(${activeDeliveriesCount})` : ''}
+                  </div>
+                  <div className="text-[10px] text-slate-500 truncate">Orders &amp; dispatch</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => selectAdminFocusSection('transfers_queue')}
+                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer transition"
+              >
+                <div className="w-8 h-8 rounded-lg bg-emerald-700 text-white flex items-center justify-center shrink-0">
+                  <ArrowLeftRight className="w-4 h-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-montserrat font-bold text-slate-900 truncate">
+                    Transfers {pendingTransfers.length > 0 ? `(${pendingTransfers.length})` : ''}
+                  </div>
+                  <div className="text-[10px] text-slate-500 truncate">Authorizations</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onNavigateModule?.('hr_rbac')}
+                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer transition"
+              >
+                <div className="w-8 h-8 rounded-lg bg-purple-600 text-white flex items-center justify-center shrink-0">
+                  <Users className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-montserrat font-bold text-slate-900 truncate">HR &amp; Staff</div>
+                  <div className="text-[10px] text-slate-500 truncate">Roles &amp; payroll</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => (onOpenHrLeaveTab ? onOpenHrLeaveTab() : onNavigateModule?.('leave_management'))}
+                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer transition"
+              >
+                <div className="w-8 h-8 rounded-lg bg-fuchsia-600 text-white flex items-center justify-center shrink-0">
+                  <Calendar className="w-4 h-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-montserrat font-bold text-slate-900 truncate">
+                    Leave {pendingLeaveCount > 0 ? `(${pendingLeaveCount})` : ''}
+                  </div>
+                  <div className="text-[10px] text-slate-500 truncate">Off, emergency, maternity</div>
+                </div>
+              </button>
+
+              {onOpenKraReturns && (
+                <button
+                  type="button"
+                  onClick={() => onOpenKraReturns('VAT3_SALES_SEC_B')}
+                  className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer transition"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-emerald-600 text-[#FFDE00] flex items-center justify-center shrink-0">
+                    <FileSpreadsheet className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-montserrat font-bold text-slate-900 truncate">KRA Returns</div>
+                    <div className="text-[10px] text-slate-500 truncate">VAT3 &amp; P10 (.xlsx)</div>
+                  </div>
+                </button>
+              )}
+
+              {latestPayrollRecord && (
+                <button
+                  type="button"
+                  onClick={() => onOpenPayslip?.(latestPayrollRecord)}
+                  className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer transition"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0">
+                    <Printer className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-montserrat font-bold text-slate-900 truncate">My Payslip</div>
+                    <div className="text-[10px] font-mono-tabular font-bold text-emerald-700 truncate">
+                      KES {latestPayrollRecord.netSalary.toLocaleString()}
+                    </div>
+                  </div>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleDownloadStatementPDF}
+                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer transition"
+              >
+                <div className="w-8 h-8 rounded-lg bg-slate-800 text-[#FFDE00] flex items-center justify-center shrink-0">
+                  <Download className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-montserrat font-bold text-slate-900 truncate">PDF Statement</div>
+                  <div className="text-[10px] text-slate-500 truncate">Full audit export</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
+  // Full / Expanded Mode for Admin & Branch Manager
   return (
-    <div className="space-y-6">
-      {currentUser.role === 'Admin' && (
-        <div className="bg-[#0A006E] text-white border-2 border-[#FFDE00] rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#FFDE00] text-[#0A006E] flex items-center justify-center font-black">
-              <Sparkles className="w-5 h-5 stroke-[2.4]" />
-            </div>
-            <div>
-              <div className="font-montserrat font-black text-sm text-[#FFDE00]">
-                Admin Dashboard Mode: Full Detailed Operations View
-              </div>
-              <p className="text-xs text-slate-300 font-medium">
-                Showing full operational workflow hubs, interactive charts, authorization queues, and logs.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setAdminSimpleView(true)}
-            className="px-4 py-2 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-xl text-xs font-montserrat font-black cursor-pointer shadow-xs transition shrink-0 whitespace-nowrap"
-          >
-            Switch to Simple Clean View
-          </button>
-        </div>
-      )}
-
-      {/* 1. Mobile Only: Native App-Style Action Buttons Grid (ZERO bulky hero covering the screen) */}
-      <div className="block sm:hidden space-y-2">
-        {/* Mobile App Quick-Action Touch Grid */}
-        <div className="grid grid-cols-2 gap-2">
-          {/* Button 1: Retail POS */}
-          <button
-            type="button"
-            onClick={() => onNavigateModule?.('retail_pos')}
-            className="p-3 bg-white border-2 border-[#0A006E] active:bg-[#FFDE00]/20 rounded-2xl flex flex-col justify-between text-left cursor-pointer shadow-xs active:scale-95 transition-all min-h-[76px]"
-          >
-            <div className="flex items-center justify-between">
-              <div className="w-8 h-8 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shadow-xs">
-                <ShoppingCart className="w-4 h-4 stroke-[2.4]" />
-              </div>
-              <span className="text-[10px] font-montserrat font-black text-[#0A006E] uppercase">Counter</span>
-            </div>
-            <div>
-              <div className="text-xs font-montserrat font-black text-[#0A006E] leading-tight">Retail POS</div>
-              <div className="text-[10px] text-slate-500">Fast checkout</div>
-            </div>
-          </button>
-
-          {/* Button 2: Wholesale POS */}
-          <button
-            type="button"
-            onClick={() => onNavigateModule?.('sales_pos')}
-            className="p-3 bg-white border-2 border-[#0A006E] active:bg-[#34D186]/20 rounded-2xl flex flex-col justify-between text-left cursor-pointer shadow-xs active:scale-95 transition-all min-h-[76px]"
-          >
-            <div className="flex items-center justify-between">
-              <div className="w-8 h-8 rounded-xl bg-[#34D186] text-[#0A006E] flex items-center justify-center shadow-xs">
-                <Building2 className="w-4 h-4 stroke-[2.4]" />
-              </div>
-              <span className="text-[10px] font-montserrat font-black text-[#0A006E] uppercase">B2B</span>
-            </div>
-            <div>
-              <div className="text-xs font-montserrat font-black text-[#0A006E] leading-tight">Wholesale POS</div>
-              <div className="text-[10px] text-slate-500">Bulk Invoicing</div>
-            </div>
-          </button>
-
-          {/* Button 3: Onboard Items & Barcode Scanner (Branch Manager / Inventory / Admin) */}
-          {onOpenOnboardItems && (currentUser.role === 'Branch Manager' || currentUser.role === 'Admin' || (currentUser.role as string) === 'Inventory Controller') && (
-            <button
-              type="button"
-              onClick={onOpenOnboardItems}
-              className="p-3 bg-[#34D186] border-2 border-[#0A006E] active:bg-[#28B873] text-[#0A006E] rounded-2xl flex flex-col justify-between text-left cursor-pointer shadow-xs active:scale-95 transition-all min-h-[76px]"
-            >
-              <div className="flex items-center justify-between">
-                <div className="w-8 h-8 rounded-xl bg-[#0A006E] text-[#34D186] flex items-center justify-center shadow-xs">
-                  <Barcode className="w-4 h-4 stroke-[2.4]" />
-                </div>
-                <span className="text-[10px] font-montserrat font-black text-[#0A006E] uppercase">Scanner</span>
-              </div>
-              <div>
-                <div className="text-xs font-montserrat font-black text-[#0A006E] leading-tight">Onboard Items</div>
-                <div className="text-[10px] text-slate-900 font-semibold">Scan &amp; activate stock</div>
-              </div>
-            </button>
-          )}
-
-          {/* Button 4: Sales Reports (Scroll to Today / Week / Month / Year) */}
-          <button
-            type="button"
-            onClick={() => {
-              const el = document.getElementById('sales-period-section');
-              el?.scrollIntoView({ behavior: 'smooth' });
-            }}
-            className="p-3 bg-[#FFDE00] border-2 border-[#0A006E] active:bg-amber-400 text-[#0A006E] rounded-2xl flex flex-col justify-between text-left cursor-pointer shadow-xs active:scale-95 transition-all min-h-[76px]"
-          >
-            <div className="flex items-center justify-between">
-              <div className="w-8 h-8 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shadow-xs">
-                <TrendingUp className="w-4 h-4 stroke-[2.4]" />
-              </div>
-              <span className="text-[10px] font-montserrat font-black text-[#0A006E] uppercase">Live</span>
-            </div>
-            <div>
-              <div className="text-xs font-montserrat font-black text-[#0A006E] leading-tight">Sales Ledger</div>
-              <div className="text-[10px] text-slate-900 font-semibold">Today · Week · Month</div>
-            </div>
-          </button>
-
-          {/* Button 5: Financial Oversight (Admin only) */}
-          {currentUser.role === 'Admin' && (
-            <button
-              type="button"
-              onClick={() => setAdminOverviewView('accounting')}
-              className="p-3 bg-white border-2 border-[#0A006E] active:bg-slate-100 text-[#0A006E] rounded-2xl flex flex-col justify-between text-left cursor-pointer shadow-xs active:scale-95 transition-all min-h-[76px]"
-            >
-              <div className="flex items-center justify-between">
-                <div className="w-8 h-8 rounded-xl bg-[#0A006E] text-white flex items-center justify-center shadow-xs">
-                  <BarChart3 className="w-4 h-4 stroke-[2.4]" />
-                </div>
-                <span className="text-[10px] font-montserrat font-black text-[#0A006E] uppercase">Ledger</span>
-              </div>
-              <div>
-                <div className="text-xs font-montserrat font-black text-[#0A006E] leading-tight">Financials</div>
-                <div className="text-[10px] text-slate-500">P&amp;L oversight</div>
-              </div>
-            </button>
-          )}
-
-          {/* Button 6: Thermal Payslip / Statement */}
-          {latestPayrollRecord ? (
-            <button
-              type="button"
-              onClick={() => onOpenPayslip?.(latestPayrollRecord)}
-              className="p-3 bg-white border-2 border-[#0A006E] active:bg-[#FFDE00]/20 text-[#0A006E] rounded-2xl flex flex-col justify-between text-left cursor-pointer shadow-xs active:scale-95 transition-all min-h-[76px]"
-            >
-              <div className="flex items-center justify-between">
-                <div className="w-8 h-8 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shadow-xs">
-                  <Printer className="w-4 h-4 stroke-[2.2]" />
-                </div>
-                <span className="text-[10px] font-montserrat font-black text-[#1E9E60] uppercase">Paid</span>
-              </div>
-              <div>
-                <div className="text-xs font-montserrat font-black text-[#0A006E] leading-tight">My Payslip</div>
-                <div className="text-[10px] font-mono-tabular font-bold text-slate-800">
-                  KES {latestPayrollRecord.netSalary.toLocaleString()}
-                </div>
-              </div>
-            </button>
-          ) : (
+    <div className="space-y-4 pb-6">
+      <MinimalDashboardBar
+        currentUser={currentUser}
+        schema={dashSchema}
+        prefs={dashPrefs}
+        onChangeMode={setDashMode}
+        onToggleKpi={toggleKpi}
+        onToggleWidget={toggleWidget}
+        onReset={resetToDefault}
+        actions={
+          <>
+            {onOpenOnboardItems && (currentUser.role === 'Branch Manager' || currentUser.role === 'Admin' || (currentUser.role as string) === 'Inventory Controller') && (
+              <button
+                type="button"
+                onClick={onOpenOnboardItems}
+                className="px-2.5 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              >
+                <Barcode className="w-3.5 h-3.5" />
+                Onboard
+              </button>
+            )}
+            {onOpenKraReturns && (
+              <button
+                type="button"
+                onClick={() => onOpenKraReturns('VAT3_SALES_SEC_B')}
+                className="px-2.5 py-1.5 bg-white border border-slate-200 text-[#0A006E] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                KRA (.xlsx)
+              </button>
+            )}
+            {currentUser.role === 'Admin' && (
+              <button
+                type="button"
+                onClick={() => setAdminOverviewView('accounting')}
+                className="px-2.5 py-1.5 bg-white border border-slate-200 text-[#0A006E] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                Financials
+              </button>
+            )}
             <button
               type="button"
               onClick={handleDownloadStatementPDF}
-              className="p-3 bg-white border-2 border-[#0A006E] active:bg-slate-100 text-[#0A006E] rounded-2xl flex flex-col justify-between text-left cursor-pointer shadow-xs active:scale-95 transition-all min-h-[76px]"
+              className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
             >
-              <div className="flex items-center justify-between">
-                <div className="w-8 h-8 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shadow-xs">
-                  <Download className="w-4 h-4 stroke-[2.2]" />
-                </div>
-                <span className="text-[10px] font-montserrat font-black text-[#0A006E] uppercase">Export</span>
-              </div>
-              <div>
-                <div className="text-xs font-montserrat font-black text-[#0A006E] leading-tight">PDF Statement</div>
-                <div className="text-[10px] text-slate-500">Full audit print</div>
-              </div>
+              <Download className="w-3.5 h-3.5" />
+              PDF
             </button>
-          )}
-          {/* KRA Returns Spreadsheet Quick Button on Mobile */}
-          {onOpenKraReturns && (
             <button
               type="button"
-              onClick={() => onOpenKraReturns('VAT3_SALES_SEC_B')}
-              className="p-3 bg-white border-2 border-[#0A006E] active:bg-emerald-50 text-[#0A006E] rounded-2xl flex flex-col justify-between text-left cursor-pointer shadow-xs active:scale-95 transition-all min-h-[76px]"
+              onClick={handleDownloadStatementCSV}
+              className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
             >
-              <div className="flex items-center justify-between">
-                <div className="w-8 h-8 rounded-xl bg-[#0A006E] text-[#34D186] flex items-center justify-center shadow-xs">
-                  <FileSpreadsheet className="w-4 h-4 stroke-[2.2]" />
-                </div>
-                <span className="text-[10px] font-montserrat font-black text-[#0A006E] uppercase">iTax</span>
+              <Download className="w-3.5 h-3.5" />
+              CSV
+            </button>
+          </>
+        }
+      />
+
+      {/* Compact Compensation & Leave Strip */}
+      {(isWidgetVisible('compensation') || isWidgetVisible('ops_grid')) && (
+        <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-lg bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0">
+              <Receipt className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap text-xs font-montserrat font-bold text-slate-900">
+                <span className="truncate">{currentUser.name}</span>
+                <span className="text-slate-300">·</span>
+                <span className="text-[#0A006E]">{currentUser.branchName}</span>
+                {latestPayrollRecord && (
+                  <span className="text-emerald-700 font-mono-tabular">
+                    · Net Pay: KES {latestPayrollRecord.netSalary.toLocaleString()} ({latestPayrollRecord.period})
+                  </span>
+                )}
               </div>
-              <div>
-                <div className="text-xs font-montserrat font-black text-[#0A006E] leading-tight">KRA Returns</div>
-                <div className="text-[10px] text-slate-500">VAT3 · P10 (.xlsx)</div>
-              </div>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* 2. Desktop/Tablet: Streamlined Hero Bar (Hidden on Mobile) */}
-      <div className="hidden sm:flex bg-[#FFDE00] border-2 border-[#0A006E] rounded-2xl py-3.5 px-5 items-center justify-between gap-4 relative overflow-hidden shadow-xs">
-        <div className="silent-scanner-beam-dark" />
-        <div className="relative z-10 min-w-0">
-          <span className="text-[11px] font-montserrat font-black text-[#0A006E] uppercase tracking-wider block">
-            {ROLE_PERMISSIONS[currentUser.role].badgeTitle}
-          </span>
-          <h2 className="text-base lg:text-lg font-montserrat font-black italic text-[#0A006E] truncate mt-0.5">
-            {scopedBranchId
-              ? `Regional Branch Command · ${currentUser.branchName}`
-              : 'National Importer & Multi-Branch Operations Center'}
-          </h2>
-          <p className="text-[11px] font-medium text-slate-900 truncate">
-            Real-time IPS/LPS excise inventory valuation, regional price governance, and commercial ledger monitoring.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 relative z-10 shrink-0 flex-wrap justify-end">
-          {onOpenOnboardItems && (currentUser.role === 'Branch Manager' || currentUser.role === 'Admin' || (currentUser.role as string) === 'Inventory Controller') && (
-            <button
-              type="button"
-              onClick={onOpenOnboardItems}
-              className="px-3.5 py-2 bg-[#34D186] hover:bg-[#28B873] text-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 shadow-md transition active:scale-95"
-            >
-              <Barcode className="w-3.5 h-3.5 text-[#0A006E]" />
-              Onboard Items
-            </button>
-          )}
-          {onOpenKraReturns && (
-            <button
-              type="button"
-              onClick={() => onOpenKraReturns('VAT3_SALES_SEC_B')}
-              className="px-3.5 py-2 bg-white hover:bg-slate-50 border-2 border-[#0A006E] text-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 shadow-xs transition"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-[#0A006E]" />
-              KRA Returns (.xlsx)
-            </button>
-          )}
-          {currentUser.role === 'Admin' && (
-            <button
-              onClick={() => setAdminOverviewView('accounting')}
-              className="px-3.5 py-2 bg-[#0A006E] text-[#FFDE00] hover:bg-[#060046] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 shadow-md"
-            >
-              <BarChart3 className="w-3.5 h-3.5 text-[#FFDE00]" />
-              Financial Analysis
-            </button>
-          )}
-          <button
-            onClick={handleDownloadStatementPDF}
-            className="px-3.5 py-2 bg-[#0A006E] text-[#FFDE00] hover:bg-[#060046] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 shadow-md"
-          >
-            <Download className="w-3.5 h-3.5 text-[#FFDE00]" />
-            PDF Statement
-          </button>
-          <button
-            onClick={handleDownloadStatementCSV}
-            className="px-3.5 py-2 bg-white border-2 border-[#0A006E] text-[#0A006E] hover:bg-slate-50 rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
-          >
-            <Download className="w-3.5 h-3.5 text-[#0A006E]" />
-            Export CSV
-          </button>
-        </div>
-      </div>
-
-      {/* 3. Desktop Only: Employee Remuneration & Thermal Payslip Card (Hidden on Mobile) */}
-      <div className="hidden sm:flex bg-white border-2 border-[#0A006E]/20 rounded-2xl p-4 sm:p-5 flex-col md:flex-row md:items-center justify-between gap-4 shadow-2xs">
-        <div className="flex items-start sm:items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 shadow-md">
-            <Receipt className="w-6 h-6 stroke-[2.2]" />
+              <p className="text-[11px] text-slate-500 truncate">
+                {latestPayrollRecord
+                  ? `Thermal payslip available for ${latestPayrollRecord.period}`
+                  : 'Payslip unlocks once HR finalizes payroll for this pay period.'}
+              </p>
+            </div>
           </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-montserrat font-black text-[#0A006E] uppercase tracking-wider">
-                Employee Compensation &amp; Thermal Payslip
-              </span>
-              {latestPayrollRecord ? (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#34D186]/25 text-[#1E9E60] border border-[#34D186]/60">
-                  Payroll Cleared ({latestPayrollRecord.period})
-                </span>
-              ) : (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
-                  Awaiting HR Payroll Execution
-                </span>
-              )}
-            </div>
-            <div className="text-sm font-montserrat font-bold text-slate-800 mt-0.5">
-              {currentUser.name} · {currentUser.role} ({currentUser.branchName})
-            </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              {latestPayrollRecord
-                ? `Net take-home pay of KES ${latestPayrollRecord.netSalary.toLocaleString()} finalized for ${latestPayrollRecord.period}.`
-                : 'Your 80mm/58mm thermal payslip unlocks immediately once HR runs payroll for this pay period.'}
-            </p>
+
+          <div className="shrink-0 flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('retail_pos')}
+              className="px-3 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold cursor-pointer whitespace-nowrap"
+            >
+              Retail POS
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('sales_pos')}
+              className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[11px] font-montserrat font-bold cursor-pointer whitespace-nowrap"
+            >
+              Wholesale POS
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('leave_management')}
+              className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+            >
+              <Calendar className="w-3.5 h-3.5 text-fuchsia-600" />
+              Leave / Off
+            </button>
+            {latestPayrollRecord && (
+              <button
+                type="button"
+                onClick={() => onOpenPayslip?.(latestPayrollRecord)}
+                className="px-3 py-1.5 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                Payslip
+              </button>
+            )}
           </div>
         </div>
-
-        <div className="shrink-0 flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={() => onNavigateModule?.('leave_management')}
-            className="px-3.5 py-2.5 bg-white hover:bg-slate-50 text-[#0A006E] border-2 border-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer transition"
-          >
-            <Calendar className="w-4 h-4 text-fuchsia-600" />
-            Request Leave / Off / Emergency
-          </button>
-          {latestPayrollRecord ? (
-            <button
-              type="button"
-              onClick={() => onOpenPayslip?.(latestPayrollRecord)}
-              className="w-full sm:w-auto px-4 py-2.5 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] border-2 border-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center justify-center gap-2 cursor-pointer shadow-md transition"
-            >
-              <Printer className="w-4 h-4" />
-              Download Thermal Payslip (KES {latestPayrollRecord.netSalary.toLocaleString()})
-            </button>
-          ) : (
-            <div className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-500 font-semibold">
-              <Lock className="w-3.5 h-3.5 text-slate-400" />
-              Locked until HR runs payroll
-            </div>
-          )}
-        </div>
-      </div>
-
-
+      )}
 
       {/* Manager Action Queue: Pending Inventory-Initiated Stock Transfer Authorizations */}
-      {(currentUser.role === 'Admin' || currentUser.role === 'Branch Manager') &&
+      {(isWidgetVisible('alerts_strip') || isWidgetVisible('action_queues')) &&
+        (currentUser.role === 'Admin' || currentUser.role === 'Branch Manager') &&
         transfers.filter((tr) => tr.status === 'Pending Authorization').length > 0 && (
-          <div className="bg-amber-50 border-2 border-[#0A006E] rounded-2xl p-5 space-y-4 shadow-md">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-200 pb-3">
-              <div className="flex items-start sm:items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 shadow-xs">
-                  <ArrowLeftRight className="w-5 h-5" />
+          <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-200 pb-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0">
+                  <ArrowLeftRight className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[10px] font-montserrat font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-[#0A006E] text-[#FFDE00]">
-                      Manager Authorization Required
-                    </span>
-                    <span className="text-xs font-jakarta font-black text-amber-900 font-mono-tabular">
-                      {transfers.filter((tr) => tr.status === 'Pending Authorization').length} Pending Request(s)
-                    </span>
-                  </div>
-                  <h3 className="text-sm sm:text-base font-montserrat font-black text-[#0A006E] mt-0.5">
-                    Stock Transfers Initiated by Inventory Manager Awaiting Your Authorization
+                  <h3 className="text-xs sm:text-sm font-montserrat font-bold text-[#0A006E]">
+                    Pending Stock Transfers ({transfers.filter((tr) => tr.status === 'Pending Authorization').length})
                   </h3>
+                  <p className="text-[11px] text-amber-900">Awaiting manager authorization</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => onNavigateModule?.('branches_transfers')}
-                className="px-3.5 py-2 bg-white hover:bg-slate-50 border border-[#0A006E] text-[#0A006E] rounded-xl text-xs font-montserrat font-black cursor-pointer shrink-0"
+                className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-amber-300 text-[#0A006E] rounded-lg text-xs font-montserrat font-bold cursor-pointer shrink-0 self-start sm:self-auto"
               >
                 Open Transfers Hub
               </button>
             </div>
 
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               {transfers
                 .filter((tr) => tr.status === 'Pending Authorization')
                 .map((tr) => (
                   <div
                     key={tr.id}
-                    className="bg-white border border-amber-300 rounded-xl p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-2xs"
+                    className="bg-white border border-amber-200 rounded-lg p-3 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5"
                   >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="px-2.5 py-0.5 rounded-md bg-[#0A006E] text-[#FFDE00] font-jakarta font-black text-xs font-mono-tabular">
-                          {tr.transferNo}
-                        </span>
-                        <span className="px-2.5 py-0.5 rounded-md bg-amber-100 text-amber-900 text-[11px] font-jakarta font-black font-mono-tabular">
-                          {tr.quantityBottles} Bottles · {tr.sku}
-                        </span>
-                        <span className="text-[11px] text-slate-500 font-medium">
-                          Initiated by <strong>{tr.initiatedBy}</strong>
-                        </span>
+                    <div className="space-y-0.5 text-xs">
+                      <div className="flex items-center gap-2 flex-wrap font-mono-tabular font-bold text-[#0A006E]">
+                        <span>{tr.transferNo}</span>
+                        <span>·</span>
+                        <span>{tr.quantityBottles} Bottles ({tr.sku})</span>
+                        <span className="font-sans font-normal text-slate-500">by {tr.initiatedBy}</span>
                       </div>
-                      <div className="text-xs sm:text-sm font-montserrat font-black text-slate-900">
-                        {tr.productName}
-                      </div>
-                      <div className="text-xs text-slate-600">
-                        Source: <strong className="text-slate-900">{tr.fromBranchName}</strong> → Destination:{' '}
-                        <strong className="text-[#0A006E]">{tr.toBranchName}</strong>
+                      <div className="font-montserrat font-bold text-slate-900">{tr.productName}</div>
+                      <div className="text-slate-600">
+                        {tr.fromBranchName} → <strong className="text-[#0A006E]">{tr.toBranchName}</strong>
                         {tr.vehicleReg ? ` · Vehicle: ${tr.vehicleReg}` : ''}
-                        {tr.excisePermitNo ? ` · Permit: ${tr.excisePermitNo}` : ''}
                       </div>
                     </div>
 
@@ -2180,9 +2222,9 @@ export const OverviewModule: React.FC<{
                         <button
                           type="button"
                           onClick={() => onRejectStockTransfer(tr.id)}
-                          className="px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer transition"
+                          className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
                         >
-                          <XCircle className="w-4 h-4" />
+                          <XCircle className="w-3.5 h-3.5" />
                           Reject
                         </button>
                       )}
@@ -2190,10 +2232,10 @@ export const OverviewModule: React.FC<{
                         <button
                           type="button"
                           onClick={() => onAuthorizeStockTransfer(tr.id)}
-                          className="px-4 py-2.5 bg-[#1E9E60] hover:bg-emerald-700 text-white rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-md transition active:scale-95"
+                          className="px-3.5 py-1.5 bg-[#1E9E60] hover:bg-emerald-700 text-white rounded-lg text-xs font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
                         >
-                          <ShieldCheck className="w-4 h-4" />
-                          Authorize Transfer
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          Authorize
                         </button>
                       )}
                     </div>
@@ -2203,329 +2245,284 @@ export const OverviewModule: React.FC<{
           </div>
         )}
 
-      {/* Admin & Branch Manager Customer Orders & Delivery Processing Queue */}
-      {(currentUser.role === 'Admin' || currentUser.role === 'Branch Manager') && (
-        <div className="bg-white border-2 border-[#0A006E]/20 rounded-2xl p-5 space-y-4 shadow-xs">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
-            <div className="flex items-start sm:items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 shadow-xs">
-                <Truck className="w-5 h-5" />
+      {/* KPI Cards Grid */}
+      {isWidgetVisible('kpi_strip') && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {(isKpiVisible('turnover') || isKpiVisible('branch_sales')) && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">
+                Gross Commercial Turnover
               </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[10px] font-montserrat font-black uppercase tracking-wider text-[#0A006E]">
-                    Customer Orders &amp; Delivery Fulfillment
-                  </span>
-                  <span className="px-2 py-0.5 rounded-md bg-sky-100 text-sky-900 text-[10px] font-jakarta font-black font-mono-tabular">
-                    {
-                      visibleTransactions.filter(
-                        (t) =>
-                          (t.docType === 'Online Order' || t.channel === 'Customer Online Portal' || t.deliveryAddress) &&
-                          t.deliveryStatus !== 'Delivered' &&
-                          t.status !== 'Fulfilled'
-                      ).length
-                    }{' '}
-                    Active Deliveries
-                  </span>
-                </div>
-                <h3 className="text-sm sm:text-base font-montserrat font-black text-slate-900">
-                  Incoming Customer Orders · Inspect Order Details &amp; Process Delivery
-                </h3>
+              <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                {formatKes(totalRevenue)}
+              </div>
+              <div className="text-[11px] text-slate-500 mt-0.5">
+                Credits: <span className="font-mono-tabular font-semibold">{formatKes(totalCredits)}</span>
               </div>
             </div>
+          )}
 
-            <button
-              type="button"
-              onClick={() => onNavigateModule?.('delivery_management')}
-              className="px-3.5 py-2 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shrink-0 shadow-xs"
-            >
-              <Truck className="w-3.5 h-3.5" />
-              Open Full Delivery Dispatch Hub
-            </button>
-          </div>
-
-          {visibleTransactions.filter(
-            (t) => t.docType === 'Online Order' || t.channel === 'Customer Online Portal' || Boolean(t.deliveryAddress)
-          ).length === 0 ? (
-            <div className="p-6 bg-[#F0F2F0] rounded-xl text-center text-xs text-slate-600">
-              No online customer delivery orders placed yet. As soon as a customer checks out on the Online Storefront, their itemized order and delivery address appear here for dispatch processing.
+          {(isKpiVisible('catalog') || isKpiVisible('branch_stock')) && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">
+                Master Liquor Catalog
+              </div>
+              <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                {products.length} SKUs
+              </div>
+              <div className="text-[11px] text-slate-500 mt-0.5">
+                IPS: <strong>{ipsCount}</strong> · LPS: <strong>{lpsCount}</strong> · {totalBottlesInBond.toLocaleString()} Btls
+              </div>
             </div>
-          ) : (
-            <div className="overflow-x-auto border border-slate-200 rounded-xl">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
-                    <th className="py-2.5 px-3 font-black">Order No</th>
-                    <th className="py-2.5 px-3 font-black">Customer &amp; Phone</th>
-                    <th className="py-2.5 px-3 font-black">Delivery Address / Zone</th>
-                    <th className="py-2.5 px-3 font-black">Payment</th>
-                    <th className="py-2.5 px-3 font-black">Delivery Status</th>
-                    <th className="py-2.5 px-3 font-black text-right">Total (KES)</th>
-                    <th className="py-2.5 px-3 font-black text-right">Process Delivery</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 bg-white">
-                  {visibleTransactions
-                    .filter(
-                      (t) =>
-                        t.docType === 'Online Order' ||
-                        t.channel === 'Customer Online Portal' ||
-                        Boolean(t.deliveryAddress)
-                    )
-                    .slice(0, 8)
-                    .map((tx) => {
-                      const delStatus =
-                        tx.deliveryStatus || (tx.status === 'Fulfilled' ? 'Delivered' : 'Pending Dispatch');
-                      return (
-                        <tr key={tx.id} className="hover:bg-slate-50">
-                          <td className="py-2.5 px-3 font-jakarta font-black text-[#0A006E] font-mono-tabular">
-                            {tx.docNumber}
-                            <div className="text-[10px] text-slate-400 font-normal">
-                              {new Date(tx.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </div>
-                          </td>
-                          <td className="py-2.5 px-3">
-                            <div className="font-montserrat font-bold text-slate-900">{tx.customerName}</div>
-                            <div className="text-[11px] font-jakarta font-bold text-[#0A006E] font-mono-tabular">
-                              {tx.customerPhone || '—'}
-                            </div>
-                          </td>
-                          <td className="py-2.5 px-3 text-slate-700 max-w-[220px]">
-                            <div className="font-semibold text-slate-900 truncate">
-                              {tx.deliveryAddress || tx.regionName}
-                            </div>
-                            <div className="text-[10px] text-slate-500 truncate">{tx.branchName}</div>
-                          </td>
-                          <td className="py-2.5 px-3">
-                            <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 font-semibold text-slate-800">
-                              {tx.paymentMethod}
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-3">
-                            <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-montserrat font-black ${
-                                delStatus === 'Delivered'
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : delStatus === 'Out for Delivery'
-                                  ? 'bg-amber-100 text-amber-900'
-                                  : 'bg-sky-100 text-sky-900'
-                              }`}
-                            >
-                              {delStatus}
-                            </span>
-                            {tx.assignedRiderName && (
-                              <div className="text-[10px] text-slate-500 mt-0.5 truncate">
-                                Rider: {tx.assignedRiderName}
-                              </div>
-                            )}
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-jakarta font-black text-slate-900 font-mono-tabular">
-                            {formatKes(tx.totalAmount)}
-                          </td>
-                          <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                            <button
-                              type="button"
-                              onClick={() => onInspectOrder?.(tx)}
-                              className="px-3 py-1.5 bg-[#FFDE00] hover:bg-amber-400 border-2 border-[#0A006E] text-[#0A006E] rounded-xl text-[11px] font-montserrat font-black inline-flex items-center gap-1.5 cursor-pointer shadow-2xs transition active:scale-95"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              View Details &amp; Process
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                </tbody>
-              </table>
+          )}
+
+          {(isKpiVisible('branches') || isKpiVisible('pending_transfers')) && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">
+                Depots &amp; Geo-Zones
+              </div>
+              <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                {branches.length} Depots · {regions.length} Zones
+              </div>
+              <div className="text-[11px] text-slate-500 mt-0.5">
+                {partners.length} Trade Partners
+              </div>
+            </div>
+          )}
+
+          {(isKpiVisible('staff_transfers') || isKpiVisible('active_deliveries')) && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">
+                Staff &amp; Transfers
+              </div>
+              <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                {staffList.length} Active Staff
+              </div>
+              <div className="text-[11px] text-slate-500 mt-0.5">
+                {transfers.length} Transfers · {activeDeliveriesCount} Active Deliveries
+              </div>
             </div>
           )}
         </div>
       )}
 
-      {/* 4. SALES FOR TODAY, THIS WEEK, THIS MONTH, THIS YEAR & CSV/PDF EXPORT */}
-      <div id="sales-period-section">
-        <SalesPeriodTracker
-          transactions={visibleTransactions}
-          currentUser={currentUser}
-          onPreviewDoc={onPreviewDoc}
-          onInspectOrder={onInspectOrder}
-          onNavigateToPos={(mode) => onNavigateModule?.(mode === 'retail' ? 'retail_pos' : 'sales_pos')}
-          branches={branches}
-          staff={staffList}
+      {/* Sales Period Tracker */}
+      {isWidgetVisible('reports_grid') && (
+        <div id="sales-period-section">
+          <SalesPeriodTracker
+            transactions={visibleTransactions}
+            currentUser={currentUser}
+            onPreviewDoc={onPreviewDoc}
+            onInspectOrder={onInspectOrder}
+            onNavigateToPos={(mode) => onNavigateModule?.(mode === 'retail' ? 'retail_pos' : 'sales_pos')}
+            branches={branches}
+            staff={staffList}
+          />
+        </div>
+      )}
+
+      {/* Customer Orders & Delivery Fulfillment Queue */}
+      {(isWidgetVisible('alerts_strip') || isWidgetVisible('action_queues')) &&
+        (currentUser.role === 'Admin' || currentUser.role === 'Branch Manager') && (
+          <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+              <div className="flex items-center gap-2.5">
+                <Truck className="w-4 h-4 text-[#0A006E]" />
+                <h3 className="text-sm font-montserrat font-bold text-slate-900">
+                  Incoming Customer Orders ({activeDeliveriesCount} Active)
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => onNavigateModule?.('delivery_management')}
+                className="px-3 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-xs font-montserrat font-bold cursor-pointer self-start sm:self-auto"
+              >
+                Open Delivery Hub →
+              </button>
+            </div>
+
+            {visibleTransactions.filter(
+              (t) => t.docType === 'Online Order' || t.channel === 'Customer Online Portal' || Boolean(t.deliveryAddress)
+            ).length === 0 ? (
+              <div className="p-5 bg-slate-50 rounded-lg text-center text-xs text-slate-500">
+                No online customer delivery orders placed yet.
+              </div>
+            ) : (
+              <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-montserrat">
+                      <th className="py-2 px-3 font-bold">Order No</th>
+                      <th className="py-2 px-3 font-bold">Customer &amp; Phone</th>
+                      <th className="py-2 px-3 font-bold">Address</th>
+                      <th className="py-2 px-3 font-bold">Status</th>
+                      <th className="py-2 px-3 font-bold text-right">Total</th>
+                      <th className="py-2 px-3 font-bold text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {visibleTransactions
+                      .filter(
+                        (t) =>
+                          t.docType === 'Online Order' ||
+                          t.channel === 'Customer Online Portal' ||
+                          Boolean(t.deliveryAddress)
+                      )
+                      .slice(0, 8)
+                      .map((tx) => {
+                        const delStatus =
+                          tx.deliveryStatus || (tx.status === 'Fulfilled' ? 'Delivered' : 'Pending Dispatch');
+                        return (
+                          <tr key={tx.id} className="hover:bg-slate-50">
+                            <td className="py-2 px-3 font-mono-tabular font-bold text-[#0A006E]">{tx.docNumber}</td>
+                            <td className="py-2 px-3">
+                              <div className="font-montserrat font-bold text-slate-900">{tx.customerName}</div>
+                              <div className="text-[11px] font-mono-tabular text-slate-500">{tx.customerPhone || '—'}</div>
+                            </td>
+                            <td className="py-2 px-3 text-slate-700 max-w-[200px] truncate">
+                              {tx.deliveryAddress || tx.regionName}
+                            </td>
+                            <td className="py-2 px-3 font-bold text-sky-700">{delStatus}</td>
+                            <td className="py-2 px-3 text-right font-mono-tabular font-bold">
+                              {formatKes(tx.totalAmount)}
+                            </td>
+                            <td className="py-2 px-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => onInspectOrder?.(tx)}
+                                className="px-2.5 py-1 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-md text-[11px] font-montserrat font-bold cursor-pointer"
+                              >
+                                Process
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+      {/* Visual Analytics */}
+      {isWidgetVisible('reports_grid') && (
+        <ExecutiveVisualAnalytics
+          branchData={branchBarData}
+          channelData={channelPieData}
+          assetData={assetPieData}
+          topSkusData={topSkusBarData}
         />
-      </div>
-
-      {/* 4 KPI Blocks on Bright Grey (#F0F2F0) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-          <div className="text-xs font-montserrat font-bold text-slate-600">
-            Gross Commercial Turnover
-          </div>
-          <div className="text-2xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1">
-            {formatKes(totalRevenue)}
-          </div>
-          <div className="text-xs text-slate-600 mt-1">
-            Credit Notes Issued: <span className="font-mono-tabular font-bold">{formatKes(totalCredits)}</span>
-          </div>
-        </div>
-
-        <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-          <div className="text-xs font-montserrat font-bold text-slate-600">
-            Master Liquor Catalog (IPS &amp; LPS)
-          </div>
-          <div className="text-2xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1">
-            {products.length} SKUs
-          </div>
-          <div className="text-xs text-slate-600 mt-1">
-            IPS Imported: <strong>{ipsCount}</strong> · LPS Local: <strong>{lpsCount}</strong> ({totalBottlesInBond.toLocaleString()} Btls)
-          </div>
-        </div>
-
-        <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-          <div className="text-xs font-montserrat font-bold text-slate-600">
-            Supply Chain &amp; Geo-Zones
-          </div>
-          <div className="text-2xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1">
-            {partners.length} Partners · {regions.length} Zones
-          </div>
-          <div className="text-xs text-slate-600 mt-1">
-            Suppliers, Licensed Retailers &amp; Bonded Logistics
-          </div>
-        </div>
-
-        <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-          <div className="text-xs font-montserrat font-bold text-slate-600">
-            Provisioned Staff &amp; RBAC
-          </div>
-          <div className="text-2xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1">
-            {staffList.length} Active Staff
-          </div>
-          <div className="text-xs text-slate-600 mt-1">
-            {transfers.length} Inter-Branch Transfers Logged
-          </div>
-        </div>
-      </div>
-
-      {/* 5. Professional Visual Analytics: Interactive Bar Graphs & Pie Charts */}
-      <ExecutiveVisualAnalytics
-        branchData={branchBarData}
-        channelData={channelPieData}
-        assetData={assetPieData}
-        topSkusData={topSkusBarData}
-      />
+      )}
 
       {/* Regional Branch Performance Matrix */}
-      <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
-              Regional Branch Performance &amp; Bonded Stock Distribution
+      {(isWidgetVisible('reports_grid') || isWidgetVisible('quick_tiles')) && (
+        <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-montserrat font-bold text-[#0A006E]">
+              Regional Branch Performance &amp; Stock Distribution
             </h3>
-            <p className="text-xs text-slate-600">
-              Live oversight of branch revenue, assigned geo-pricing zone, and KRA excise bond license.
-            </p>
+            <span className="text-xs font-mono-tabular text-slate-500">{branches.length} Branches</span>
+          </div>
+
+          <div className="overflow-x-auto border border-slate-200 rounded-lg">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-montserrat">
+                  <th className="py-2 px-3 font-bold">Code</th>
+                  <th className="py-2 px-3 font-bold">Branch Name</th>
+                  <th className="py-2 px-3 font-bold">Geo-Zone</th>
+                  <th className="py-2 px-3 font-bold">Bond License</th>
+                  <th className="py-2 px-3 font-bold text-right">Logged Sales</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {branches.map((b) => {
+                  const branchSales = transactions
+                    .filter(
+                      (t) =>
+                        t.branchId === b.id &&
+                        t.orderCategory !== 'WAREHOUSE_PURCHASE' &&
+                        (t.docType === 'Receipt' || t.docType === 'Invoice' || t.docType === 'Online Order')
+                    )
+                    .reduce((s, t) => s + t.totalAmount, 0);
+
+                  return (
+                    <tr key={b.id} className="hover:bg-slate-50">
+                      <td className="py-2 px-3 font-mono-tabular font-bold text-[#0A006E]">{b.code}</td>
+                      <td className="py-2 px-3 font-montserrat font-bold text-slate-900">{b.name}</td>
+                      <td className="py-2 px-3 text-slate-600">{b.regionName}</td>
+                      <td className="py-2 px-3 font-mono-tabular text-slate-600">{b.exciseBondLicense}</td>
+                      <td className="py-2 px-3 text-right font-mono-tabular font-bold text-slate-900">
+                        {formatKes(branchSales)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
-
-        <div className="overflow-x-auto bg-white border border-slate-200 rounded-xl">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
-                <th className="py-2.5 px-3 font-black">Branch Code</th>
-                <th className="py-2.5 px-3 font-black">Depot / Branch Name</th>
-                <th className="py-2.5 px-3 font-black">Geo-Pricing Zone</th>
-                <th className="py-2.5 px-3 font-black">Excise Bond License</th>
-                <th className="py-2.5 px-3 font-black">Status</th>
-                <th className="py-2.5 px-3 font-black text-right">Logged Sales (KES)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {branches.map((b) => {
-                const branchSales = transactions
-                  .filter(
-                    (t) =>
-                      t.branchId === b.id &&
-                      t.orderCategory !== 'WAREHOUSE_PURCHASE' &&
-                      (t.docType === 'Receipt' || t.docType === 'Invoice' || t.docType === 'Online Order')
-                  )
-                  .reduce((s, t) => s + t.totalAmount, 0);
-
-                return (
-                  <tr key={b.id} className="hover:bg-slate-50">
-                    <td className="py-2.5 px-3 font-mono-tabular font-bold text-[#0A006E]">{b.code}</td>
-                    <td className="py-2.5 px-3 font-montserrat font-bold text-slate-900">{b.name}</td>
-                    <td className="py-2.5 px-3 text-slate-600">{b.regionName}</td>
-                    <td className="py-2.5 px-3 font-mono-tabular text-slate-700">{b.exciseBondLicense}</td>
-                    <td className="py-2.5 px-3 text-[#1E9E60] font-bold">{b.status}</td>
-                    <td className="py-2.5 px-3 text-right font-mono-tabular font-bold text-slate-900">
-                      {formatKes(branchSales)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      )}
 
       {/* Recent Commercial Transactions */}
-      <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
-            Latest Commercial Documents (Receipts, Invoices, Quotes &amp; Credit Notes)
-          </h3>
-          <span className="text-xs font-mono-tabular font-bold text-[#0A006E]">
-            Showing {Math.min(8, visibleTransactions.length)} of {visibleTransactions.length}
-          </span>
-        </div>
+      {isWidgetVisible('reports_grid') && (
+        <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-montserrat font-bold text-[#0A006E]">
+              Latest Commercial Documents
+            </h3>
+            <span className="text-xs font-mono-tabular text-slate-500">
+              Showing {Math.min(8, visibleTransactions.length)} of {visibleTransactions.length}
+            </span>
+          </div>
 
-        <div className="overflow-x-auto bg-white border border-slate-200 rounded-xl">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
-                <th className="py-2.5 px-3 font-black">Document No</th>
-                <th className="py-2.5 px-3 font-black">Type</th>
-                <th className="py-2.5 px-3 font-black">Branch &amp; Geo-Zone</th>
-                <th className="py-2.5 px-3 font-black">Customer / Retailer</th>
-                <th className="py-2.5 px-3 font-black text-right">Amount (KES)</th>
-                <th className="py-2.5 px-3 font-black text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {visibleTransactions.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="py-6 text-center text-slate-500">
-                    No commercial transactions issued yet. Use Retail POS, Wholesale Sales POS, or Customer Portal.
-                  </td>
+          <div className="overflow-x-auto border border-slate-200 rounded-lg">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-montserrat">
+                  <th className="py-2 px-3 font-bold">Document No</th>
+                  <th className="py-2 px-3 font-bold">Type</th>
+                  <th className="py-2 px-3 font-bold">Branch</th>
+                  <th className="py-2 px-3 font-bold">Customer</th>
+                  <th className="py-2 px-3 font-bold text-right">Amount</th>
+                  <th className="py-2 px-3 font-bold text-right">PDF</th>
                 </tr>
-              ) : (
-                visibleTransactions.slice(0, 8).map((tx) => (
-                  <tr key={tx.id} className="hover:bg-slate-50">
-                    <td className="py-2.5 px-3 font-mono-tabular font-bold text-[#0A006E]">{tx.docNumber}</td>
-                    <td className="py-2.5 px-3 font-montserrat font-bold text-slate-900">{tx.docType}</td>
-                    <td className="py-2.5 px-3 text-slate-600">
-                      {tx.branchName} · {tx.regionName}
-                    </td>
-                    <td className="py-2.5 px-3 text-slate-800">{tx.customerName}</td>
-                    <td className="py-2.5 px-3 text-right font-mono-tabular font-bold">
-                      {formatKes(tx.totalAmount)}
-                    </td>
-                    <td className="py-2.5 px-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => onPreviewDoc(tx)}
-                        className="px-3 py-1 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-black cursor-pointer"
-                      >
-                        Print / PDF
-                      </button>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {visibleTransactions.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-6 text-center text-slate-500">
+                      No commercial transactions issued yet.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  visibleTransactions.slice(0, 8).map((tx) => (
+                    <tr key={tx.id} className="hover:bg-slate-50">
+                      <td className="py-2 px-3 font-mono-tabular font-bold text-[#0A006E]">{tx.docNumber}</td>
+                      <td className="py-2 px-3 font-montserrat font-semibold text-slate-900">{tx.docType}</td>
+                      <td className="py-2 px-3 text-slate-600">{tx.branchName}</td>
+                      <td className="py-2 px-3 text-slate-800">{tx.customerName}</td>
+                      <td className="py-2 px-3 text-right font-mono-tabular font-bold">
+                        {formatKes(tx.totalAmount)}
+                      </td>
+                      <td className="py-2 px-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => onPreviewDoc(tx)}
+                          className="px-2.5 py-1 bg-slate-100 hover:bg-[#0A006E] hover:text-[#FFDE00] text-[#0A006E] rounded-md text-[11px] font-montserrat font-bold cursor-pointer transition"
+                        >
+                          PDF
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

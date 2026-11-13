@@ -43,6 +43,8 @@ import { formatKes, exportReportToPDF, exportToCSV } from '../erpUtils';
 import { BarGraph, PieChart as AnalyticsPieChart } from './common/AnalyticsCharts';
 import { KraReturnsPanel } from './KraReturnsExportModal';
 import { KraReturnScheduleType } from '../utils/kraReturnsExport';
+import { useDashboardPrefs } from '../utils/dashboardPrefs';
+import { MinimalDashboardBar } from './common/MinimalDashboardBar';
 
 interface AccountantFinancialDashboardProps {
   currentUser: StaffMember;
@@ -205,6 +207,18 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
   const [expenseSearch, setExpenseSearch] = useState('');
   const [expenseCategoryFilter, setExpenseCategoryFilter] = useState<string>('ALL');
   const [pendingDeleteExpenseId, setPendingDeleteExpenseId] = useState<string | null>(null);
+
+  const {
+    schema: dashSchema,
+    prefs: dashPrefs,
+    isMinimal,
+    setMode: setDashMode,
+    toggleKpi,
+    toggleWidget,
+    isKpiVisible,
+    isWidgetVisible,
+    resetToDefault,
+  } = useDashboardPrefs(currentUser);
 
   useEffect(() => {
     if (!expenseBranchId && branches.length > 0) {
@@ -907,167 +921,27 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
   };
 
   return (
-    <div className="space-y-6">
-      {/* Mobile Only: Compact App Action Dock */}
-      <div className="flex sm:hidden flex-col gap-2">
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5">
-          <div className="bg-slate-100 p-1 rounded-xl border border-slate-300 flex items-center text-xs shrink-0">
-            {(['ALL', 'YEAR', 'MONTH', 'WEEK', 'TODAY'] as DateFilter[]).map((period) => (
-              <button
-                key={period}
-                type="button"
-                onClick={() => setDateFilter(period)}
-                className={`px-2.5 py-1.5 rounded-lg font-montserrat font-bold text-xs transition cursor-pointer ${
-                  dateFilter === period
-                    ? 'bg-[#0A006E] text-[#FFDE00] shadow-xs'
-                    : 'text-slate-600 active:text-slate-900'
-                }`}
-              >
-                {period === 'ALL'
-                  ? 'All'
-                  : period === 'YEAR'
-                  ? 'Year'
-                  : period === 'MONTH'
-                  ? 'Month'
-                  : period === 'WEEK'
-                  ? 'Week'
-                  : 'Today'}
-              </button>
-            ))}
-          </div>
-
-          <select
-            aria-label="Filter by Branch"
-            value={selectedBranchFilter}
-            onChange={(e) => setSelectedBranchFilter(e.target.value)}
-            className="px-2.5 py-2 bg-white border border-slate-300 rounded-xl text-xs font-montserrat font-bold text-[#0A006E] shrink-0"
-          >
-            <option value="ALL">All Branches</option>
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          <button
-            type="button"
-            onClick={() => setIsExpenseModalOpen(true)}
-            className="px-3.5 py-2.5 bg-[#0A006E] active:bg-indigo-950 text-[#FFDE00] border-2 border-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 shadow-xs whitespace-nowrap shrink-0 cursor-pointer"
-          >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>+ Record Expense</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (onOpenKraReturns) {
-                onOpenKraReturns('VAT3_SALES_SEC_B');
-              } else {
-                setActiveTab('tax_credit');
-              }
-            }}
-            className="px-3.5 py-2.5 bg-[#34D186] active:bg-emerald-500 text-[#0A006E] border-2 border-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 shadow-xs whitespace-nowrap shrink-0 cursor-pointer"
-          >
-            <FileSpreadsheet className="w-4 h-4 stroke-[2.4]" />
-            <span>KRA Returns</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleExportComprehensiveFinancialPDF}
-            className="px-3.5 py-2.5 bg-[#FFDE00] active:bg-amber-400 text-[#0A006E] border-2 border-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 shadow-xs whitespace-nowrap shrink-0 cursor-pointer"
-          >
-            <Download className="w-4 h-4 stroke-[2.4]" />
-            <span>Financial PDF</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleExportFinancialLedgerCSV}
-            className="px-3.5 py-2.5 bg-white active:bg-slate-100 border-2 border-[#0A006E] text-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 shadow-xs whitespace-nowrap shrink-0 cursor-pointer"
-          >
-            <Download className="w-4 h-4 stroke-[2.4]" />
-            <span>CSV Ledger</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Desktop/Tablet: ACCOUNTANT COMMAND HEADER */}
-      <div className="hidden sm:block bg-[#0A006E] text-white border-2 border-[#FFDE00] rounded-2xl p-5 relative overflow-hidden shadow-xl">
-        <div className="silent-scanner-beam" />
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 relative z-10">
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black font-montserrat uppercase tracking-wider bg-[#FFDE00] text-[#0A006E]">
-                Chief Financial Accountant Portal
-              </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-[#FFDE00] border border-white/20">
-                {selectedBranchObj ? selectedBranchObj.name : 'All Branches'} · {filteredExpenses.length} Expense Vouchers
-              </span>
-            </div>
-            <h2 className="text-xl sm:text-2xl font-montserrat font-black italic text-white mt-1.5">
-              Financial Analysis &amp; Commercial Accounting Center
-            </h2>
-            <p className="text-xs text-white/80 max-w-2xl mt-0.5">
-              Real-time P&amp;L reconciliation: live sales ledger, Cost of Goods Sold (COGS), operating expense entry, stock write-offs, payroll &amp; KRA tax schedules.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Branch Selector */}
-            <div className="flex items-center gap-1.5 bg-white/10 border border-white/20 rounded-xl px-2.5 py-1.5">
-              <Filter className="w-3.5 h-3.5 text-[#FFDE00]" />
-              <select
-                aria-label="Filter by Branch"
-                value={selectedBranchFilter}
-                onChange={(e) => setSelectedBranchFilter(e.target.value)}
-                className="bg-transparent text-xs font-montserrat font-bold text-white outline-none cursor-pointer"
-              >
-                <option value="ALL" className="text-slate-900">All Branches</option>
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id} className="text-slate-900">
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Date filter pills */}
-            <div className="bg-white/10 p-1 rounded-xl border border-white/20 flex items-center text-xs">
-              {(['ALL', 'YEAR', 'MONTH', 'WEEK', 'TODAY'] as DateFilter[]).map((period) => (
-                <button
-                  key={period}
-                  type="button"
-                  onClick={() => setDateFilter(period)}
-                  className={`px-2.5 py-1 rounded-lg font-montserrat font-bold text-xs transition cursor-pointer ${
-                    dateFilter === period
-                      ? 'bg-[#FFDE00] text-[#0A006E] shadow-sm'
-                      : 'text-white/80 hover:text-white'
-                  }`}
-                >
-                  {period === 'ALL'
-                    ? 'All Time'
-                    : period === 'YEAR'
-                    ? 'Year'
-                    : period === 'MONTH'
-                    ? 'Month'
-                    : period === 'WEEK'
-                    ? 'Week'
-                    : 'Today'}
-                </button>
-              ))}
-            </div>
-
+    <div className="space-y-4">
+      {/* Unified Minimal Customizable Accountant Header */}
+      <MinimalDashboardBar
+        currentUser={currentUser}
+        schema={dashSchema}
+        prefs={dashPrefs}
+        onChangeMode={setDashMode}
+        onToggleKpi={toggleKpi}
+        onToggleWidget={toggleWidget}
+        onReset={resetToDefault}
+        subtitle={`${selectedBranchObj ? selectedBranchObj.name : 'All Branches'} · ${filteredExpenses.length} Vouchers · Period: ${dateFilter}`}
+        actions={
+          <>
             <button
               type="button"
               onClick={() => setIsExpenseModalOpen(true)}
-              className="px-3.5 py-2 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-md transition whitespace-nowrap shrink-0"
+              className="px-2.5 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
             >
-              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-              Record Expense
+              <Plus className="w-3.5 h-3.5" />
+              Expense
             </button>
-
             <button
               type="button"
               onClick={() => {
@@ -1077,248 +951,264 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
                   setActiveTab('tax_credit');
                 }
               }}
-              className="px-3.5 py-2 bg-[#34D186] hover:bg-[#28B873] text-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-md transition whitespace-nowrap shrink-0"
+              className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
-              KRA Returns (.xlsx)
+              KRA (.xlsx)
             </button>
             <button
               type="button"
               onClick={handleExportComprehensiveFinancialPDF}
-              className="px-3 py-2 bg-white/15 hover:bg-white/25 border border-white/30 text-white rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer transition whitespace-nowrap shrink-0"
+              className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
             >
-              <Download className="w-3.5 h-3.5 text-[#FFDE00]" />
+              <Download className="w-3.5 h-3.5" />
               PDF
             </button>
             <button
               type="button"
               onClick={handleExportFinancialLedgerCSV}
-              className="px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/30 text-white rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer transition whitespace-nowrap shrink-0"
+              className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
             >
-              <Download className="w-3.5 h-3.5 text-[#FFDE00]" />
+              <Download className="w-3.5 h-3.5" />
               CSV
             </button>
-          </div>
+          </>
+        }
+      />
+
+      {/* Streamlined Branch & Period Filter Strip */}
+      <div className="bg-white border border-slate-200 rounded-xl px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="bg-slate-100 p-0.5 rounded-lg border border-slate-200 flex items-center text-xs">
+          {(['ALL', 'YEAR', 'MONTH', 'WEEK', 'TODAY'] as DateFilter[]).map((period) => (
+            <button
+              key={period}
+              type="button"
+              onClick={() => setDateFilter(period)}
+              className={`px-2.5 py-1 rounded-md font-montserrat font-bold text-[11px] transition cursor-pointer whitespace-nowrap ${
+                dateFilter === period
+                  ? 'bg-[#0A006E] text-[#FFDE00]'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {period === 'ALL'
+                ? 'All'
+                : period === 'YEAR'
+                ? 'Year'
+                : period === 'MONTH'
+                ? 'Month'
+                : period === 'WEEK'
+                ? 'Week'
+                : 'Today'}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Filter className="w-3.5 h-3.5 text-slate-400" />
+          <select
+            aria-label="Filter by Branch"
+            value={selectedBranchFilter}
+            onChange={(e) => setSelectedBranchFilter(e.target.value)}
+            className="px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-montserrat font-semibold text-[#0A006E] cursor-pointer"
+          >
+            <option value="ALL">All Branches</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
-      {/* TOP 5 LIVE FINANCIAL KPI METERS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* KPI 1: Live Gross Sales */}
-        <div className="bg-[#F0F2F0] border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl p-4 transition shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-montserrat font-black text-slate-500 uppercase tracking-wider">
-              Live Gross Sales
-            </span>
-            <div className="w-7 h-7 rounded-lg bg-[#0A006E] text-[#FFDE00] flex items-center justify-center">
-              <DollarSign className="w-4 h-4 stroke-[2.5]" />
+      {/* TOP LIVE FINANCIAL KPI STRIP */}
+      {isWidgetVisible('kpi_strip') && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
+          {isKpiVisible('gross_sales') && (
+            <div className="bg-white border border-slate-200 hover:border-[#0A006E] rounded-xl p-3.5 transition">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
+                  Gross Sales
+                </span>
+                <DollarSign className="w-3.5 h-3.5 text-[#0A006E] shrink-0" />
+              </div>
+              <div className="text-base sm:text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1 truncate">
+                {formatKes(salesMetrics.grossSales)}
+              </div>
+              <div className="text-[10px] text-slate-500 mt-0.5 truncate">
+                {salesMetrics.completedOrdersCount} orders · AOV {formatKes(salesMetrics.aov)}
+              </div>
             </div>
-          </div>
-          <div className="text-xl sm:text-2xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1.5">
-            {formatKes(salesMetrics.grossSales)}
-          </div>
-          <div className="text-[11px] text-slate-600 mt-1 flex items-center justify-between">
-            <span>Orders: <strong className="text-slate-800">{salesMetrics.completedOrdersCount}</strong></span>
-            <span>AOV: <strong className="text-slate-800">{formatKes(salesMetrics.aov)}</strong></span>
-          </div>
-        </div>
+          )}
 
-        {/* KPI 2: Operating Expenses + Payroll + Write-Offs */}
-        <div
-          onClick={() => setActiveTab('expenses')}
-          className="bg-[#F0F2F0] border-2 border-slate-200 hover:border-rose-500 rounded-2xl p-4 transition shadow-2xs cursor-pointer"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-montserrat font-black text-rose-700 uppercase tracking-wider">
-              Recorded Expenses
-            </span>
-            <div className="w-7 h-7 rounded-lg bg-rose-600 text-white flex items-center justify-center">
-              <Wallet className="w-4 h-4 stroke-[2.5]" />
+          {isKpiVisible('expenses') && (
+            <div
+              onClick={() => setActiveTab('expenses')}
+              className="bg-white border border-slate-200 hover:border-rose-500 rounded-xl p-3.5 transition cursor-pointer"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-montserrat font-semibold text-rose-700 truncate">
+                  Expenses
+                </span>
+                <Wallet className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+              </div>
+              <div className="text-base sm:text-lg font-montserrat font-black text-rose-700 font-mono-tabular mt-1 truncate">
+                {formatKes(expenseMetrics.totalRecorded)}
+              </div>
+              <div className="text-[10px] text-slate-500 mt-0.5 truncate">
+                {filteredExpenses.length} vouchers · Tap to manage
+              </div>
             </div>
-          </div>
-          <div className="text-xl sm:text-2xl font-montserrat font-black text-rose-700 font-mono-tabular mt-1.5">
-            {formatKes(expenseMetrics.totalRecorded)}
-          </div>
-          <div className="text-[11px] text-slate-600 mt-1 flex items-center justify-between">
-            <span>{filteredExpenses.length} Vouchers</span>
-            <span className="text-rose-700 font-bold underline">Manage &amp; Add</span>
-          </div>
-        </div>
+          )}
 
-        {/* KPI 3: Live Stock Asset Valuation */}
-        <div className="bg-[#F0F2F0] border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl p-4 transition shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-montserrat font-black text-slate-500 uppercase tracking-wider">
-              Stock Asset (Cost)
-            </span>
-            <div className="w-7 h-7 rounded-lg bg-[#34D186] text-white flex items-center justify-center">
-              <Package className="w-4 h-4 stroke-[2.5]" />
+          {isKpiVisible('stock_asset') && (
+            <div className="bg-white border border-slate-200 hover:border-[#0A006E] rounded-xl p-3.5 transition">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
+                  Stock Valuation
+                </span>
+                <Package className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              </div>
+              <div className="text-base sm:text-lg font-montserrat font-black text-emerald-700 font-mono-tabular mt-1 truncate">
+                {formatKes(stockMetrics.totalStockCost)}
+              </div>
+              <div className="text-[10px] text-slate-500 mt-0.5 truncate">
+                {stockMetrics.totalBottlesInBond.toLocaleString()} bottles in bond
+              </div>
             </div>
-          </div>
-          <div className="text-xl sm:text-2xl font-montserrat font-black text-[#1E9E60] font-mono-tabular mt-1.5">
-            {formatKes(stockMetrics.totalStockCost)}
-          </div>
-          <div className="text-[11px] text-slate-600 mt-1 flex items-center justify-between">
-            <span>Bottles in Bond:</span>
-            <strong className="text-slate-800">{stockMetrics.totalBottlesInBond.toLocaleString()} Btls</strong>
-          </div>
-        </div>
+          )}
 
-        {/* KPI 4: Gross Commercial Profit */}
-        <div className="bg-[#F0F2F0] border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl p-4 transition shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-montserrat font-black text-slate-500 uppercase tracking-wider">
-              Gross Profit &amp; Margin
-            </span>
-            <div className="w-7 h-7 rounded-lg bg-[#0A006E] text-white flex items-center justify-center">
-              <TrendingUp className="w-4 h-4 stroke-[2.5]" />
+          {isKpiVisible('gross_profit') && (
+            <div className="bg-white border border-slate-200 hover:border-[#0A006E] rounded-xl p-3.5 transition">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
+                  Gross Profit
+                </span>
+                <TrendingUp className="w-3.5 h-3.5 text-[#0A006E] shrink-0" />
+              </div>
+              <div
+                className={`text-base sm:text-lg font-montserrat font-black font-mono-tabular mt-1 truncate ${
+                  salesMetrics.grossProfit < 0 ? 'text-rose-700' : 'text-[#0A006E]'
+                }`}
+              >
+                {formatKes(salesMetrics.grossProfit)}
+              </div>
+              <div className="text-[10px] text-slate-500 mt-0.5 truncate">
+                Margin:{' '}
+                <strong className={salesMetrics.grossMarginPct < 0 ? 'text-rose-600' : 'text-emerald-700'}>
+                  {salesMetrics.grossMarginPct.toFixed(1)}%
+                </strong>
+              </div>
             </div>
-          </div>
-          <div className={`text-xl sm:text-2xl font-montserrat font-black font-mono-tabular mt-1.5 ${
-            salesMetrics.grossProfit < 0 ? 'text-rose-700' : 'text-[#0A006E]'
-          }`}>
-            {formatKes(salesMetrics.grossProfit)}
-          </div>
-          <div className="text-[11px] text-slate-600 mt-1 flex items-center justify-between">
-            <span>Operating Margin:</span>
-            <span className={`font-bold ${salesMetrics.grossMarginPct < 0 ? 'text-rose-600' : 'text-[#1E9E60]'}`}>
-              {salesMetrics.grossMarginPct.toFixed(1)}%
-            </span>
-          </div>
-        </div>
+          )}
 
-        {/* KPI 5: Stock Write-Offs + Dead Stock Risk */}
-        <div className="bg-[#F0F2F0] border-2 border-slate-200 hover:border-amber-400 rounded-2xl p-4 transition shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-montserrat font-black text-amber-800 uppercase tracking-wider">
-              Write-Offs &amp; Dead Stock
-            </span>
-            <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center">
-              <AlertTriangle className="w-4 h-4 stroke-[2.5]" />
+          {isKpiVisible('writeoffs') && (
+            <div className="bg-white border border-slate-200 hover:border-amber-400 rounded-xl p-3.5 transition">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-montserrat font-semibold text-amber-800 truncate">
+                  Write-Offs &amp; Idle
+                </span>
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              </div>
+              <div className="text-base sm:text-lg font-montserrat font-black text-amber-900 font-mono-tabular mt-1 truncate">
+                {formatKes(stockMetrics.totalWriteOffs + stockMetrics.totalDeadStockCapitalKes)}
+              </div>
+              <div className="text-[10px] text-slate-500 mt-0.5 truncate">
+                {stockMetrics.deadStockItems.length} idle SKUs
+              </div>
             </div>
-          </div>
-          <div className="text-xl sm:text-2xl font-montserrat font-black text-amber-900 font-mono-tabular mt-1.5">
-            {formatKes(stockMetrics.totalWriteOffs + stockMetrics.totalDeadStockCapitalKes)}
-          </div>
-          <div className="text-[11px] text-slate-600 mt-1 flex items-center justify-between">
-            <span>Write-off: <strong>{formatKes(stockMetrics.totalWriteOffs)}</strong></span>
-            <span>Idle: <strong>{stockMetrics.deadStockItems.length} SKUs</strong></span>
-          </div>
+          )}
         </div>
-      </div>
+      )}
 
       {/* ACCOUNTANT NAVIGATION TABS */}
-      <div className="flex items-center gap-2 border-b-2 border-slate-200 overflow-x-auto pb-1.5">
+      <div className="flex items-center gap-1.5 border-b border-slate-200 overflow-x-auto pb-1.5">
         <button
           type="button"
           onClick={() => setActiveTab('summary')}
-          className={`px-4 py-2.5 rounded-xl font-montserrat font-black text-xs flex items-center gap-2 transition cursor-pointer whitespace-nowrap ${
+          className={`px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
             activeTab === 'summary'
-              ? 'bg-[#0A006E] text-[#FFDE00] shadow-md'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              ? 'bg-[#0A006E] text-[#FFDE00]'
+              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
           }`}
         >
-          <BarChart3 className="w-4 h-4" />
-          Executive P&amp;L &amp; Balance Sheet
+          <BarChart3 className="w-3.5 h-3.5" />
+          P&amp;L Summary
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('expenses')}
-          className={`px-4 py-2.5 rounded-xl font-montserrat font-black text-xs flex items-center gap-2 transition cursor-pointer whitespace-nowrap ${
+          className={`px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
             activeTab === 'expenses'
-              ? 'bg-[#0A006E] text-[#FFDE00] shadow-md'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              ? 'bg-[#0A006E] text-[#FFDE00]'
+              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
           }`}
         >
-          <Wallet className="w-4 h-4" />
-          Expenses &amp; Overheads
-          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono-tabular ${
-            activeTab === 'expenses' ? 'bg-[#FFDE00] text-[#0A006E]' : 'bg-rose-100 text-rose-700'
-          }`}>
-            {filteredExpenses.length}
-          </span>
+          <Wallet className="w-3.5 h-3.5" />
+          Expenses ({filteredExpenses.length})
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('sales')}
-          className={`px-4 py-2.5 rounded-xl font-montserrat font-black text-xs flex items-center gap-2 transition cursor-pointer whitespace-nowrap ${
+          className={`px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
             activeTab === 'sales'
-              ? 'bg-[#0A006E] text-[#FFDE00] shadow-md'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              ? 'bg-[#0A006E] text-[#FFDE00]'
+              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
           }`}
         >
-          <DollarSign className="w-4 h-4" />
-          Live Sales Analysis &amp; Tenders
+          <DollarSign className="w-3.5 h-3.5" />
+          Sales &amp; Tenders
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('stock')}
-          className={`px-4 py-2.5 rounded-xl font-montserrat font-black text-xs flex items-center gap-2 transition cursor-pointer whitespace-nowrap ${
+          className={`px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
             activeTab === 'stock'
-              ? 'bg-[#0A006E] text-[#FFDE00] shadow-md'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              ? 'bg-[#0A006E] text-[#FFDE00]'
+              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
           }`}
         >
-          <Package className="w-4 h-4" />
-          Stock Valuation &amp; Depots
+          <Package className="w-3.5 h-3.5" />
+          Stock Valuation
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('deadstock_damages')}
-          className={`px-4 py-2.5 rounded-xl font-montserrat font-black text-xs flex items-center gap-2 transition cursor-pointer whitespace-nowrap ${
+          className={`px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
             activeTab === 'deadstock_damages'
-              ? 'bg-[#0A006E] text-[#FFDE00] shadow-md'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              ? 'bg-[#0A006E] text-[#FFDE00]'
+              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
           }`}
         >
-          <PackageX className="w-4 h-4" />
+          <PackageX className="w-3.5 h-3.5" />
           Damages &amp; Dead Stock
-          {(stockMetrics.totalDamagedBottles > 0 || stockMetrics.totalSpoiledBottles > 0) && (
-            <span className="w-2 h-2 rounded-full bg-rose-500 ml-1" />
-          )}
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('tax_credit')}
-          className={`px-4 py-2.5 rounded-xl font-montserrat font-black text-xs flex items-center gap-2 transition cursor-pointer whitespace-nowrap ${
+          className={`px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
             activeTab === 'tax_credit'
-              ? 'bg-[#0A006E] text-[#FFDE00] shadow-md'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              ? 'bg-[#0A006E] text-[#FFDE00]'
+              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
           }`}
         >
-          <ShieldAlert className="w-4 h-4" />
-          KRA Tax &amp; Receivables
+          <ShieldAlert className="w-3.5 h-3.5" />
+          KRA Tax &amp; A/R
         </button>
       </div>
 
       {/* TAB 1: EXECUTIVE P&L & BALANCE SHEET */}
       {activeTab === 'summary' && (
-        <div className="space-y-6">
-          <div className="bg-[#F3F4F6] border-2 border-slate-300 rounded-3xl p-5 sm:p-6 shadow-md space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
-              <div>
-                <span className="text-[11px] font-montserrat font-black text-[#0A006E] uppercase tracking-wider">
-                  Executive Intelligence &amp; Accounting Analytics
-                </span>
-                <h3 className="text-lg sm:text-xl font-montserrat font-black italic text-[#0A006E] mt-0.5">
-                  Financial Performance &amp; Asset Distribution
-                </h3>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="px-3 py-1 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black shadow-xs">
-                  {selectedBranchObj ? selectedBranchObj.name : 'All Branches'} · {dateFilter}
-                </span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="space-y-4">
+          {isWidgetVisible('asset_cards') && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {/* Stat Card 1: Total Assets */}
-              <div className="bg-white border border-slate-200 hover:border-[#0A006E] rounded-2xl p-5 shadow-2xs space-y-3 transition">
+              <div className="bg-white border border-slate-200 hover:border-[#0A006E] rounded-xl p-4 space-y-2.5 transition">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-montserrat font-black text-slate-500 uppercase tracking-wider">
                     Working Assets Value
@@ -1484,196 +1374,189 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Executive Graphical Visualizations: P&L Bar Graph & Operating Expense Pie Chart */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <BarGraph
-              title="Executive P&L & Surplus Flow"
-              subtitle="Comparison of Gross Revenue, COGS, Gross Profit, Expenses & Net Result"
-              data={pnlBarChartData}
-              badge="P&L Comparison"
-              activeColor="#0A006E"
-              mode="compare"
-              emptyMessage="Record sales or expenses to populate P&L comparison bars"
-            />
-            <AnalyticsPieChart
-              title="Operating Expense & Outflow Breakdown"
-              subtitle="Real split of Payroll, Stock Write-Offs, and Logged Expense Categories"
-              data={expensePieChartData}
-              badge="Expense Mix"
-              centerMetricLabel="Total Outflow"
-              emptyMessage="No expenses, payroll disbursements, or write-offs recorded for this period"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Live Profit & Loss Breakdown Card */}
-            <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-300 pb-3">
-                <div>
-                  <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
-                    Comprehensive Commercial Income Statement (P&amp;L)
-                  </h3>
-                  <p className="text-xs text-slate-600">
-                    Calculated live from POS sales, product landed costs, recorded expenses, payroll, and write-offs.
-                  </p>
-                </div>
-                <span className="text-xs font-mono-tabular font-bold text-[#0A006E] bg-white px-2.5 py-1 rounded-lg border border-slate-200">
-                  {dateFilter}
-                </span>
-              </div>
-
-              <div className="space-y-2.5 text-xs">
-                <div className="flex items-center justify-between py-1 border-b border-slate-200">
-                  <span className="font-semibold text-slate-700">Gross Commercial Sales Turnover:</span>
-                  <span className="font-mono-tabular font-bold text-slate-900">{formatKes(salesMetrics.grossSales)}</span>
-                </div>
-
-                <div className="flex items-center justify-between py-1 border-b border-slate-200 text-rose-700">
-                  <span className="font-semibold">Less: Credit Notes Issued &amp; Returns:</span>
-                  <span className="font-mono-tabular font-bold">- {formatKes(salesMetrics.creditNotesTotal)}</span>
-                </div>
-
-                <div className="flex items-center justify-between py-1.5 border-b border-slate-300 font-bold text-slate-900 bg-white/70 px-2 rounded-lg">
-                  <span>Net Commercial Revenue:</span>
-                  <span className="font-mono-tabular text-sm text-[#0A006E]">{formatKes(salesMetrics.netCommercialSales)}</span>
-                </div>
-
-                <div className="flex items-center justify-between py-1 border-b border-slate-200 text-amber-800">
-                  <span className="font-semibold">Less: Cost of Goods Sold (COGS):</span>
-                  <span className="font-mono-tabular font-bold">- {formatKes(salesMetrics.estimatedCogs)}</span>
-                </div>
-
-                <div className="flex items-center justify-between py-1.5 border-b border-slate-300 font-bold text-[#1E9E60] bg-white px-2 rounded-lg">
-                  <span>Gross Operating Profit:</span>
-                  <span className="font-mono-tabular text-sm">{formatKes(salesMetrics.grossProfit)} ({salesMetrics.grossMarginPct.toFixed(1)}%)</span>
-                </div>
-
-                <div className="flex items-center justify-between py-1 border-b border-slate-200 text-rose-700">
-                  <span className="font-semibold flex items-center gap-2">
-                    Less: Recorded Operating Expenses ({filteredExpenses.length} Vouchers):
-                    <button
-                      type="button"
-                      onClick={() => setIsExpenseModalOpen(true)}
-                      className="text-[10px] font-black text-[#0A006E] bg-[#FFDE00] px-1.5 py-0.5 rounded cursor-pointer"
-                    >
-                      + Add
-                    </button>
-                  </span>
-                  <span className="font-mono-tabular font-bold">- {formatKes(expenseMetrics.totalRecorded)}</span>
-                </div>
-
-                <div className="flex items-center justify-between py-1 border-b border-slate-200 text-rose-600">
-                  <span className="font-semibold">Less: Stock Write-Offs (Damaged &amp; Spoiled):</span>
-                  <span className="font-mono-tabular font-bold">- {formatKes(stockMetrics.totalWriteOffs)}</span>
-                </div>
-
-                <div className="flex items-center justify-between py-1 border-b border-slate-200 text-slate-700">
-                  <span className="font-semibold">Less: Payroll Disbursed ({filteredPayrollRuns.length} Runs):</span>
-                  <span className="font-mono-tabular font-bold">- {formatKes(taxMetrics.totalPayrollDisbursed)}</span>
-                </div>
-
-                <div className={`flex items-center justify-between py-2 border-t-2 font-black text-sm px-3 rounded-xl mt-2 ${
-                  financialSummary.netProfit < 0
-                    ? 'border-rose-700 text-rose-800 bg-rose-100'
-                    : 'border-[#0A006E] text-[#0A006E] bg-[#FFDE00]/35'
-                }`}>
-                  <span>{financialSummary.netProfit < 0 ? 'Net Operating Deficit / Loss:' : 'Net Commercial Profit / Surplus:'}</span>
-                  <span className="font-mono-tabular">{formatKes(financialSummary.netProfit)}</span>
-                </div>
-              </div>
+          {isWidgetVisible('charts') && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <BarGraph
+                title="Executive P&L & Surplus Flow"
+                subtitle="Gross Revenue, COGS, Gross Profit, Expenses & Net Result"
+                data={pnlBarChartData}
+                badge="P&L Comparison"
+                activeColor="#0A006E"
+                mode="compare"
+                emptyMessage="Record sales or expenses to populate P&L comparison bars"
+              />
+              <AnalyticsPieChart
+                title="Operating Expense & Outflow Breakdown"
+                subtitle="Payroll, Stock Write-Offs, and Logged Expense Categories"
+                data={expensePieChartData}
+                badge="Expense Mix"
+                centerMetricLabel="Total Outflow"
+                emptyMessage="No expenses, payroll disbursements, or write-offs recorded for this period"
+              />
             </div>
+          )}
 
-            {/* Live Inventory Asset & Working Capital Balance */}
-            <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-300 pb-3">
-                <div>
-                  <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
-                    Inventory Asset Valuation &amp; Liquidity Position
-                  </h3>
-                  <p className="text-xs text-slate-600">
-                    Real-time asset balances across bonded warehouses, receivables, and settled cash.
-                  </p>
+          {isWidgetVisible('income_statement') && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Live Profit & Loss Breakdown Card */}
+              <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 space-y-3.5">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                  <div>
+                    <h3 className="text-sm font-montserrat font-bold text-[#0A006E]">
+                      Commercial Income Statement (P&amp;L)
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Live POS sales, COGS, expenses, payroll &amp; write-offs.
+                    </p>
+                  </div>
+                  <span className="text-[11px] font-mono-tabular font-bold text-[#0A006E] bg-slate-100 px-2 py-0.5 rounded">
+                    {dateFilter}
+                  </span>
+                </div>
+
+                <div className="space-y-2 text-xs">
+                  <div className="flex items-center justify-between py-1 border-b border-slate-100">
+                    <span className="font-semibold text-slate-700">Gross Commercial Sales Turnover:</span>
+                    <span className="font-mono-tabular font-bold text-slate-900">{formatKes(salesMetrics.grossSales)}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between py-1 border-b border-slate-100 text-rose-700">
+                    <span className="font-semibold">Less: Credit Notes Issued &amp; Returns:</span>
+                    <span className="font-mono-tabular font-bold">- {formatKes(salesMetrics.creditNotesTotal)}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between py-1.5 border-b border-slate-200 font-bold text-slate-900 bg-slate-50 px-2 rounded-lg">
+                    <span>Net Commercial Revenue:</span>
+                    <span className="font-mono-tabular text-sm text-[#0A006E]">{formatKes(salesMetrics.netCommercialSales)}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between py-1 border-b border-slate-100 text-amber-800">
+                    <span className="font-semibold">Less: Cost of Goods Sold (COGS):</span>
+                    <span className="font-mono-tabular font-bold">- {formatKes(salesMetrics.estimatedCogs)}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between py-1.5 border-b border-slate-200 font-bold text-[#1E9E60] bg-emerald-50/60 px-2 rounded-lg">
+                    <span>Gross Operating Profit:</span>
+                    <span className="font-mono-tabular text-sm">{formatKes(salesMetrics.grossProfit)} ({salesMetrics.grossMarginPct.toFixed(1)}%)</span>
+                  </div>
+
+                  <div className="flex items-center justify-between py-1 border-b border-slate-100 text-rose-700">
+                    <span className="font-semibold flex items-center gap-2">
+                      Less: Operating Expenses ({filteredExpenses.length}):
+                      <button
+                        type="button"
+                        onClick={() => setIsExpenseModalOpen(true)}
+                        className="text-[10px] font-bold text-[#0A006E] bg-[#FFDE00] px-1.5 py-0.5 rounded cursor-pointer"
+                      >
+                        + Add
+                      </button>
+                    </span>
+                    <span className="font-mono-tabular font-bold">- {formatKes(expenseMetrics.totalRecorded)}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between py-1 border-b border-slate-100 text-rose-600">
+                    <span className="font-semibold">Less: Stock Write-Offs:</span>
+                    <span className="font-mono-tabular font-bold">- {formatKes(stockMetrics.totalWriteOffs)}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between py-1 border-b border-slate-100 text-slate-700">
+                    <span className="font-semibold">Less: Payroll Disbursed ({filteredPayrollRuns.length} Runs):</span>
+                    <span className="font-mono-tabular font-bold">- {formatKes(taxMetrics.totalPayrollDisbursed)}</span>
+                  </div>
+
+                  <div className={`flex items-center justify-between py-2 border font-black text-sm px-3 rounded-lg mt-2 ${
+                    financialSummary.netProfit < 0
+                      ? 'border-rose-300 text-rose-800 bg-rose-50'
+                      : 'border-[#0A006E]/30 text-[#0A006E] bg-[#FFDE00]/25'
+                  }`}>
+                    <span>{financialSummary.netProfit < 0 ? 'Net Operating Deficit:' : 'Net Commercial Surplus:'}</span>
+                    <span className="font-mono-tabular">{formatKes(financialSummary.netProfit)}</span>
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-3 text-xs">
-                <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-700">Total Landed Inventory Asset (At Cost):</span>
-                    <span className="font-mono-tabular font-black text-[#0A006E] text-base">
+              {/* Live Inventory Asset & Working Capital Balance */}
+              <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 space-y-3.5">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                  <div>
+                    <h3 className="text-sm font-montserrat font-bold text-[#0A006E]">
+                      Inventory Valuation &amp; Liquidity
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Bonded warehouses, receivables, and settled cash.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2.5 text-xs">
+                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 flex items-center justify-between">
+                    <span className="font-bold text-slate-700">Landed Inventory Asset (Cost):</span>
+                    <span className="font-mono-tabular font-black text-[#0A006E] text-sm">
                       {formatKes(stockMetrics.totalStockCost)}
                     </span>
                   </div>
-                  <div className="text-[11px] text-slate-500">
-                    Actual capital invested in currently stocked bottles across selected depot scope.
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-white p-3 rounded-xl border border-slate-200">
-                    <div className="text-slate-500 text-[11px] font-bold">Wholesale Realization:</div>
-                    <div className="text-base font-montserrat font-black text-slate-900 font-mono-tabular mt-1">
-                      {formatKes(stockMetrics.totalStockWholesaleValue)}
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                      <div className="text-slate-500 text-[10px] font-bold">Wholesale Value</div>
+                      <div className="text-sm font-montserrat font-black text-slate-900 font-mono-tabular mt-0.5">
+                        {formatKes(stockMetrics.totalStockWholesaleValue)}
+                      </div>
                     </div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">B2B Distributor pricing</div>
-                  </div>
 
-                  <div className="bg-white p-3 rounded-xl border border-slate-200">
-                    <div className="text-slate-500 text-[11px] font-bold">Retail Realization:</div>
-                    <div className="text-base font-montserrat font-black text-[#1E9E60] font-mono-tabular mt-1">
-                      {formatKes(stockMetrics.totalStockRetailValue)}
+                    <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                      <div className="text-slate-500 text-[10px] font-bold">Retail Value</div>
+                      <div className="text-sm font-montserrat font-black text-[#1E9E60] font-mono-tabular mt-0.5">
+                        {formatKes(stockMetrics.totalStockRetailValue)}
+                      </div>
                     </div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">Counter POS turnover potential</div>
                   </div>
-                </div>
 
-                <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1.5">
-                  <div className="flex items-center justify-between text-slate-800">
-                    <span className="font-semibold">Net Settled Cash / M-Pesa Inflow (Period):</span>
-                    <span className="font-mono-tabular font-bold text-[#0A006E]">
-                      {formatKes(financialSummary.netCashCollected)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-slate-800">
-                    <span className="font-semibold">Unrealized Gross Inventory Margin:</span>
-                    <span className="font-mono-tabular font-bold text-[#1E9E60]">
-                      {formatKes(stockMetrics.potentialGrossMargin)} ({stockMetrics.potentialMarginPct.toFixed(1)}%)
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-slate-800">
-                    <span className="font-semibold">Total Stock Units in Bond:</span>
-                    <span className="font-mono-tabular font-bold">
-                      {stockMetrics.totalBottlesInBond.toLocaleString()} Bottles ({Math.round(stockMetrics.totalBottlesInBond / 12).toLocaleString()} Cases)
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-amber-800">
-                    <span className="font-semibold">Capital Locked in Dead Stock:</span>
-                    <span className="font-mono-tabular font-bold">
-                      {formatKes(stockMetrics.totalDeadStockCapitalKes)}
-                    </span>
+                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1.5">
+                    <div className="flex items-center justify-between text-slate-800">
+                      <span className="font-semibold">Net Settled Inflow:</span>
+                      <span className="font-mono-tabular font-bold text-[#0A006E]">
+                        {formatKes(financialSummary.netCashCollected)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-slate-800">
+                      <span className="font-semibold">Unrealized Inventory Margin:</span>
+                      <span className="font-mono-tabular font-bold text-[#1E9E60]">
+                        {formatKes(stockMetrics.potentialGrossMargin)} ({stockMetrics.potentialMarginPct.toFixed(1)}%)
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-slate-800">
+                      <span className="font-semibold">Stock Units in Bond:</span>
+                      <span className="font-mono-tabular font-bold">
+                        {stockMetrics.totalBottlesInBond.toLocaleString()} Bottles
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-amber-800">
+                      <span className="font-semibold">Capital in Dead Stock:</span>
+                      <span className="font-mono-tabular font-bold">
+                        {formatKes(stockMetrics.totalDeadStockCapitalKes)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Quick Recent Transactions Ledger */}
-          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
+          {/* Quick Recent Transactions Ledger (Expanded Mode Only to Keep Minimal Clean) */}
+          {!isMinimal && (
+            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-montserrat font-bold text-[#0A006E]">
                   Recent Live Commercial &amp; Financial Ledger
                 </h3>
-                <p className="text-xs text-slate-600">
-                  Latest validated accounting events recorded from POS terminals and bank settlements.
-                </p>
+                <span className="text-xs font-mono-tabular text-slate-500">
+                  Showing {Math.min(10, filteredTransactions.length)} of {filteredTransactions.length}
+                </span>
               </div>
-              <span className="text-xs font-mono-tabular font-bold text-[#0A006E]">
-                Showing {Math.min(10, filteredTransactions.length)} of {filteredTransactions.length}
-              </span>
-            </div>
 
             {filteredTransactions.length === 0 ? (
               <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-xs text-slate-500">
@@ -1740,6 +1623,7 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
               </div>
             )}
           </div>
+          )}
         </div>
       )}
 

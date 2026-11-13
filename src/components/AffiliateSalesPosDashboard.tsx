@@ -61,6 +61,8 @@ import { PhoneBarcodeScannerModal } from './PhoneBarcodeScannerModal';
 import { subscribeToProductScans } from '../utils/productScanBroadcast';
 import { FloatingSalesKeyboardModal } from './FloatingSalesKeyboardModal';
 import { ProductPreviewModal } from './ProductPreviewModal';
+import { useDashboardPrefs } from '../utils/dashboardPrefs';
+import { MinimalDashboardBar } from './common/MinimalDashboardBar';
 
 interface CartItem {
   productId: string;
@@ -238,6 +240,17 @@ export const AffiliateSalesPosDashboard: React.FC<AffiliateSalesPosDashboardProp
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
   const [inStockOnly, setInStockOnly] = useState(false);
   const [priceType, setPriceType] = useState<'wholesale' | 'retail'>('wholesale');
+
+  const {
+    schema: dashSchema,
+    prefs: dashPrefs,
+    setMode: setDashMode,
+    toggleKpi,
+    toggleWidget,
+    isKpiVisible,
+    isWidgetVisible,
+    resetToDefault,
+  } = useDashboardPrefs(currentUser);
 
   // Active POS Cart
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -840,135 +853,124 @@ export const AffiliateSalesPosDashboard: React.FC<AffiliateSalesPosDashboardProp
   };
 
   return (
-    <div className="space-y-4">
-      {/* --------------------------------------------------------------------- */}
-      {/* 1. TOP HERO: SIMPLE & STREAMLINED AFFILIATE COMMAND BAR               */}
-      {/* --------------------------------------------------------------------- */}
-      <div className="bg-[#0A006E] text-white rounded-2xl p-3.5 sm:p-4 shadow-sm border border-[#0A006E]/30">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Identity & Branch */}
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-[#FFDE00] text-[#0A006E] flex items-center justify-center font-montserrat font-black text-sm shrink-0 shadow-2xs">
-              {currentUser.name.slice(0, 2).toUpperCase()}
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-sm sm:text-base font-montserrat font-black text-white truncate">
-                  {currentUser.name}
-                </h1>
-                <span className="text-[#FFDE00] text-[11px] font-mono font-bold px-2 py-0.5 bg-white/10 rounded-md">
-                  {affiliateCode}
-                </span>
-                <span className="text-[10px] font-montserrat font-bold text-emerald-300 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-md">
-                  {commPct}% Comm
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-300 font-medium mt-0.5 flex items-center gap-1.5 truncate">
-                <Building2 className="w-3 h-3 text-[#FFDE00] shrink-0" />
-                <span className="truncate">{currentUser.branchName} Depot</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Simple Inline Key Metrics */}
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-            <div className="bg-white/10 rounded-xl px-2.5 py-1.5 border border-white/10">
-              <span className="text-[9px] text-slate-300 block uppercase font-mono">Commission</span>
-              <span className="text-xs sm:text-sm font-montserrat font-black text-[#FFDE00] font-mono-tabular">
-                {formatKes(totalEarnedCommission)}
-              </span>
-            </div>
-
-            <div className="bg-white/10 rounded-xl px-2.5 py-1.5 border border-white/10">
-              <span className="text-[9px] text-slate-300 block uppercase font-mono">Fulfilled</span>
-              <span className="text-xs sm:text-sm font-montserrat font-black text-white font-mono-tabular">
-                {formatKes(totalSalesVolume)}
-              </span>
-            </div>
-
-            {queuedTransactions.length > 0 && (
-              <div className="bg-amber-400/20 border border-amber-300/40 rounded-xl px-2.5 py-1.5">
-                <span className="text-[9px] text-amber-200 block uppercase font-mono">Queued</span>
-                <span className="text-xs sm:text-sm font-montserrat font-black text-amber-300 font-mono-tabular">
-                  {queuedTransactions.length} orders
-                </span>
-              </div>
+    <div className="space-y-3.5">
+      {/* Unified Minimal Customizable Affiliate Header */}
+      <MinimalDashboardBar
+        currentUser={currentUser}
+        title={`${currentUser.name} · ${affiliateCode}`}
+        subtitle={`${currentUser.branchName} Depot · ${commPct}% Comm Rate (toggle visibility in Customize)`}
+        schema={dashSchema}
+        prefs={dashPrefs}
+        onChangeMode={setDashMode}
+        onToggleKpi={toggleKpi}
+        onToggleWidget={toggleWidget}
+        onReset={resetToDefault}
+        hideModeSwitch
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => setIsKeyboardOpen(true)}
+              className="px-2.5 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+            >
+              <Keyboard className="w-3.5 h-3.5" />
+              Keyboard
+            </button>
+            {onNavigateModule && (
+              <button
+                type="button"
+                onClick={() => onNavigateModule('leave_management')}
+                className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                title="Request Leave, Off-Day, Emergency or Paternity/Maternity"
+              >
+                <Calendar className="w-3.5 h-3.5 text-fuchsia-600" />
+                Leave / Off
+              </button>
             )}
+          </>
+        }
+      />
 
-            {/* Simple Segmented Tab Toggle */}
-            <div className="flex items-center bg-black/30 p-1 rounded-xl border border-white/10 shrink-0">
-              <button
-                type="button"
-                onClick={() => setActiveTab('pos')}
-                className={`px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs cursor-pointer transition-all flex items-center gap-1.5 ${
-                  activeTab === 'pos'
-                    ? 'bg-[#FFDE00] text-[#0A006E] shadow-2xs'
-                    : 'text-white/80 hover:text-white'
-                }`}
-              >
-                <ShoppingCart className="w-3.5 h-3.5" />
-                <span>POS</span>
-                {totalUnitsInCart > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full bg-[#0A006E] text-[#FFDE00] text-[10px] font-black">
-                    {totalUnitsInCart}
-                  </span>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('orders')}
-                className={`px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs cursor-pointer transition-all flex items-center gap-1.5 ${
-                  activeTab === 'orders'
-                    ? 'bg-[#FFDE00] text-[#0A006E] shadow-2xs'
-                    : 'text-white/80 hover:text-white'
-                }`}
-              >
-                <FileText className="w-3.5 h-3.5" />
-                <span>Order Statement</span>
-                {queuedTransactions.length > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-[#0A006E] text-[10px] font-black">
-                    {queuedTransactions.length}
-                  </span>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('sales_statement')}
-                className={`px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs cursor-pointer transition-all flex items-center gap-1.5 ${
-                  activeTab === 'sales_statement'
-                    ? 'bg-[#FFDE00] text-[#0A006E] shadow-2xs'
-                    : 'text-white/80 hover:text-white'
-                }`}
-              >
-                <TrendingUp className="w-3.5 h-3.5" />
-                <span>Sales Statement</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsKeyboardOpen(true)}
-                className="px-3 py-1.5 rounded-lg font-montserrat font-black text-xs cursor-pointer transition-all flex items-center gap-1.5 bg-[#FFDE00]/20 hover:bg-[#FFDE00] text-[#FFDE00] hover:text-[#0A006E] border border-[#FFDE00]/40 shadow-xs"
-              >
-                <Keyboard className="w-3.5 h-3.5" />
-                <span>Keyboard</span>
-              </button>
-
-              {onNavigateModule && (
-                <button
-                  type="button"
-                  onClick={() => onNavigateModule('leave_management')}
-                  className="px-3 py-1.5 rounded-lg font-montserrat font-black text-xs cursor-pointer transition-all flex items-center gap-1.5 bg-white/15 hover:bg-white hover:text-[#0A006E] text-white border border-white/25 shadow-xs whitespace-nowrap"
-                  title="Request Leave, Off-Day, Emergency or Paternity/Maternity"
-                >
-                  <Calendar className="w-3.5 h-3.5 text-[#FFDE00]" />
-                  <span>Leave / Off</span>
-                </button>
-              )}
+      {/* Privacy-Aware Inline Metrics Strip (Commission hidden by default so clients cannot see earnings) */}
+      {isWidgetVisible('kpi_strip') && (isKpiVisible('commission') || isKpiVisible('sales_volume') || isKpiVisible('queued_orders')) && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+          {isKpiVisible('sales_volume') && (
+            <div className="bg-white border border-slate-200 rounded-xl px-3.5 py-2.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Fulfilled Sales</div>
+              <div className="text-base font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                {formatKes(totalSalesVolume)}
+              </div>
             </div>
-          </div>
+          )}
+          {isKpiVisible('queued_orders') && (
+            <div className="bg-white border border-slate-200 rounded-xl px-3.5 py-2.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Queued Orders</div>
+              <div className="text-base font-montserrat font-black text-amber-700 font-mono-tabular mt-0.5">
+                {queuedTransactions.length} orders
+              </div>
+            </div>
+          )}
+          {isKpiVisible('commission') && (
+            <div className="bg-white border border-slate-200 rounded-xl px-3.5 py-2.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Earned Commission</div>
+              <div className="text-base font-montserrat font-black text-emerald-700 font-mono-tabular mt-0.5">
+                {formatKes(totalEarnedCommission)}
+              </div>
+            </div>
+          )}
         </div>
+      )}
+
+      {/* Clean Tab Strip */}
+      <div className="flex items-center gap-1.5 border-b border-slate-200 pb-1.5 overflow-x-auto">
+        <button
+          type="button"
+          onClick={() => setActiveTab('pos')}
+          className={`px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs cursor-pointer transition flex items-center gap-1.5 whitespace-nowrap ${
+            activeTab === 'pos'
+              ? 'bg-[#0A006E] text-[#FFDE00]'
+              : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+          }`}
+        >
+          <ShoppingCart className="w-3.5 h-3.5" />
+          <span>POS Terminal</span>
+          {totalUnitsInCart > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full bg-[#FFDE00] text-[#0A006E] text-[10px] font-black font-mono-tabular">
+              {totalUnitsInCart}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('orders')}
+          className={`px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs cursor-pointer transition flex items-center gap-1.5 whitespace-nowrap ${
+            activeTab === 'orders'
+              ? 'bg-[#0A006E] text-[#FFDE00]'
+              : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+          }`}
+        >
+          <FileText className="w-3.5 h-3.5" />
+          <span>Order Statement</span>
+          {queuedTransactions.length > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-[#0A006E] text-[10px] font-black font-mono-tabular">
+              {queuedTransactions.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('sales_statement')}
+          className={`px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs cursor-pointer transition flex items-center gap-1.5 whitespace-nowrap ${
+            activeTab === 'sales_statement'
+              ? 'bg-[#0A006E] text-[#FFDE00]'
+              : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+          }`}
+        >
+          <TrendingUp className="w-3.5 h-3.5" />
+          <span>Sales Statement</span>
+        </button>
       </div>
 
       {/* --------------------------------------------------------------------- */}
@@ -1044,44 +1046,46 @@ export const AffiliateSalesPosDashboard: React.FC<AffiliateSalesPosDashboardProp
               </div>
 
               {/* Instant Barcode Scanning Ribbon for Sales Representatives */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2.5 bg-gradient-to-r from-amber-50 to-emerald-50 border border-emerald-300 rounded-xl">
-                <div className="relative flex-1">
-                  <Barcode className="w-4 h-4 text-[#0A006E] absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={barcodeInput}
-                    onChange={(e) => setBarcodeInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleScanBarcode(barcodeInput);
-                      }
-                    }}
-                    placeholder="Scan product barcode (Desktop laser gun, Bluetooth scanner, or type digits)..."
-                    className="w-full pl-9 pr-20 py-2 bg-white border border-slate-300 focus:border-[#0A006E] rounded-xl text-xs font-mono font-bold text-slate-900 outline-none"
-                  />
-                  <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => handleScanBarcode(barcodeInput)}
-                      disabled={!barcodeInput.trim()}
-                      className="px-2.5 py-1 bg-[#FFDE00] text-[#0A006E] font-montserrat font-black text-[11px] rounded-lg disabled:opacity-40 cursor-pointer shadow-xs"
-                    >
-                      Scan Item
-                    </button>
+              {isWidgetVisible('barcode_ribbon') && (
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div className="relative flex-1">
+                    <Barcode className="w-4 h-4 text-[#0A006E] absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={barcodeInput}
+                      onChange={(e) => setBarcodeInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleScanBarcode(barcodeInput);
+                        }
+                      }}
+                      placeholder="Scan product barcode or type digits..."
+                      className="w-full pl-9 pr-20 py-1.5 bg-white border border-slate-200 focus:border-[#0A006E] rounded-lg text-xs font-mono font-bold text-slate-900 outline-none"
+                    />
+                    <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleScanBarcode(barcodeInput)}
+                        disabled={!barcodeInput.trim()}
+                        className="px-2.5 py-0.5 bg-[#FFDE00] text-[#0A006E] font-montserrat font-bold text-[11px] rounded disabled:opacity-40 cursor-pointer"
+                      >
+                        Scan
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                <button
-                  type="button"
-                  onClick={() => setIsCameraScannerOpen(true)}
-                  className="px-3.5 py-2 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] font-montserrat font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-sm shrink-0"
-                  title="Open device camera barcode scanner"
-                >
-                  <Camera className="w-4 h-4" />
-                  <span>Camera Scanner</span>
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsCameraScannerOpen(true)}
+                    className="px-3 py-1.5 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] font-montserrat font-bold text-xs rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                    title="Open device camera barcode scanner"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>Camera</span>
+                  </button>
+                </div>
+              )}
 
               {/* Real-Time Live Scan Activation Toast */}
               {liveScanNotice && (
