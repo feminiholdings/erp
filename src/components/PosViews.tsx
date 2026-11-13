@@ -30,6 +30,10 @@ import {
   ChefHat,
   Layers,
   Calendar,
+  Receipt,
+  FileText,
+  Check,
+  RotateCcw,
 } from 'lucide-react';
 import {
   Product,
@@ -576,23 +580,24 @@ export const PosViews: React.FC<PosViewsProps> = ({
     }
   }, [scanNotification]);
 
-  // Products displayed on Cashier POS: Show all products that have been scanned and verified
+  const [catalogStockFilter, setCatalogStockFilter] = useState<'ALL' | 'IN_STOCK'>('ALL');
+
+  // Products displayed on Cashier POS: All active catalog products available for point-of-sale selection
   const activatedProducts = useMemo(() => {
-    return products.filter((p) =>
-      Boolean(
-        (p.isScanned || p.hasRealBarcode || p.barcode || activatedProductIds.includes(p.id)) &&
-        p.status !== ('Deleted' as any)
-      )
-    );
-  }, [products, activatedProductIds]);
+    return products.filter((p) => p.status !== ('Deleted' as any));
+  }, [products]);
 
   const filteredProducts = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-    // In POS Barcode-Activated mode: only filter and display among activated products!
     return activatedProducts.filter((p) => {
       // Sales Rep restriction: only show IPS products
       if (currentUser.role === 'Affiliate Sales Representative' && p.category !== 'IPS') {
         return false;
+      }
+
+      if (catalogStockFilter === 'IN_STOCK') {
+        const stock = activeBranch ? getBranchBottleStock(p, activeBranch.id) : (p.totalBottles ?? 0);
+        if (stock <= 0) return false;
       }
 
       const matchesStockCat =
@@ -608,7 +613,7 @@ export const PosViews: React.FC<PosViewsProps> = ({
         (p.barcode || '').includes(q);
       return matchesStockCat && matchesSub && matchesSearch;
     });
-  }, [activatedProducts, stockCategoryFilter, selectedSubCategory, searchQuery, currentUser.role]);
+  }, [activatedProducts, catalogStockFilter, stockCategoryFilter, selectedSubCategory, searchQuery, currentUser.role, activeBranch]);
 
   const displayedProducts = useMemo(
     () => filteredProducts.slice(0, visibleLimit),
@@ -626,6 +631,8 @@ export const PosViews: React.FC<PosViewsProps> = ({
   };
 
   const handleAddToCart = (product: Product) => {
+    playPosBeep('success');
+    triggerScanHaptic();
     setActivatedProductIds((prev) => (prev.includes(product.id) ? prev : [product.id, ...prev]));
     const defaultUnitMode: 'Bottle' | 'Case' = mode === 'wholesale' ? 'Case' : 'Bottle';
     setCart((prev) => {
@@ -746,6 +753,10 @@ export const PosViews: React.FC<PosViewsProps> = ({
         return item;
       })
     );
+  };
+
+  const handleRemoveCartItem = (index: number) => {
+    setCart((prev) => prev.filter((_, idx) => idx !== index));
   };
 
   const computedLineItems: LineItem[] = useMemo(() => {
@@ -1147,233 +1158,424 @@ export const PosViews: React.FC<PosViewsProps> = ({
       )}
 
       {/* Main 2-Column POS Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-        {/* Left 7 Columns: SKU Catalog */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* Left 7 Columns: Product Catalog */}
         <div className="lg:col-span-7 space-y-3">
-          {activatedProducts.length === 0 ? (
-            <div className="bg-white border border-dashed border-slate-300 rounded-xl p-8 text-center space-y-4">
-              <div className="w-12 h-12 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center mx-auto">
-                <Barcode className="w-6 h-6" />
-              </div>
-              <div className="max-w-md mx-auto space-y-1">
-                <h3 className="font-montserrat font-bold text-base text-[#0A006E]">
-                  No Products Scanned Yet
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3.5 shadow-xs">
+            {/* Catalog Top Header & Search Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-100">
+              <div>
+                <h3 className="font-montserrat font-black text-sm text-[#0A006E] flex items-center gap-2">
+                  <Wine className="w-4 h-4 text-[#0A006E]" />
+                  <span>Bonded Liquor Catalog</span>
+                  <span className="text-[11px] font-mono-tabular font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                    {filteredProducts.length} item{filteredProducts.length === 1 ? '' : 's'}
+                  </span>
                 </h3>
-                <p className="text-xs text-slate-600">
-                  Use the camera scanner, pair a phone, or scan with a USB laser gun to add items directly to the cart.
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Dispensing from: <strong className="text-slate-700">{activeBranch?.name || 'Central Bonded Store'}</strong> · Region: {activeRegion?.name || 'Nairobi Central'}
                 </p>
               </div>
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsPhonePairModalOpen(true)}
-                  className="px-3.5 py-2 bg-[#0A006E] text-[#FFDE00] rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Smartphone className="w-3.5 h-3.5" />
-                  Scan with Phone
-                </button>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {(searchQuery || stockCategoryFilter !== 'ALL' || selectedSubCategory !== 'ALL' || catalogStockFilter !== 'ALL') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setStockCategoryFilter('ALL');
+                      setSelectedSubCategory('ALL');
+                      setCatalogStockFilter('ALL');
+                      setVisibleLimit(36);
+                    }}
+                    className="text-[11px] text-[#0A006E] hover:underline flex items-center gap-1 font-montserrat font-bold cursor-pointer"
+                  >
+                    <RotateCcw className="w-3 h-3" /> Reset Filters
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setIsPhoneScannerOpen(true)}
-                  className="px-3.5 py-2 bg-slate-900 text-white rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                  className="px-2.5 py-1.5 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
-                  <Camera className="w-3.5 h-3.5 text-[#FFDE00]" />
-                  Camera Scanner
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>Scan Barcode</span>
                 </button>
               </div>
             </div>
-          ) : (
-            <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-3">
-              <div className="flex items-center justify-between gap-2 text-xs font-montserrat font-bold text-[#0A006E]">
-                <span>
-                  Scanned &amp; Activated Items ({filteredProducts.length}
-                  {filteredProducts.length !== activatedProducts.length ? ` of ${activatedProducts.length}` : ''})
-                </span>
-                <div className="flex items-center gap-2">
-                  {cart.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setCart([])}
-                      className="text-[11px] text-rose-600 hover:underline cursor-pointer"
-                    >
-                      Clear Cart ({cart.length})
-                    </button>
-                  )}
+
+            {/* Search Input & Stock Filter Controls */}
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+              <div className="sm:col-span-6 relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setVisibleLimit(36);
+                  }}
+                  placeholder="Search by bottle name, SKU, brand, or barcode..."
+                  className="w-full pl-9 pr-8 py-2 bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#0A006E] focus:ring-1 focus:ring-[#0A006E] transition"
+                />
+                {searchQuery && (
                   <button
                     type="button"
-                    onClick={() => setIsPhoneScannerOpen(true)}
-                    className="text-[11px] text-[#0A006E] hover:underline flex items-center gap-1 cursor-pointer"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
                   >
-                    <Camera className="w-3.5 h-3.5" /> Scan Next
+                    <X className="w-3.5 h-3.5" />
                   </button>
-                </div>
-              </div>
-
-              {isWidgetVisible('category_filters') && (
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <div className="relative flex-1">
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => {
-                        setSearchQuery(e.target.value);
-                        setVisibleLimit(36);
-                      }}
-                      placeholder={`Filter among ${activatedProducts.length} items...`}
-                      className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-[#0A006E]"
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 shrink-0">
-                    {(['ALL', 'IPS', 'LPS'] as const).map((sc) => (
-                      <button
-                        key={sc}
-                        type="button"
-                        onClick={() => {
-                          setStockCategoryFilter(sc);
-                          setVisibleLimit(36);
-                        }}
-                        className={`px-2.5 py-1 rounded-md text-[11px] font-montserrat font-bold transition-colors cursor-pointer ${
-                          stockCategoryFilter === sc
-                            ? 'bg-[#0A006E] text-[#FFDE00]'
-                            : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                      >
-                        {sc === 'ALL' ? `All (${activatedProducts.length})` : sc}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {displayedProducts.map((product) => {
-                    const packSize = product.packSize || product.bottlesPerCase || 12;
-                    const abv = product.alcoholPercentage ?? product.abv ?? 40;
-                    const geoPrice = calculateGeoPrice(
-                      product,
-                      activeRegion,
-                      mode === 'wholesale' ? 'wholesale' : 'retail'
-                    );
-                    const branchStock = activeBranch
-                      ? getBranchBottleStock(product, activeBranch.id)
-                      : product.totalBottles ?? 0;
-
-                    return (
-                      <div
-                        key={product.id}
-                        className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-3.5 flex flex-col justify-between hover:border-[#0A006E] transition-all"
-                      >
-                        <div className="flex items-start gap-3">
-                          <ProductImage
-                            product={{
-                              ...product,
-                              category: product.category === 'LPS' ? 'LPS' : 'IPS',
-                            }}
-                            size="sm"
-                            showVolumeBadge={true}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono-tabular">
-                              <span className="font-bold text-[#0A006E] truncate">{product.sku}</span>
-                              <span className="font-bold text-[#1E9E60] shrink-0">
-                                {product.category} · {product.subCategory || 'Spirit'}
-                              </span>
-                            </div>
-                            <h3 className="text-xs font-montserrat font-bold text-[#0A006E] mt-0.5 leading-snug">
-                              {product.name}
-                            </h3>
-                            <div className="text-[10px] text-slate-600 mt-0.5">
-                              {product.countryOfOrigin || product.originCountry} · {abv}% ABV · {packSize}/cs
-                            </div>
-                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                              <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded text-[9px] font-montserrat font-black uppercase flex items-center gap-0.5">
-                                <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
-                                Scanned
-                              </span>
-                              {product.barcode && (
-                                <span className="px-1.5 py-0.5 bg-slate-200/80 text-slate-800 border border-slate-300 rounded text-[9px] font-mono-tabular font-bold">
-                                  {product.barcode}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between gap-2">
-                          <div className="font-mono-tabular">
-                            <div className="text-[9px] text-slate-500">
-                              {mode === 'wholesale' ? 'Case / Btl' : 'Bottle Price'}
-                            </div>
-                            <div className="text-xs font-montserrat font-black text-[#0A006E]">
-                              {mode === 'wholesale'
-                                ? `${formatKes(geoPrice.casePrice)}`
-                                : `${formatKes(geoPrice.unitBottlePrice)}`}
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => handleAddToCart(product)}
-                            className="min-h-[36px] px-3 py-1.5 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shrink-0 shadow-xs"
-                          >
-                            <Plus className="w-3.5 h-3.5 text-[#FFDE00]" />
-                            Add
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {filteredProducts.length > displayedProducts.length && (
-                  <div className="pt-2 text-center">
-                    <button
-                      type="button"
-                      onClick={() => setVisibleLimit((prev) => prev + 48)}
-                      className="px-4 py-2 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-lg text-xs font-montserrat font-bold cursor-pointer inline-flex items-center gap-1.5"
-                    >
-                      <span>Load More ({filteredProducts.length - displayedProducts.length} remaining)</span>
-                    </button>
-                  </div>
                 )}
               </div>
-          )}
-        </div>
 
-        {/* Right 5 Columns: Active Order Register & Document Generator with Permanently Floating Total */}
-        <div className="lg:col-span-5 bg-[#F0F2F0] border border-slate-200 rounded-2xl flex flex-col sticky top-20 h-[calc(100vh-5.5rem)] max-h-[900px] overflow-hidden shadow-sm">
-          {/* Fixed Register Header */}
-          <div className="p-4 border-b border-slate-200 bg-white/90 backdrop-blur-xs flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-2">
-              <ShoppingCart className="w-4 h-4 text-[#0A006E]" />
-              <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
-                {mode === 'retail' ? 'Retail Counter Register' : 'B2B Dispatch & Document Register'}
-              </h3>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono-tabular font-bold text-[#0A006E] bg-[#F0F2F0] px-2 py-0.5 rounded-md border border-slate-200">
-                {computedLineItems.length} Line Item{computedLineItems.length === 1 ? '' : 's'}
-              </span>
-            </div>
-          </div>
+              {/* Stock Category Pills (ALL, IPS, LPS) */}
+              <div className="sm:col-span-3 flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+                {(['ALL', 'IPS', 'LPS'] as const).map((sc) => (
+                  <button
+                    key={sc}
+                    type="button"
+                    onClick={() => {
+                      setStockCategoryFilter(sc);
+                      setVisibleLimit(36);
+                    }}
+                    className={`flex-1 py-1.5 text-[11px] font-montserrat font-bold rounded-lg transition cursor-pointer text-center ${
+                      stockCategoryFilter === sc
+                        ? 'bg-[#0A006E] text-[#FFDE00] shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {sc === 'ALL' ? 'All' : sc}
+                  </button>
+                ))}
+              </div>
 
-          {/* Scrollable Register Content: Customer Details, Simplified M-Pesa, and Line Items */}
-          <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3.5">
-            {statusMessage && (
-              <div className="p-3.5 rounded-2xl bg-emerald-50 border-2 border-[#34D186] text-xs text-[#0A006E] font-montserrat font-black flex items-center gap-3 animate-success-pop shadow-md">
-                <AnimatedSuccessTickIcon size="sm" />
-                <span>{statusMessage}</span>
+              {/* Availability Filter Toggle (All vs In Stock) */}
+              <div className="sm:col-span-3 flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCatalogStockFilter('ALL');
+                    setVisibleLimit(36);
+                  }}
+                  className={`flex-1 py-1.5 text-[11px] font-montserrat font-bold rounded-lg transition cursor-pointer text-center ${
+                    catalogStockFilter === 'ALL'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  All Items
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCatalogStockFilter('IN_STOCK');
+                    setVisibleLimit(36);
+                  }}
+                  className={`flex-1 py-1.5 text-[11px] font-montserrat font-bold rounded-lg transition cursor-pointer text-center flex items-center justify-center gap-1 ${
+                    catalogStockFilter === 'IN_STOCK'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${catalogStockFilter === 'IN_STOCK' ? 'bg-white' : 'bg-emerald-500'}`} />
+                  In Stock
+                </button>
+              </div>
+            </div>
+
+            {/* Horizontal Subcategory Filter Ribbon */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-0.5 no-scrollbar border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedSubCategory('ALL');
+                  setVisibleLimit(36);
+                }}
+                className={`px-3 py-1 rounded-lg text-xs font-montserrat font-bold whitespace-nowrap transition cursor-pointer shrink-0 border ${
+                  selectedSubCategory === 'ALL'
+                    ? 'bg-[#0A006E] text-[#FFDE00] border-[#0A006E]'
+                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border-slate-200'
+                }`}
+              >
+                All Categories ({activatedProducts.length})
+              </button>
+              {NAIROBI_DRINKS_SUB_CATEGORIES.map((cat) => {
+                const count = activatedProducts.filter(
+                  (p) => (p.subCategory || p.category) === cat
+                ).length;
+                if (count === 0) return null;
+                const isSelected = selectedSubCategory === cat;
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => {
+                      setSelectedSubCategory(cat);
+                      setVisibleLimit(36);
+                    }}
+                    className={`px-3 py-1 rounded-lg text-xs font-montserrat font-bold whitespace-nowrap transition cursor-pointer shrink-0 border flex items-center gap-1.5 ${
+                      isSelected
+                        ? 'bg-[#0A006E] text-[#FFDE00] border-[#0A006E]'
+                        : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border-slate-200'
+                    }`}
+                  >
+                    <span>{cat}</span>
+                    <span className={`text-[10px] font-mono-tabular px-1.5 py-0.2 rounded ${
+                      isSelected ? 'bg-white/20 text-[#FFDE00]' : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Product Cards Grid */}
+            {displayedProducts.length === 0 ? (
+              <div className="p-12 text-center space-y-3 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+                <div className="w-12 h-12 rounded-xl bg-slate-200 text-slate-500 flex items-center justify-center mx-auto">
+                  <Wine className="w-6 h-6" />
+                </div>
+                <div className="max-w-sm mx-auto space-y-1">
+                  <h4 className="font-montserrat font-bold text-sm text-slate-800">
+                    No matching products found
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    {searchQuery
+                      ? `No inventory items matched "${searchQuery}". Try adjusting your keywords or category filters.`
+                      : 'No items found matching the selected stock and category filters.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setStockCategoryFilter('ALL');
+                    setSelectedSubCategory('ALL');
+                    setCatalogStockFilter('ALL');
+                  }}
+                  className="px-3.5 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-xs font-montserrat font-bold cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Show All Products</span>
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                {displayedProducts.map((product) => {
+                  const packSize = product.packSize || product.bottlesPerCase || 12;
+                  const abv = product.alcoholPercentage ?? product.abv ?? 40;
+                  const geoPrice = calculateGeoPrice(
+                    product,
+                    activeRegion,
+                    mode === 'wholesale' ? 'wholesale' : 'retail'
+                  );
+                  const branchStock = activeBranch
+                    ? getBranchBottleStock(product, activeBranch.id)
+                    : product.totalBottles ?? 0;
+
+                  // Check if item is already in cart
+                  const inCartItem = cart.find(
+                    (it) => it.kind === 'bonded_product' && it.product?.id === product.id
+                  );
+                  const inCartQty = inCartItem ? inCartItem.quantityUnits : 0;
+
+                  return (
+                    <div
+                      key={product.id}
+                      onClick={() => handleAddToCart(product)}
+                      className={`bg-white border rounded-xl p-3 flex flex-col justify-between transition-all duration-150 cursor-pointer group hover:shadow-md relative ${
+                        inCartQty > 0
+                          ? 'border-[#0A006E] bg-blue-50/20 shadow-xs ring-1 ring-[#0A006E]/20'
+                          : 'border-slate-200 hover:border-[#0A006E]'
+                      }`}
+                    >
+                      {/* Top Badges & Image Row */}
+                      <div>
+                        <div className="flex items-start gap-2.5">
+                          <div className="shrink-0">
+                            <ProductImage
+                              product={{
+                                ...product,
+                                category: product.category === 'LPS' ? 'LPS' : 'IPS',
+                              }}
+                              size="sm"
+                              showVolumeBadge={true}
+                            />
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-1 text-[10px] font-mono-tabular">
+                              <span className="font-bold text-[#0A006E] truncate">{product.sku}</span>
+                              <span className="font-bold text-[#1E9E60] shrink-0 text-[9px] uppercase px-1.5 py-0.2 bg-emerald-50 border border-emerald-200 rounded">
+                                {product.category}
+                              </span>
+                            </div>
+
+                            <h4 className="text-xs font-montserrat font-bold text-slate-900 group-hover:text-[#0A006E] transition-colors mt-0.5 leading-snug line-clamp-2" title={product.name}>
+                              {product.name}
+                            </h4>
+
+                            <div className="text-[10px] text-slate-500 mt-0.5 truncate">
+                              {product.subCategory || 'Liquor'} · {abv}% ABV · {packSize}/cs
+                            </div>
+
+                            {/* In-Cart Pill Badge */}
+                            {inCartQty > 0 && (
+                              <div className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 border border-emerald-300 rounded text-[10px] font-montserrat font-bold text-emerald-800">
+                                <Check className="w-3 h-3 text-emerald-600" />
+                                <span>{inCartQty} in cart</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Stock & Barcode Info Row */}
+                        <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-mono-tabular font-bold border inline-flex items-center gap-1 ${
+                              branchStock > 10
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                : branchStock > 0
+                                ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                : 'bg-slate-100 text-slate-500 border-slate-200'
+                            }`}
+                            title={`Available stock at ${activeBranch?.name || 'this branch'}`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                branchStock > 10
+                                  ? 'bg-emerald-500'
+                                  : branchStock > 0
+                                  ? 'bg-amber-500'
+                                  : 'bg-slate-400'
+                              }`}
+                            />
+                            {branchStock > 0 ? `${branchStock} in branch` : '0 in branch'}
+                          </span>
+
+                          {product.barcode && (
+                            <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 rounded text-[9px] font-mono-tabular font-semibold truncate max-w-[110px]" title={product.barcode}>
+                              {product.barcode}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bottom Price & Add Action Row */}
+                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                        <div className="font-mono-tabular">
+                          <div className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">
+                            {mode === 'wholesale' ? 'Case Price' : 'Bottle Price'}
+                          </div>
+                          <div className="text-xs font-montserrat font-black text-[#0A006E]">
+                            {mode === 'wholesale'
+                              ? formatKes(geoPrice.casePrice)
+                              : formatKes(geoPrice.unitBottlePrice)}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAddToCart(product);
+                          }}
+                          className="px-3 py-1.5 bg-[#0A006E] hover:bg-[#060046] active:scale-95 text-[#FFDE00] rounded-lg text-xs font-montserrat font-black flex items-center gap-1 cursor-pointer transition shadow-xs shrink-0"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Add</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
 
-            {/* Customer / Retailer Selection */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-white p-3.5 rounded-xl border border-slate-200">
+            {/* Load More Pagination */}
+            {filteredProducts.length > displayedProducts.length && (
+              <div className="pt-2 text-center">
+                <button
+                  type="button"
+                  onClick={() => setVisibleLimit((prev) => prev + 36)}
+                  className="px-4 py-2 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-xl text-xs font-montserrat font-bold cursor-pointer inline-flex items-center gap-1.5 shadow-xs"
+                >
+                  <span>Load More ({filteredProducts.length - displayedProducts.length} more)</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right 5 Columns: Active Order Register & Document Generator */}
+        <div className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl flex flex-col sticky top-20 h-[calc(100vh-5.5rem)] max-h-[920px] overflow-hidden shadow-sm">
+          {/* Fixed Register Header */}
+          <div className="p-3.5 border-b border-slate-200 bg-slate-50/90 backdrop-blur-xs space-y-2 shrink-0">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-8 h-8 rounded-lg bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0">
+                  <ShoppingCart className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E] truncate">
+                    {mode === 'retail' ? 'Retail Counter Register' : 'B2B Wholesale Dispatch & ETIMS'}
+                  </h3>
+                  <p className="text-[10px] text-slate-500 truncate">
+                    Cashier: <strong>{currentUser.name}</strong> · {activeBranch?.name}
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-right shrink-0">
+                <span className="text-xs font-mono-tabular font-bold text-[#0A006E] bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-2xs">
+                  {computedLineItems.length} {computedLineItems.length === 1 ? 'item' : 'items'}
+                </span>
+              </div>
+            </div>
+
+            {/* Document Type Selector Tabs */}
+            <div className="flex items-center gap-1 bg-white p-0.5 rounded-xl border border-slate-200">
+              {(['Receipt', 'Invoice', 'Delivery Note', 'Quote'] as DocType[]).map((dt) => (
+                <button
+                  key={dt}
+                  type="button"
+                  onClick={() => setDocTypeToIssue(dt)}
+                  className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-montserrat font-bold transition cursor-pointer text-center truncate ${
+                    docTypeToIssue === dt
+                      ? 'bg-[#0A006E] text-[#FFDE00] shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  {dt}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Scrollable Register Body: Customer Details, Payment, and Line Items */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-3.5 space-y-3">
+            {statusMessage && (
+              <div className="p-3 rounded-xl bg-emerald-50 border border-[#34D186] text-xs text-[#0A006E] font-montserrat font-bold flex items-center gap-2.5 shadow-xs">
+                <AnimatedSuccessTickIcon size="sm" />
+                <span className="flex-1">{statusMessage}</span>
+                <button
+                  type="button"
+                  onClick={() => setStatusMessage(null)}
+                  className="text-slate-400 hover:text-slate-600 p-0.5"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Customer Details Card */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2.5">
               {mode === 'wholesale' && retailers.length > 0 && (
-                <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-montserrat font-bold text-slate-600">
-                    Quick-Select Onboarded Retailer
+                <div>
+                  <label className="block text-[11px] font-montserrat font-bold text-slate-700">
+                    Quick-Select Licensed Retailer
                   </label>
                   <select
                     onChange={(e) => {
@@ -1385,34 +1587,34 @@ export const PosViews: React.FC<PosViewsProps> = ({
                         if (found.regionId) setSelectedRegionId(found.regionId);
                       }
                     }}
-                    className="w-full mt-1 px-2.5 py-1.5 bg-[#F0F2F0] border border-slate-200 rounded-lg text-xs text-slate-900 font-semibold"
+                    className="w-full mt-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:border-[#0A006E]"
                   >
-                    <option value="">-- Choose Licensed Retailer or Type Below --</option>
+                    <option value="">-- Choose Licensed Retailer or Type Custom --</option>
                     {retailers.map((r) => (
                       <option key={r.id} value={r.id}>
-                        {r.companyName} ({r.regionName} · Lic: {r.liquorLicenseNo})
+                        {r.companyName} ({r.regionName} · PIN: {r.taxPin || 'N/A'})
                       </option>
                     ))}
                   </select>
                 </div>
               )}
 
-              <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[11px] font-montserrat font-bold text-slate-600">
-                    Customer / Trade Account
+                  <label className="block text-[10px] font-montserrat font-bold text-slate-600 uppercase tracking-wider">
+                    Customer / Buyer Name
                   </label>
                   <input
                     type="text"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="Walk-In or Company Name"
-                    className="w-full mt-1 px-2.5 py-1.5 bg-[#F0F2F0] border border-slate-200 rounded-lg text-xs text-slate-900 font-semibold"
+                    placeholder="Walk-In Customer or Company"
+                    className="w-full mt-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:border-[#0A006E]"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-montserrat font-bold text-slate-600">
-                    Buyer KRA PIN (Optional for VAT3)
+                  <label className="block text-[10px] font-montserrat font-bold text-slate-600 uppercase tracking-wider">
+                    Buyer KRA PIN (VAT3)
                   </label>
                   <input
                     type="text"
@@ -1420,106 +1622,132 @@ export const PosViews: React.FC<PosViewsProps> = ({
                     value={customerKraPin}
                     onChange={(e) => setCustomerKraPin(e.target.value.toUpperCase())}
                     placeholder="e.g. P051882910Z"
-                    className="w-full mt-1 px-2.5 py-1.5 bg-[#F0F2F0] border border-slate-200 rounded-lg text-xs font-mono-tabular uppercase font-bold text-slate-900"
+                    className="w-full mt-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono-tabular uppercase font-bold text-slate-900 focus:outline-none focus:border-[#0A006E]"
                   />
                 </div>
               </div>
+            </div>
 
-              {/* Payment Method Selector */}
-              <div className="sm:col-span-2 space-y-1.5 pt-1">
-                <label className="block text-[11px] font-montserrat font-bold text-slate-600">
-                  Payment Method
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                  {[
-                    { id: 'M-Pesa Till / Instant Card', label: 'Lipa M-Pesa', icon: Smartphone },
-                    { id: 'Cash Till Settlement', label: 'Cash Till', icon: Coins },
-                    { id: 'Corporate Bank EFT / M-Pesa Paybill', label: 'Bank / Paybill', icon: CreditCard },
-                    { id: 'Distributor Credit Line', label: 'Credit Line', icon: Zap },
-                  ].map((pm) => {
-                    const IconC = pm.icon;
-                    const isSel = paymentMethod === pm.id;
-                    return (
-                      <button
-                        key={pm.id}
-                        type="button"
-                        onClick={() => setPaymentMethod(pm.id)}
-                        className={`py-2 px-2 rounded-xl border text-[11px] font-montserrat font-bold flex items-center justify-center gap-1.5 cursor-pointer transition ${
-                          isSel
-                            ? 'bg-[#0A006E] text-white border-[#0A006E] shadow-sm'
-                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                        }`}
-                      >
-                        <IconC className={`w-3.5 h-3.5 ${isSel ? 'text-[#FFDE00]' : 'text-slate-500'}`} />
-                        <span className="truncate">{pm.label}</span>
-                      </button>
-                    );
-                  })}
+            {/* Payment Method Selector */}
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-montserrat font-bold text-slate-600 uppercase tracking-wider">
+                Payment Method
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                {[
+                  { id: 'M-Pesa Till / Instant Card', label: 'Lipa M-Pesa', icon: Smartphone },
+                  { id: 'Cash Till Settlement', label: 'Cash Till', icon: Coins },
+                  { id: 'Corporate Bank EFT / M-Pesa Paybill', label: 'Card / Bank', icon: CreditCard },
+                  { id: 'Distributor Credit Line', label: 'Credit Line', icon: Zap },
+                ].map((pm) => {
+                  const IconC = pm.icon;
+                  const isSel = paymentMethod === pm.id;
+                  return (
+                    <button
+                      key={pm.id}
+                      type="button"
+                      onClick={() => setPaymentMethod(pm.id)}
+                      className={`py-2 px-2 rounded-xl border text-[11px] font-montserrat font-bold flex items-center justify-center gap-1.5 cursor-pointer transition ${
+                        isSel
+                          ? 'bg-[#0A006E] text-white border-[#0A006E] shadow-xs'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <IconC className={`w-3.5 h-3.5 ${isSel ? 'text-[#FFDE00]' : 'text-slate-500'}`} />
+                      <span className="truncate">{pm.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Contextual Payment Drawer: M-Pesa STK */}
+            {paymentMethod === 'M-Pesa Till / Instant Card' && (
+              <div className="bg-emerald-50/90 border border-emerald-300 rounded-xl p-3 space-y-2">
+                <div className="flex items-center justify-between text-xs font-montserrat font-black text-emerald-950">
+                  <span className="flex items-center gap-1.5">
+                    <Smartphone className="w-4 h-4 text-emerald-700" />
+                    Lipa Na M-Pesa · Buy Goods Till 4082211
+                  </span>
+                  <span className="font-mono-tabular text-emerald-900 bg-white px-2 py-0.5 rounded-md border border-emerald-200 font-bold">
+                    KES {grandTotal.toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="tel"
+                    placeholder="Customer Handset (e.g. 0712 345 678)"
+                    value={mpesaCustomerPhone}
+                    onChange={(e) => setMpesaCustomerPhone(e.target.value)}
+                    className="flex-1 px-3 py-1.5 bg-white border border-emerald-300 focus:border-[#0A006E] rounded-lg text-xs font-mono font-bold text-slate-900 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStatusMessage(`📲 M-Pesa STK push prompt sent to ${mpesaCustomerPhone || 'customer phone'} for ${formatKes(grandTotal)}!`);
+                    }}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-black flex items-center gap-1 cursor-pointer transition shadow-xs shrink-0"
+                  >
+                    <Smartphone className="w-3.5 h-3.5" />
+                    <span>Send STK</span>
+                  </button>
                 </div>
               </div>
+            )}
 
-              {/* SIMPLIFIED M-PESA UI */}
-              {paymentMethod === 'M-Pesa Till / Instant Card' && (
-                <div className="sm:col-span-2 bg-emerald-50/95 border-2 border-emerald-400 rounded-2xl p-3 space-y-2">
-                  <div className="flex items-center justify-between text-xs font-montserrat font-black text-emerald-950">
-                    <span className="flex items-center gap-1.5">
-                      <Smartphone className="w-4 h-4 text-[#1E9E60]" />
-                      Lipa Na M-Pesa (Till 4082211)
-                    </span>
-                    <span className="font-mono-tabular text-emerald-900 bg-white px-2 py-0.5 rounded-md border border-emerald-200 font-bold">
-                      Payable: {formatKes(grandTotal)}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <div className="relative flex-1">
-                      <input
-                        type="tel"
-                        placeholder="Customer Phone (07XX XXX XXX)"
-                        value={mpesaCustomerPhone}
-                        onChange={(e) => setMpesaCustomerPhone(e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-emerald-300 focus:border-[#0A006E] rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setStatusMessage(`📲 M-Pesa STK Prompt sent to customer handset for ${formatKes(grandTotal)}!`);
-                      }}
-                      className="px-3.5 py-2 bg-[#1E9E60] hover:bg-emerald-700 text-[#FFDE00] rounded-xl text-[11px] font-montserrat font-black flex items-center gap-1 cursor-pointer transition shadow-xs shrink-0"
-                    >
-                      <Smartphone className="w-3.5 h-3.5" />
-                      Prompt Handset
-                    </button>
-                  </div>
+            {/* Contextual Payment Drawer: Cash Calculator */}
+            {paymentMethod === 'Cash Till Settlement' && (
+              <div className="bg-amber-50/80 border border-amber-300 rounded-xl p-3 space-y-2.5">
+                <div className="flex items-center justify-between text-xs font-montserrat font-black text-amber-950">
+                  <span className="flex items-center gap-1.5">
+                    <Coins className="w-4 h-4 text-amber-700" />
+                    Cash Tendered &amp; Change
+                  </span>
+                  <span className="font-mono-tabular text-slate-900">
+                    Amount Due: <strong>{formatKes(grandTotal)}</strong>
+                  </span>
                 </div>
-              )}
 
-              {/* Quick Cash Calculator */}
-              {paymentMethod === 'Cash Till Settlement' && (
-                <div className="sm:col-span-2 bg-amber-50/80 border border-amber-300 rounded-2xl p-3 space-y-2">
-                  <div className="flex items-center justify-between text-xs font-montserrat font-black text-amber-950">
-                    <span className="flex items-center gap-1.5">
-                      <Coins className="w-4 h-4 text-amber-600" />
-                      Cash Tendered & Change
-                    </span>
-                    <span className="font-mono-tabular text-[#0A006E]">
-                      Payable: <strong>{formatKes(grandTotal)}</strong>
-                    </span>
+                {/* Quick Tender Buttons */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setCashTendered(grandTotal)}
+                    className="px-2 py-1 bg-white hover:bg-amber-100 border border-amber-300 rounded text-[10px] font-montserrat font-bold text-amber-950 cursor-pointer"
+                  >
+                    Exact ({formatKes(grandTotal)})
+                  </button>
+                  {[500, 1000, 2000, 5000].map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setCashTendered(amt)}
+                      className="px-2 py-1 bg-white hover:bg-amber-100 border border-amber-300 rounded text-[10px] font-mono-tabular font-bold text-amber-950 cursor-pointer"
+                    >
+                      KES {amt.toLocaleString()}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[9px] font-montserrat font-bold text-amber-900 uppercase">
+                      Tendered (KES)
+                    </label>
+                    <input
+                      type="number"
+                      value={cashTendered || ''}
+                      onChange={(e) => setCashTendered(Number(e.target.value))}
+                      placeholder="Enter cash given"
+                      className="w-full mt-0.5 px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-[#0A006E]"
+                    />
                   </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <input
-                        type="number"
-                        value={cashTendered || ''}
-                        onChange={(e) => setCashTendered(Number(e.target.value))}
-                        placeholder={`Tendered (${grandTotal})`}
-                        className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none"
-                      />
-                    </div>
-                    <div className="px-3 py-1.5 bg-white border border-amber-300 rounded-xl text-xs font-mono font-black flex items-center justify-between">
-                      <span className="text-slate-500 text-[10px]">Change:</span>
+                  <div>
+                    <label className="block text-[9px] font-montserrat font-bold text-amber-900 uppercase">
+                      Change to Return
+                    </label>
+                    <div className="mt-0.5 px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-mono font-black flex items-center justify-between">
                       <span className={cashTendered >= grandTotal ? 'text-emerald-700' : 'text-amber-700'}>
                         {cashTendered >= grandTotal
                           ? formatKes(cashTendered - grandTotal)
@@ -1530,84 +1758,124 @@ export const PosViews: React.FC<PosViewsProps> = ({
                     </div>
                   </div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Cart Items List */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-[11px] font-montserrat font-bold text-slate-500 px-1">
-                <span>Items in Register</span>
-                <span className="font-mono">{computedLineItems.reduce((s, it) => s + it.quantityUnits, 0)} units</span>
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between text-[11px] font-montserrat font-bold text-slate-600 px-0.5">
+                <span className="flex items-center gap-1.5">
+                  <Receipt className="w-3.5 h-3.5 text-[#0A006E]" />
+                  <span>Order Line Items ({computedLineItems.length})</span>
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-slate-500">
+                    {computedLineItems.reduce((s, it) => s + it.quantityUnits, 0)} units
+                  </span>
+                  {computedLineItems.length > 0 && canVoidOrder && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCart([]);
+                        setActivatedProductIds([]);
+                        clearActivePosCart(currentUser.id || currentUser.email).catch(() => {});
+                      }}
+                      className="text-rose-600 hover:underline text-[10px] font-montserrat font-bold cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
               </div>
 
               {computedLineItems.length === 0 ? (
-                <div className="bg-white border border-slate-200 rounded-xl p-5 text-center text-xs text-slate-500">
-                  Select IPS/LPS liquor products on the left or scan with your phone to populate this register.
+                <div className="p-8 text-center space-y-2 bg-slate-50/70 border border-dashed border-slate-200 rounded-xl">
+                  <div className="w-10 h-10 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center mx-auto">
+                    <ShoppingCart className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-montserrat font-bold text-slate-700">
+                      Register is currently empty
+                    </p>
+                    <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
+                      Click any bottle in the catalog on the left or scan a barcode to add it to this checkout ticket.
+                    </p>
+                  </div>
                 </div>
               ) : (
-                <>
-                  {(showAllCartItems ? computedLineItems : computedLineItems.slice(0, 2)).map((item, idx) => (
+                <div className="space-y-2">
+                  {computedLineItems.map((item, idx) => (
                     <div
-                      key={`${item.productId}-${item.unitMode}`}
-                      className="bg-white border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-2 shadow-2xs hover:border-[#0A006E] transition"
+                      key={`${item.productId}-${item.unitMode}-${idx}`}
+                      className="p-3 bg-white border border-slate-200 rounded-xl space-y-2 hover:border-slate-300 transition-all shadow-2xs"
                     >
-                      <div className="min-w-0">
-                        <div className="text-[10px] font-mono-tabular text-[#0A006E] font-bold">
-                          {item.sku}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 text-[10px] font-mono-tabular text-slate-500">
+                            <span className="font-bold text-[#0A006E]">{item.sku}</span>
+                            <span>·</span>
+                            <span className="text-slate-600">{formatKes(item.unitPrice)} / {item.unitMode}</span>
+                          </div>
+                          <h4 className="text-xs font-montserrat font-bold text-slate-900 truncate mt-0.5" title={item.name}>
+                            {item.name}
+                          </h4>
                         </div>
-                        <div className="text-xs font-montserrat font-bold text-slate-900 truncate">
-                          {item.name}
-                        </div>
-                        <div className="text-[11px] text-slate-500 font-mono-tabular mt-0.5">
-                          {formatKes(item.unitPrice)} / {item.unitMode} ({item.totalBottles} btls)
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveCartItem(idx)}
+                          className="text-slate-400 hover:text-rose-600 p-1 rounded-md transition-colors cursor-pointer"
+                          title="Remove line item"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
 
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleUnitMode(idx)}
-                          className="px-2 py-1 rounded bg-[#F0F2F0] hover:bg-[#FFDE00] border border-slate-200 text-[10px] font-montserrat font-black text-[#0A006E] cursor-pointer"
-                          title="Switch between Bottle and Case"
-                        >
-                          {item.unitMode}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateQty(idx, -1)}
-                          className="w-7 h-7 rounded bg-[#F0F2F0] hover:bg-slate-200 flex items-center justify-center text-slate-700 cursor-pointer"
-                        >
-                          <Minus className="w-3.5 h-3.5" />
-                        </button>
-                        <span className="w-6 text-center font-mono-tabular text-xs font-bold">
-                          {item.quantityUnits}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateQty(idx, 1)}
-                          className="w-7 h-7 rounded bg-[#F0F2F0] hover:bg-slate-200 flex items-center justify-center text-slate-700 cursor-pointer"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                        </button>
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleUnitMode(idx)}
+                            className="px-2 py-0.5 rounded text-[10px] font-montserrat font-bold bg-slate-100 hover:bg-[#FFDE00] text-[#0A006E] border border-slate-200 transition-colors cursor-pointer"
+                            title="Switch Bottle / Case"
+                          >
+                            {item.unitMode} ({item.totalBottles} btls)
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center border border-slate-200 rounded-lg bg-slate-50 overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateQty(idx, -1)}
+                              className="w-7 h-7 flex items-center justify-center hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                            >
+                              <Minus className="w-3 h-3" />
+                            </button>
+                            <span className="w-8 text-center font-mono-tabular text-xs font-bold text-slate-900">
+                              {item.quantityUnits}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateQty(idx, 1)}
+                              className="w-7 h-7 flex items-center justify-center hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          </div>
+                          <div className="font-mono-tabular font-black text-xs text-[#0A006E] text-right min-w-[70px]">
+                            {formatKes(item.lineTotal)}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   ))}
-                  {computedLineItems.length > 2 && (
-                    <button
-                      type="button"
-                      onClick={() => setShowAllCartItems(!showAllCartItems)}
-                      className="w-full text-center text-xs text-[#0A006E] font-montserrat font-bold py-2 underline cursor-pointer"
-                    >
-                      {showAllCartItems ? 'Collapse items' : `Show all ${computedLineItems.length} items`}
-                    </button>
-                  )}
-                </>
+                </div>
               )}
             </div>
           </div>
 
-          {/* FLOATING CART TOTAL & SETTLEMENT BAR - PERMANENTLY FLOATS AT THE BOTTOM, NEVER SCROLLS */}
-          <div className="p-4 bg-slate-950 text-white border-t-2 border-[#0A006E] space-y-2.5 shrink-0 shadow-[0_-8px_25px_rgba(0,0,0,0.18)] z-20">
+          {/* FLOATING CART TOTAL & SETTLEMENT BAR - PERMANENTLY FLOATS AT THE BOTTOM */}
+          <div className="p-4 bg-slate-950 text-white border-t-2 border-[#0A006E] space-y-2.5 shrink-0 shadow-[0_-8px_25px_rgba(0,0,0,0.22)] z-20">
             <div className="flex items-center justify-between text-xs font-mono-tabular">
               <div className="flex items-center gap-1.5 text-slate-300">
                 <ShoppingCart className="w-3.5 h-3.5 text-[#FFDE00]" />
@@ -1619,7 +1887,7 @@ export const PosViews: React.FC<PosViewsProps> = ({
                 {isPhoneSyncActive ? (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-montserrat font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                    Phone Linked &amp; Live
+                    Phone Linked
                   </span>
                 ) : (
                   <button
@@ -1636,11 +1904,11 @@ export const PosViews: React.FC<PosViewsProps> = ({
 
             <div className="flex justify-between text-[11px] text-slate-400 font-mono-tabular">
               <span>Subtotal: {formatKes(subtotal)}</span>
-              <span>Regional Tax ({(taxRate * 100).toFixed(0)}%): {formatKes(exciseAndTax)}</span>
+              <span>Regional Tax ({(taxRate * 100).toFixed(0)}% VAT): {formatKes(exciseAndTax)}</span>
             </div>
 
             <div className="flex justify-between items-baseline text-lg sm:text-xl font-montserrat font-black text-[#FFDE00] pt-1.5 border-t border-slate-800 font-mono-tabular">
-              <span>Total Charge:</span>
+              <span className="text-sm font-bold text-slate-300">Total Payable:</span>
               <span className="text-xl sm:text-2xl text-emerald-400">{formatKes(grandTotal)}</span>
             </div>
 
@@ -1657,7 +1925,7 @@ export const PosViews: React.FC<PosViewsProps> = ({
                 disabled={cart.length === 0 || !canVoidOrder}
                 className={`min-h-[42px] px-3.5 py-2 border rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 transition-colors ${
                   !canVoidOrder
-                    ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
+                    ? 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed opacity-60'
                     : 'bg-white hover:bg-red-50 text-red-600 border-slate-200 cursor-pointer disabled:opacity-40'
                 }`}
                 title={
@@ -1669,19 +1937,20 @@ export const PosViews: React.FC<PosViewsProps> = ({
                 <Trash2 className="w-4 h-4" />
                 <span>{canVoidOrder ? 'Clear' : 'Locked'}</span>
               </button>
+
               <button
                 type="button"
                 disabled={cart.length === 0 || isProcessing}
                 onClick={handleCompleteCheckout}
-                className="flex-1 min-h-[42px] py-2 px-4 bg-[#FFDE00] hover:bg-amber-400 border-2 border-[#0A006E] disabled:opacity-40 text-[#0A006E] font-montserrat font-black text-xs rounded-xl flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-md"
+                className="flex-1 min-h-[42px] py-2 px-4 bg-[#FFDE00] hover:bg-amber-400 border-2 border-[#0A006E] disabled:opacity-40 text-[#0A006E] font-montserrat font-black text-xs rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md active:scale-[0.99]"
               >
                 {paymentMethod === 'M-Pesa Till / Instant Card' ? (
                   <>
                     <Smartphone className="w-4 h-4" />
                     <span>
                       {isProcessing
-                        ? 'Processing Settlement...'
-                        : `Lipa M-Pesa & Print (${formatKes(grandTotal)})`}
+                        ? 'Processing M-Pesa Settlement...'
+                        : `Lipa M-Pesa & Complete (${formatKes(grandTotal)})`}
                     </span>
                   </>
                 ) : (
@@ -1690,7 +1959,7 @@ export const PosViews: React.FC<PosViewsProps> = ({
                     <span>
                       {isProcessing
                         ? 'Issuing Document...'
-                        : `Commit & Print (${formatKes(grandTotal)})`}
+                        : `Commit & Print ${docTypeToIssue} (${formatKes(grandTotal)})`}
                     </span>
                   </>
                 )}
