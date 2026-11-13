@@ -231,6 +231,7 @@ export const PosViews: React.FC<PosViewsProps> = ({
   const [scanQueue, setScanQueue] = useState<{ id: string; name: string; barcode: string; timestamp: number }[]>([]);
   const [isPhoneScannerOpen, setIsPhoneScannerOpen] = useState(false);
   const [showAllCartItems, setShowAllCartItems] = useState(false);
+  const [mobilePosPane, setMobilePosPane] = useState<'catalog' | 'register'>('catalog');
 
   // Real-time listener for product activations
   useEffect(() => {
@@ -975,7 +976,7 @@ export const PosViews: React.FC<PosViewsProps> = ({
                     const br = branches.find((b) => b.id === e.target.value);
                     if (br) setSelectedRegionId(br.regionId);
                   }}
-                  className="px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-montserrat font-bold text-[#0A006E] cursor-pointer"
+                  className="px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-montserrat font-bold text-[#0A006E] cursor-pointer max-w-[165px] sm:max-w-none truncate"
                 >
                   {(isScopedBranch && currentUser.branchId
                     ? branches.filter(
@@ -993,7 +994,7 @@ export const PosViews: React.FC<PosViewsProps> = ({
                 <select
                   value={activeRegion?.id || ''}
                   onChange={(e) => setSelectedRegionId(e.target.value)}
-                  className="px-2 py-1.5 bg-[#0A006E] text-white rounded-lg text-[11px] font-montserrat font-bold cursor-pointer"
+                  className="px-2 py-1.5 bg-[#0A006E] text-white rounded-lg text-[11px] font-montserrat font-bold cursor-pointer max-w-[155px] sm:max-w-none truncate"
                   title="Geo-Pricing Zone"
                 >
                   {regions.map((r) => (
@@ -1157,10 +1158,40 @@ export const PosViews: React.FC<PosViewsProps> = ({
         </div>
       )}
 
+      {/* Mobile POS Pane Switcher (< lg): Instant toggle between Product Catalog and Checkout Register */}
+      <div className="lg:hidden grid grid-cols-2 gap-1.5 p-1 bg-slate-100 border border-slate-200 rounded-xl sticky top-[62px] z-20 shadow-xs">
+        <button
+          type="button"
+          onClick={() => setMobilePosPane('catalog')}
+          className={`py-2 px-3 rounded-lg text-xs font-montserrat font-black flex items-center justify-center gap-1.5 cursor-pointer transition ${
+            mobilePosPane === 'catalog'
+              ? 'bg-[#0A006E] text-[#FFDE00] shadow-xs'
+              : 'text-slate-700 hover:bg-white'
+          }`}
+        >
+          <Wine className="w-4 h-4 shrink-0" />
+          <span>Catalog ({filteredProducts.length})</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobilePosPane('register')}
+          className={`py-2 px-3 rounded-lg text-xs font-montserrat font-black flex items-center justify-center gap-1.5 cursor-pointer transition ${
+            mobilePosPane === 'register'
+              ? 'bg-[#0A006E] text-[#FFDE00] shadow-xs'
+              : 'text-slate-700 hover:bg-white'
+          }`}
+        >
+          <ShoppingCart className="w-4 h-4 shrink-0" />
+          <span className="truncate">
+            Checkout ({computedLineItems.length} · {formatKes(grandTotal)})
+          </span>
+        </button>
+      </div>
+
       {/* Main 2-Column POS Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* Left 7 Columns: Product Catalog */}
-        <div className="lg:col-span-7 space-y-3">
+        <div className={`lg:col-span-7 space-y-3 ${mobilePosPane === 'catalog' ? 'block' : 'hidden lg:block'}`}>
           <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3.5 shadow-xs">
             {/* Catalog Top Header & Search Bar */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-100">
@@ -1510,7 +1541,11 @@ export const PosViews: React.FC<PosViewsProps> = ({
         </div>
 
         {/* Right 5 Columns: Active Order Register & Document Generator */}
-        <div className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl flex flex-col sticky top-20 h-[calc(100vh-5.5rem)] max-h-[920px] overflow-hidden shadow-sm">
+        <div
+          className={`lg:col-span-5 bg-white border border-slate-200 rounded-2xl flex-col lg:sticky lg:top-20 h-auto lg:h-[calc(100vh-5.5rem)] lg:max-h-[920px] overflow-hidden shadow-sm ${
+            mobilePosPane === 'register' ? 'flex' : 'hidden lg:flex'
+          }`}
+        >
           {/* Fixed Register Header */}
           <div className="p-3.5 border-b border-slate-200 bg-slate-50/90 backdrop-blur-xs space-y-2 shrink-0">
             <div className="flex items-center justify-between gap-2">
@@ -1968,6 +2003,37 @@ export const PosViews: React.FC<PosViewsProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Mobile Floating Mini-Checkout Jump Bar when items are in cart & viewing Catalog */}
+      {mobilePosPane === 'catalog' && cart.length > 0 && (
+        <div className="lg:hidden fixed bottom-[76px] left-3 right-3 z-25 pointer-events-auto">
+          <button
+            type="button"
+            onClick={() => {
+              setMobilePosPane('register');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="w-full px-4 py-3 rounded-2xl bg-[#0A006E] text-[#FFDE00] border-2 border-[#FFDE00] shadow-xl flex items-center justify-between gap-3 cursor-pointer active:scale-[0.98] transition"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-[#FFDE00] text-[#0A006E] flex items-center justify-center font-mono-tabular font-black text-xs shrink-0">
+                {computedLineItems.reduce((s, it) => s + it.quantityUnits, 0)}
+              </div>
+              <div className="text-left min-w-0">
+                <div className="text-[10px] font-montserrat font-bold text-slate-200 uppercase">
+                  {computedLineItems.length} line{computedLineItems.length === 1 ? '' : 's'} ready
+                </div>
+                <div className="text-sm font-mono-tabular font-black text-[#FFDE00] truncate">
+                  {formatKes(grandTotal)}
+                </div>
+              </div>
+            </div>
+            <span className="px-3 py-1.5 rounded-xl bg-[#FFDE00] text-[#0A006E] text-xs font-montserrat font-black shrink-0">
+              Review &amp; Pay →
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* Live Phone Camera Barcode Scanner Viewfinder Modal */}
       <PhoneBarcodeScannerModal

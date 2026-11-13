@@ -131,11 +131,15 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
   const [selectedBox, setSelectedBox] = useState<'Admin' | 'Accountant' | 'Staff'>('Admin');
   const [screenView, setScreenView] = useState<'boxes' | 'departments' | 'branches' | 'users' | 'pin'>('boxes');
   const [executiveModalRole, setExecutiveModalRole] = useState<'Admin' | 'Accountant' | null>(null);
-  const [authMethodTab, setAuthMethodTab] = useState<'email' | 'google'>('email');
+  const [authMethodTab, setAuthMethodTab] = useState<'email' | 'google' | 'pin'>('email');
   const [emailValue, setEmailValue] = useState<string>('');
   const [passwordValue, setPasswordValue] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [localModalError, setLocalModalError] = useState<string | null>(null);
+  const [modalPinDigits, setModalPinDigits] = useState<string>('');
+  const [selectedModalAccountantId, setSelectedModalAccountantId] = useState<string>('');
+  const modalPinInputRef = useRef<HTMLInputElement>(null);
+  const lastSubmittedModalPinRef = useRef<string>('');
   const [selectedDepartment, setSelectedDepartment] = useState<StaffRole | null>(null);
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   const [selectedBranchName, setSelectedBranchName] = useState<string | null>(null);
@@ -145,13 +149,31 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
   const pinInputRef = useRef<HTMLInputElement>(null);
   const lastSubmittedPinRef = useRef<string>('');
 
-  const handleOpenExecutiveLogin = (role: 'Admin' | 'Accountant', preferredMode: 'email' | 'google' = 'email') => {
+  const activeAccountants = useMemo(
+    () => staffList.filter((s) => s.role === 'Accountant' && s.status === 'Active'),
+    [staffList]
+  );
+
+  const handleOpenExecutiveLogin = (
+    role: 'Admin' | 'Accountant',
+    preferredMode: 'email' | 'google' | 'pin' = 'email'
+  ) => {
     setSelectedBox(role);
     setExecutiveModalRole(role);
-    setAuthMethodTab(preferredMode);
+    setAuthMethodTab(role === 'Admin' && preferredMode === 'pin' ? 'email' : preferredMode);
     setLocalModalError(null);
     setPasswordValue('');
     setEmailValue('');
+    setModalPinDigits('');
+    lastSubmittedModalPinRef.current = '';
+    if (role === 'Accountant') {
+      const currentAccountants = staffList.filter(
+        (s) => s.role === 'Accountant' && s.status === 'Active'
+      );
+      setSelectedModalAccountantId(currentAccountants.length === 1 ? currentAccountants[0].id : '');
+    } else {
+      setSelectedModalAccountantId('');
+    }
   };
 
   const handleCloseExecutiveModal = () => {
@@ -159,6 +181,9 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
     setExecutiveModalRole(null);
     setLocalModalError(null);
     setPasswordValue('');
+    setModalPinDigits('');
+    lastSubmittedModalPinRef.current = '';
+    setSelectedModalAccountantId('');
   };
 
   const handleSubmitEmailAuth = async (e?: React.FormEvent) => {
@@ -233,6 +258,89 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
     }
   }, [screenView, pinDigits, isSubmitting, selectedDepartment, selectedUser, onPinLogin]);
 
+  // Auto-focus hidden modal PIN input when Accountant Option 2 PIN tab is active
+  useEffect(() => {
+    if (executiveModalRole === 'Accountant' && authMethodTab === 'pin') {
+      const timer = setTimeout(() => {
+        modalPinInputRef.current?.focus();
+      }, 60);
+      return () => clearTimeout(timer);
+    } else {
+      lastSubmittedModalPinRef.current = '';
+    }
+  }, [executiveModalRole, authMethodTab]);
+
+  // Auto-submit Accountant Option 2 6-Digit PIN once 6 digits are entered
+  useEffect(() => {
+    if (
+      executiveModalRole === 'Accountant' &&
+      authMethodTab === 'pin' &&
+      modalPinDigits.length === 6 &&
+      !isSubmitting &&
+      lastSubmittedModalPinRef.current !== modalPinDigits
+    ) {
+      lastSubmittedModalPinRef.current = modalPinDigits;
+      onPinLogin(modalPinDigits, 'Accountant', selectedModalAccountantId || undefined);
+    } else if (modalPinDigits.length < 6) {
+      lastSubmittedModalPinRef.current = '';
+    }
+  }, [
+    executiveModalRole,
+    authMethodTab,
+    modalPinDigits,
+    isSubmitting,
+    selectedModalAccountantId,
+    onPinLogin,
+  ]);
+
+  // Physical keyboard support inside Accountant Option 2 PIN tab
+  useEffect(() => {
+    if (executiveModalRole !== 'Accountant' || authMethodTab !== 'pin') return;
+
+    const handleModalKeyDown = (e: KeyboardEvent) => {
+      if (
+        (e.target instanceof HTMLInputElement && e.target !== modalPinInputRef.current) ||
+        e.target instanceof HTMLSelectElement
+      ) {
+        return;
+      }
+
+      if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        if (!isSubmitting) {
+          playClickSound();
+          setModalPinDigits((prev) => (prev.length < 6 ? prev + e.key : prev));
+        }
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        lastSubmittedModalPinRef.current = '';
+        playClickSound();
+        setModalPinDigits((prev) => prev.slice(0, -1));
+      } else if (e.key === 'Delete') {
+        e.preventDefault();
+        lastSubmittedModalPinRef.current = '';
+        playClickSound();
+        setModalPinDigits('');
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (modalPinDigits.length === 6 && !isSubmitting) {
+          lastSubmittedModalPinRef.current = modalPinDigits;
+          onPinLogin(modalPinDigits, 'Accountant', selectedModalAccountantId || undefined);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleModalKeyDown);
+    return () => window.removeEventListener('keydown', handleModalKeyDown);
+  }, [
+    executiveModalRole,
+    authMethodTab,
+    modalPinDigits,
+    isSubmitting,
+    selectedModalAccountantId,
+    onPinLogin,
+  ]);
+
   useEffect(() => {
     if (authError) {
       playErrorSound();
@@ -280,8 +388,13 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
     }, 50);
   };
 
-  const handleBypassToPin = () => {
-    setSelectedUser(null);
+  const handleBypassToPin = (roleOverride?: StaffRole, userOverride?: StaffMember | null) => {
+    if (roleOverride) {
+      setSelectedDepartment(roleOverride);
+      setSelectedBranchId(null);
+      setSelectedBranchName(null);
+    }
+    setSelectedUser(userOverride || null);
     lastSubmittedPinRef.current = '';
     setPinDigits('');
     setScreenView('pin');
@@ -536,7 +649,10 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
                         ACCOUNTS
                       </h2>
                       <p className="text-[11px] sm:hidden font-montserrat font-semibold text-[#0A006E]/80 mt-0.5 truncate">
-                        Finance & Ledger Auth
+                        Google · Email · PIN (Option 2)
+                      </p>
+                      <p className="hidden sm:block text-[11px] font-montserrat font-bold text-[#0A006E]/75 mt-1">
+                        Email / Google · Option 2: PIN
                       </p>
                     </div>
                   </div>
@@ -658,7 +774,7 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
 
               <button
                 type="button"
-                onClick={handleBypassToPin}
+                onClick={() => handleBypassToPin()}
                 className="px-3 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-[#0A006E] font-montserrat font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs"
                 title="Direct PIN entry"
               >
@@ -806,7 +922,7 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
 
               <button
                 type="button"
-                onClick={handleBypassToPin}
+                onClick={() => handleBypassToPin()}
                 className="px-3 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-[#0A006E] font-montserrat font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs"
                 title="Enter PIN without selecting a specific profile"
               >
@@ -846,7 +962,7 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={handleBypassToPin}
+                    onClick={() => handleBypassToPin()}
                     className="px-4 py-2.5 bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-xs font-montserrat font-bold cursor-pointer hover:bg-slate-200 transition"
                   >
                     Enter PIN Directly
@@ -928,7 +1044,11 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
                 onClick={() => {
                   lastSubmittedPinRef.current = '';
                   setPinDigits('');
-                  if (selectedDepartment) {
+                  if (selectedDepartment === 'Accountant' && !selectedBranchId) {
+                    setSelectedDepartment(null);
+                    setSelectedUser(null);
+                    setScreenView('boxes');
+                  } else if (selectedDepartment) {
                     setScreenView('users');
                   } else {
                     setScreenView('departments');
@@ -937,7 +1057,13 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
                 className="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-montserrat font-semibold text-xs flex items-center gap-2 cursor-pointer transition shadow-2xs"
               >
                 <ArrowLeft className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>{selectedDepartment ? 'Back to Staff List' : 'Back to Departments'}</span>
+                <span>
+                  {selectedDepartment === 'Accountant' && !selectedBranchId
+                    ? 'Back to Login'
+                    : selectedDepartment
+                    ? 'Back to Staff List'
+                    : 'Back to Departments'}
+                </span>
               </button>
 
               <div className="flex items-center gap-2 text-xs font-montserrat font-bold text-slate-500">
@@ -1011,7 +1137,9 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
                         Department Terminal
                       </div>
                       <div className="text-sm font-montserrat font-bold text-slate-900">
-                        {activeDeptMeta?.title || selectedDepartment || 'All Departments'}
+                        {activeDeptMeta?.title ||
+                          (selectedDepartment === 'Accountant' ? 'ACCOUNTS & FINANCE' : selectedDepartment) ||
+                          'All Departments'}
                       </div>
                     </div>
                     <button
@@ -1237,13 +1365,13 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
           }}
         >
           <div
-            className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border-2 border-slate-200 overflow-hidden my-auto transition-all animate-in fade-in zoom-in-95 duration-200"
+            className="relative w-full max-w-md max-h-[94dvh] flex flex-col bg-white rounded-3xl shadow-2xl border-2 border-slate-200 overflow-hidden my-auto transition-all animate-in fade-in zoom-in-95 duration-200"
             role="dialog"
             aria-modal="true"
           >
             {/* Header with Role Branding */}
             <div
-              className={`p-4 sm:p-5 flex items-center justify-between gap-3 text-left relative ${
+              className={`p-4 sm:p-5 flex items-center justify-between gap-3 text-left relative shrink-0 ${
                 executiveModalRole === 'Admin'
                   ? 'bg-[#0A006E] text-white border-b-4 border-[#FFDE00]'
                   : 'bg-[#FFDE00] text-[#0A006E] border-b-4 border-[#0A006E]'
@@ -1296,22 +1424,26 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
               </button>
             </div>
 
-            {/* Method Tabs: Email vs Google */}
-            <div className="p-2 bg-slate-100 border-b border-slate-200 grid grid-cols-2 gap-1.5">
+            {/* Method Tabs: Email vs Google (+ Option 2 PIN for Accountant) */}
+            <div
+              className={`p-1.5 sm:p-2 bg-slate-100 border-b border-slate-200 grid gap-1 sm:gap-1.5 shrink-0 ${
+                executiveModalRole === 'Accountant' ? 'grid-cols-3' : 'grid-cols-2'
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => {
                   setAuthMethodTab('email');
                   setLocalModalError(null);
                 }}
-                className={`py-2 px-3 rounded-xl font-montserrat font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                className={`py-2 px-1.5 sm:px-2.5 rounded-xl font-montserrat font-bold text-[11px] sm:text-xs flex items-center justify-center gap-1 sm:gap-1.5 transition-all cursor-pointer ${
                   authMethodTab === 'email'
                     ? 'bg-white text-[#0A006E] shadow-sm font-black'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
                 }`}
               >
-                <Mail className="w-4 h-4 stroke-[2.2]" />
-                <span>Sign In with Email</span>
+                <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.2] shrink-0" />
+                <span className="truncate">Email</span>
               </button>
               <button
                 type="button"
@@ -1319,19 +1451,38 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
                   setAuthMethodTab('google');
                   setLocalModalError(null);
                 }}
-                className={`py-2 px-3 rounded-xl font-montserrat font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                className={`py-2 px-1.5 sm:px-2.5 rounded-xl font-montserrat font-bold text-[11px] sm:text-xs flex items-center justify-center gap-1 sm:gap-1.5 transition-all cursor-pointer ${
                   authMethodTab === 'google'
                     ? 'bg-white text-[#0A006E] shadow-sm font-black'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
                 }`}
               >
-                <GoogleIcon className="w-4 h-4 shrink-0" />
-                <span>Google OAuth</span>
+                <GoogleIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                <span className="truncate">Google</span>
               </button>
+              {executiveModalRole === 'Accountant' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMethodTab('pin');
+                    setLocalModalError(null);
+                    setModalPinDigits('');
+                    lastSubmittedModalPinRef.current = '';
+                  }}
+                  className={`py-2 px-1.5 sm:px-2.5 rounded-xl font-montserrat font-bold text-[11px] sm:text-xs flex items-center justify-center gap-1 sm:gap-1.5 transition-all cursor-pointer ${
+                    authMethodTab === 'pin'
+                      ? 'bg-[#0A006E] text-[#FFDE00] shadow-sm font-black'
+                      : 'text-[#0A006E] bg-[#FFDE00]/35 hover:bg-[#FFDE00]/60'
+                  }`}
+                >
+                  <KeyRound className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.2] shrink-0" />
+                  <span className="truncate">PIN Opt 2</span>
+                </button>
+              )}
             </div>
 
             {/* Modal Body */}
-            <div className="p-4 sm:p-6 space-y-4">
+            <div className="p-4 sm:p-6 space-y-4 flex-1 overflow-y-auto">
               {/* Errors if any */}
               {(localModalError || authError) && (
                 <div className="p-3 rounded-xl bg-red-50 border border-red-300 text-xs text-red-950 flex items-start gap-2.5 font-montserrat font-semibold">
@@ -1481,21 +1632,217 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
                   </p>
                 </div>
               )}
+              {/* TAB 3 (OPTION 2): ACCOUNTANT 6-DIGIT PIN SIGN-IN */}
+              {executiveModalRole === 'Accountant' && authMethodTab === 'pin' && (
+                <div className="space-y-3.5">
+                  <input
+                    ref={modalPinInputRef}
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    value={modalPinDigits}
+                    onChange={(e) => {
+                      const cleaned = e.target.value.replace(/\D/g, '').slice(0, 6);
+                      setModalPinDigits(cleaned);
+                    }}
+                    className="sr-only"
+                    aria-label="Accountant 6-Digit PIN Input"
+                  />
+
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#FFDE00] text-[#0A006E] font-montserrat font-black text-[10px] uppercase tracking-wider">
+                        Option 2 Login
+                      </span>
+                      <h4 className="font-montserrat font-black text-sm text-slate-900 mt-1">
+                        Enter Accountant 6-Digit Security PIN
+                      </h4>
+                    </div>
+                  </div>
+
+                  {activeAccountants.length > 0 && (
+                    <div>
+                      <label className="block text-[11px] font-montserrat font-bold text-slate-600 mb-1">
+                        Accountant Profile
+                      </label>
+                      <select
+                        value={selectedModalAccountantId}
+                        onChange={(e) => {
+                          setSelectedModalAccountantId(e.target.value);
+                          setModalPinDigits('');
+                          lastSubmittedModalPinRef.current = '';
+                          modalPinInputRef.current?.focus();
+                        }}
+                        className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-200 focus:border-[#0A006E] rounded-xl text-xs font-montserrat font-bold text-slate-900 outline-none"
+                      >
+                        <option value="">Any Active Accountant (Auto-Match PIN)</option>
+                        {activeAccountants.map((acc) => (
+                          <option key={acc.id} value={acc.id}>
+                            {acc.name} · {acc.branchName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* 6-Digit PIN Boxes */}
+                  <div
+                    onClick={() => modalPinInputRef.current?.focus()}
+                    className="p-3 rounded-2xl bg-slate-50 border-2 border-slate-200 hover:border-[#0A006E]/50 cursor-text space-y-2 transition"
+                  >
+                    <div className="flex items-center justify-center gap-1.5 sm:gap-2">
+                      {[0, 1, 2, 3, 4, 5].map((idx) => {
+                        const filled = idx < modalPinDigits.length;
+                        const isCurrent = idx === modalPinDigits.length;
+                        return (
+                          <div
+                            key={idx}
+                            className={`w-9 h-10 sm:w-10 sm:h-11 rounded-xl flex items-center justify-center font-mono font-bold text-base sm:text-lg border transition-all select-none ${
+                              filled
+                                ? 'border-[#0A006E] bg-[#0A006E] text-[#FFDE00] shadow-xs'
+                                : isCurrent
+                                ? 'border-[#0A006E] bg-white ring-2 ring-[#0A006E]/20 text-[#0A006E]'
+                                : 'border-slate-200 bg-white text-slate-300'
+                            }`}
+                          >
+                            {filled ? modalPinDigits[idx] : isCurrent ? '•' : '—'}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] font-montserrat font-semibold text-slate-500 px-1">
+                      <span>Type 0–9 or tap keypad below</span>
+                      <span>{modalPinDigits.length} / 6 Digits</span>
+                    </div>
+                  </div>
+
+                  {/* Compact Numeric Keypad */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
+                      <button
+                        key={digit}
+                        type="button"
+                        onClick={() => {
+                          if (isSubmitting) return;
+                          playClickSound();
+                          setModalPinDigits((prev) => (prev.length < 6 ? prev + digit : prev));
+                        }}
+                        className="py-2.5 rounded-xl font-mono font-bold text-lg bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-800 border border-slate-200 transition active:scale-95 flex items-center justify-center select-none cursor-pointer"
+                      >
+                        {digit}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        lastSubmittedModalPinRef.current = '';
+                        playClickSound();
+                        setModalPinDigits('');
+                        modalPinInputRef.current?.focus();
+                      }}
+                      className="py-2.5 rounded-xl font-montserrat font-bold text-xs uppercase bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 transition active:scale-95 cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isSubmitting) return;
+                        playClickSound();
+                        setModalPinDigits((prev) => (prev.length < 6 ? prev + '0' : prev));
+                      }}
+                      className="py-2.5 rounded-xl font-mono font-bold text-lg bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-800 border border-slate-200 transition active:scale-95 flex items-center justify-center select-none cursor-pointer"
+                    >
+                      0
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        lastSubmittedModalPinRef.current = '';
+                        playClickSound();
+                        setModalPinDigits((prev) => prev.slice(0, -1));
+                      }}
+                      className="py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 transition active:scale-95 flex items-center justify-center cursor-pointer"
+                      aria-label="Backspace"
+                    >
+                      <Delete className="w-4 h-4 stroke-[2.2]" />
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={modalPinDigits.length !== 6 || isSubmitting}
+                    onClick={() => {
+                      if (modalPinDigits.length === 6 && !isSubmitting) {
+                        lastSubmittedModalPinRef.current = modalPinDigits;
+                        onPinLogin(modalPinDigits, 'Accountant', selectedModalAccountantId || undefined);
+                      }
+                    }}
+                    className="w-full py-3 px-4 rounded-xl bg-[#0A006E] hover:bg-[#12009E] disabled:opacity-45 text-[#FFDE00] font-montserrat font-black text-sm tracking-wide shadow-md transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-98"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-[#FFDE00]" />
+                        <span>Verifying PIN...</span>
+                      </>
+                    ) : (
+                      <>
+                        <KeyRound className="w-4 h-4 stroke-[2.5]" />
+                        <span>Unlock Accounts with PIN</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Modal Bottom Switch to PIN */}
-            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs font-montserrat text-slate-600">
-              <button
-                type="button"
-                onClick={() => {
-                  handleCloseExecutiveModal();
-                  handleBypassToPin();
-                }}
-                className="text-slate-600 hover:text-[#0A006E] font-bold flex items-center gap-1.5 transition cursor-pointer"
-              >
-                <KeyRound className="w-3.5 h-3.5" />
-                <span>Use 6-Digit PIN Terminal</span>
-              </button>
+            <div className="px-4 sm:px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs font-montserrat text-slate-600 shrink-0">
+              {executiveModalRole === 'Accountant' ? (
+                authMethodTab !== 'pin' ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMethodTab('pin');
+                      setLocalModalError(null);
+                      setModalPinDigits('');
+                      lastSubmittedModalPinRef.current = '';
+                    }}
+                    className="text-[#0A006E] hover:underline font-black flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <KeyRound className="w-3.5 h-3.5" />
+                    <span>Option 2: Login with 6-Digit PIN</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const matchedAcc = activeAccountants.find(
+                        (a) => a.id === selectedModalAccountantId
+                      );
+                      handleCloseExecutiveModal();
+                      handleBypassToPin('Accountant', matchedAcc || null);
+                    }}
+                    className="text-slate-600 hover:text-[#0A006E] font-bold flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <KeyRound className="w-3.5 h-3.5" />
+                    <span>Open Full PIN Terminal</span>
+                  </button>
+                )
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleCloseExecutiveModal();
+                    handleOpenStaffDepartments();
+                  }}
+                  className="text-slate-600 hover:text-[#0A006E] font-bold flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>Staff PIN Terminal</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleCloseExecutiveModal}

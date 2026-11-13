@@ -56,6 +56,7 @@ import {
   Clock,
   XCircle,
   Calendar,
+  ChevronDown,
 } from 'lucide-react';
 import {
   StaffMember,
@@ -96,7 +97,7 @@ import { SalesPeriodTracker } from './SalesPeriodTracker';
 import { InventoryBarcodeAssignmentModal } from './InventoryBarcodeAssignmentModal';
 import { ExecutiveVisualAnalytics, BarGraph, PieChart } from './common/AnalyticsCharts';
 import { KraReturnScheduleType } from '../utils/kraReturnsExport';
-import { useDashboardPrefs } from '../utils/dashboardPrefs';
+import { useDashboardPrefs, useModulePrefs } from '../utils/dashboardPrefs';
 import { MinimalDashboardBar } from './common/MinimalDashboardBar';
 
 // ---------------------------------------------------------------------------
@@ -1808,6 +1809,16 @@ export const OverviewModule: React.FC<{
             </div>
           )}
 
+        {/* Executive Bar Graphs & Pie Charts on Landing Overview */}
+        {isWidgetVisible('charts_analytics') && (
+          <ExecutiveVisualAnalytics
+            branchData={branchBarData}
+            channelData={channelPieData}
+            assetData={assetPieData}
+            topSkusData={topSkusBarData}
+          />
+        )}
+
         {/* Performance & Insights Focus Tiles */}
         {(isWidgetVisible('reports_grid') || isWidgetVisible('quick_tiles')) && (
           <div className="space-y-1.5">
@@ -2310,6 +2321,16 @@ export const OverviewModule: React.FC<{
         </div>
       )}
 
+      {/* Executive Bar Graphs & Pie Charts (Expanded Mode) */}
+      {isWidgetVisible('charts_analytics') && (
+        <ExecutiveVisualAnalytics
+          branchData={branchBarData}
+          channelData={channelPieData}
+          assetData={assetPieData}
+          topSkusData={topSkusBarData}
+        />
+      )}
+
       {/* Sales Period Tracker */}
       {isWidgetVisible('reports_grid') && (
         <div id="sales-period-section">
@@ -2409,18 +2430,8 @@ export const OverviewModule: React.FC<{
           </div>
         )}
 
-      {/* Visual Analytics */}
-      {isWidgetVisible('reports_grid') && (
-        <ExecutiveVisualAnalytics
-          branchData={branchBarData}
-          channelData={channelPieData}
-          assetData={assetPieData}
-          topSkusData={topSkusBarData}
-        />
-      )}
-
       {/* Regional Branch Performance Matrix */}
-      {(isWidgetVisible('reports_grid') || isWidgetVisible('quick_tiles')) && (
+      {(isWidgetVisible('branch_table') || isWidgetVisible('reports_grid')) && (
         <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-montserrat font-bold text-[#0A006E]">
@@ -2576,6 +2587,17 @@ export const InventoryModule: React.FC<{
       currentUser.role === 'Branch Manager' ||
       currentUser.role === 'Sales Manager') &&
     isUserFeaturePermitted(currentUser, 'inventory_damage_logging');
+
+  const {
+    schema: invSchema,
+    prefs: invPrefs,
+    setMode: setInvMode,
+    toggleKpi: toggleInvKpi,
+    toggleWidget: toggleInvWidget,
+    isKpiVisible: isInvKpiVisible,
+    isWidgetVisible: isInvWidgetVisible,
+    resetToDefault: resetInvPrefs,
+  } = useModulePrefs(currentUser, 'inventory');
 
   // Threshold Governance State (Inventory Manager & Admin)
   const [thresholdSettings, setThresholdSettings] = useState<InventoryThresholdSettings>(() => {
@@ -3113,6 +3135,8 @@ export const InventoryModule: React.FC<{
   const [filterSubCat, setFilterSubCat] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [tableLimit, setTableLimit] = useState<number>(60);
+  const [isAddProductOpen, setIsAddProductOpen] = useState(false);
+  const [showAdminMenu, setShowAdminMenu] = useState(false);
 
   const previewAutoSku = useMemo(
     () => generateAutoSku(subCategory, volumeMl, originCountry, products.length, stockCategory),
@@ -3215,6 +3239,8 @@ export const InventoryModule: React.FC<{
     setBarcode('');
     setCaseBarcode('');
     setNewProductImage('');
+    setIsAddProductOpen(false);
+    setProductFeedback(`Successfully registered SKU "${previewAutoSku}" (${name.trim()}) into inventory!`);
   };
 
   const handleExportInventoryPDF = () => {
@@ -3269,55 +3295,66 @@ export const InventoryModule: React.FC<{
     );
   };
 
-  return (
-    <div className="space-y-6 pb-12">
-      {/* Minimized & Streamlined Inventory Header */}
-      <div className="bg-[#FFDE00] border-2 border-[#0A006E] rounded-2xl py-3 px-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative overflow-hidden shadow-xs">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 shadow-xs">
-            <Package className="w-5 h-5 stroke-[2.2]" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-sm sm:text-base font-montserrat font-black italic text-[#0A006E]">
-                Liquor Inventory &amp; Bonded Controller
-              </h2>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-montserrat font-black bg-[#0A006E] text-[#FFDE00]">
-                {products.length} SKUs
-              </span>
-            </div>
-            <p className="text-[11px] font-medium text-slate-900">
-              Manage stock levels, branch allocation, valuation, and excise audits.
-            </p>
-          </div>
-        </div>
+  const damagedSpoiledBottles =
+    stockHealthMetrics.totalDamagedBottles + stockHealthMetrics.totalSpoiledBottles;
+  const awaitingBarcodeCount = products.filter((p) => !p.hasRealBarcode).length;
+  const verifiedBarcodeCount = products.length - awaitingBarcodeCount;
 
-        <div className="flex items-center gap-2 flex-wrap shrink-0 w-full sm:w-auto justify-end">
-          {onOpenOnboardItems && (
+  return (
+    <div className="space-y-4 pb-10">
+      {/* Unified Customizable Module Bar */}
+      <MinimalDashboardBar
+        currentUser={currentUser}
+        schema={invSchema}
+        prefs={invPrefs}
+        onChangeMode={setInvMode}
+        onToggleKpi={toggleInvKpi}
+        onToggleWidget={toggleInvWidget}
+        onReset={resetInvPrefs}
+        actions={
+          <>
+            {canEditProduct && (
+              <button
+                type="button"
+                onClick={() => setIsAddProductOpen((v) => !v)}
+                className="px-2.5 py-1.5 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                {isAddProductOpen ? 'Close Form' : 'Add Product'}
+              </button>
+            )}
+            {onOpenOnboardItems && (
+              <button
+                type="button"
+                onClick={onOpenOnboardItems}
+                className="px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-[#0A006E] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              >
+                <Barcode className="w-3.5 h-3.5" />
+                Onboard
+              </button>
+            )}
+            {canEditProduct && (
+              <button
+                type="button"
+                onClick={() => setIsCsvModalOpen(true)}
+                className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                CSV Import
+              </button>
+            )}
             <button
               type="button"
-              onClick={onOpenOnboardItems}
-              className="px-3.5 py-2 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-xs transition whitespace-nowrap"
+              onClick={handleRunDuplicateCheck}
+              className="px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
             >
-              <Barcode className="w-3.5 h-3.5 text-[#FFDE00]" />
-              Onboard Items
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+              Duplicates
             </button>
-          )}
-          {canEditProduct && (
-            <button
-              type="button"
-              onClick={() => setIsCsvModalOpen(true)}
-              className="px-3 py-2 bg-[#34D186] hover:bg-[#28B873] text-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-xs transition whitespace-nowrap"
-            >
-              <Upload className="w-3.5 h-3.5" />
-              Upload CSV
-            </button>
-          )}
-          <div className="flex items-center gap-1 bg-white/80 p-1 rounded-xl border border-[#0A006E]/20">
             <button
               type="button"
               onClick={handleExportInventoryPDF}
-              className="px-2.5 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
+              className="px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
               title="Export PDF Report"
             >
               <Download className="w-3.5 h-3.5" />
@@ -3326,250 +3363,298 @@ export const InventoryModule: React.FC<{
             <button
               type="button"
               onClick={handleExportInventoryCSV}
-              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-[#0A006E] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
+              className="px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
               title="Export CSV"
             >
               <Download className="w-3.5 h-3.5" />
               CSV
             </button>
-          </div>
-          <button
-            type="button"
-            onClick={handleRunDuplicateCheck}
-            className="px-3 py-2 bg-white hover:bg-slate-50 border border-[#0A006E]/30 text-[#0A006E] rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition whitespace-nowrap"
-          >
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-            Duplicate Check
-          </button>
-        </div>
-      </div>
+            {onWipeAllProducts && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowAdminMenu((v) => !v)}
+                  className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                >
+                  <Sliders className="w-3.5 h-3.5" />
+                  Admin Tools
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+                {showAdminMenu && (
+                  <div className="absolute right-0 mt-1.5 w-56 bg-white border border-slate-200 rounded-xl shadow-xl z-40 py-1.5 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleSelectAllProducts();
+                        setShowAdminMenu(false);
+                      }}
+                      className="w-full px-3 py-2 text-left hover:bg-slate-50 text-slate-800 font-semibold flex items-center gap-2 cursor-pointer"
+                    >
+                      <CheckSquare className="w-3.5 h-3.5 text-[#0A006E]" />
+                      {selectedProductIds.size === filteredProducts.length && filteredProducts.length > 0
+                        ? 'Deselect All SKUs'
+                        : `Select All Filtered (${filteredProducts.length})`}
+                    </button>
+                    {selectedProductIds.size > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleWipeSelectedProducts();
+                          setShowAdminMenu(false);
+                        }}
+                        className="w-full px-3 py-2 text-left hover:bg-rose-50 text-rose-700 font-bold flex items-center gap-2 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Wipe Selected ({selectedProductIds.size})
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleSelectAllAndWipe();
+                        setShowAdminMenu(false);
+                      }}
+                      className="w-full px-3 py-2 text-left hover:bg-rose-50 text-rose-700 font-bold flex items-center gap-2 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Select All &amp; Wipe All
+                    </button>
+                    {onWipeInventoryToZero && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onWipeInventoryToZero();
+                          setShowAdminMenu(false);
+                        }}
+                        className="w-full px-3 py-2 text-left hover:bg-amber-50 text-amber-800 font-bold flex items-center gap-2 cursor-pointer border-t border-slate-100 mt-1 pt-2"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        Wipe Stock to Zero (0 Btls)
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onWipeAllProducts();
+                        setShowAdminMenu(false);
+                      }}
+                      className="w-full px-3 py-2 text-left hover:bg-rose-50 text-rose-800 font-bold flex items-center gap-2 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Purge All SKUs
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        }
+      />
 
       {/* 0 SKUs Clean Slate State Banner */}
       {products.length === 0 && (
-        <div className="bg-emerald-50 border-2 border-emerald-400/80 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-              <CheckCircle2 className="w-5 h-5 stroke-[2.5]" />
+            <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h4 className="font-montserrat font-black text-emerald-950 text-sm">
-                  No Products Registered (0 SKUs)
-                </h4>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-montserrat font-black bg-emerald-200 text-emerald-900">
-                  Clean Database Ready
-                </span>
-              </div>
-              <p className="text-xs text-emerald-800 font-medium">
-                All sample SKUs have been removed. Upload your inventory CSV or register new products below.
+              <h4 className="font-montserrat font-bold text-emerald-950 text-sm">
+                No Products Registered (0 SKUs) · Clean Database Ready
+              </h4>
+              <p className="text-xs text-emerald-800">
+                Upload your inventory CSV or register a product using the Add Product button above.
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap shrink-0">
+          {canEditProduct && (
+            <button
+              type="button"
+              onClick={() => setIsCsvModalOpen(true)}
+              className="px-3.5 py-2 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-lg text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              Import Inventory CSV
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Clean Stock Health & Governance Strip */}
+      {isInvWidgetVisible('kpi_strip') && (
+        <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+            <div>
+              <div className="text-xs font-montserrat font-bold text-[#0A006E]">
+                Stock Health &amp; Barcode Readiness ({products.length} Total SKUs)
+              </div>
+              <div className="text-[11px] text-slate-500">
+                Dead &gt; {thresholdSettings.defaultDeadStockDays}d · Expiry &lt; {thresholdSettings.defaultExpiryWarningDays}d · Verified Barcodes: {verifiedBarcodeCount}/{products.length}
+              </div>
+            </div>
             {canEditProduct && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBarcodeAssignmentTargetProductId(undefined);
+                    setIsBarcodeAssignmentModalOpen(true);
+                  }}
+                  className="px-2.5 py-1.5 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                >
+                  <Barcode className="w-3.5 h-3.5" />
+                  Scan Barcodes ({awaitingBarcodeCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsThresholdModalOpen(true)}
+                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                >
+                  <Sliders className="w-3.5 h-3.5" />
+                  Thresholds
+                </button>
+                {canLogDamage && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIncidentTargetProduct(null);
+                      setIsLogIncidentModalOpen(true);
+                    }}
+                    className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                  >
+                    <PackageX className="w-3.5 h-3.5" />
+                    Log Loss
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+            {isInvKpiVisible('healthy_stock') && (
               <button
                 type="button"
-                onClick={() => setIsCsvModalOpen(true)}
-                className="px-3.5 py-2 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-xs transition whitespace-nowrap"
+                onClick={() =>
+                  setFilterRotationStatus((prev) => (prev === 'HEALTHY' ? 'ALL' : 'HEALTHY'))
+                }
+                className={`p-3 rounded-xl border text-left cursor-pointer transition ${
+                  filterRotationStatus === 'HEALTHY'
+                    ? 'bg-emerald-50 border-emerald-500'
+                    : 'bg-slate-50/70 border-slate-200 hover:border-emerald-300'
+                }`}
               >
-                <Upload className="w-3.5 h-3.5" />
-                Import Inventory CSV
+                <div className="flex items-center justify-between text-emerald-700">
+                  <span className="text-[11px] font-montserrat font-bold">Healthy Stock</span>
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                </div>
+                <div className="text-lg font-montserrat font-black text-slate-900 font-mono-tabular mt-0.5">
+                  {Math.max(0, products.length - stockHealthMetrics.deadStockCount - stockHealthMetrics.expiringSoonCount)}
+                </div>
+                <div className="text-[10px] text-slate-500">Regular rotation SKUs</div>
+              </button>
+            )}
+
+            {isInvKpiVisible('dead_stock') && (
+              <button
+                type="button"
+                onClick={() =>
+                  setFilterRotationStatus((prev) => (prev === 'DEAD_STOCK' ? 'ALL' : 'DEAD_STOCK'))
+                }
+                className={`p-3 rounded-xl border text-left cursor-pointer transition ${
+                  filterRotationStatus === 'DEAD_STOCK'
+                    ? 'bg-amber-50 border-amber-500'
+                    : 'bg-slate-50/70 border-slate-200 hover:border-amber-300'
+                }`}
+              >
+                <div className="flex items-center justify-between text-amber-700">
+                  <span className="text-[11px] font-montserrat font-bold">Dead Stock Alert</span>
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                </div>
+                <div className="text-lg font-montserrat font-black text-amber-900 font-mono-tabular mt-0.5">
+                  {stockHealthMetrics.deadStockCount} <span className="text-xs font-normal text-slate-500">SKUs</span>
+                </div>
+                <div className="text-[10px] text-amber-700">
+                  Capital: {formatKes(stockHealthMetrics.deadStockValueKes)}
+                </div>
+              </button>
+            )}
+
+            {isInvKpiVisible('expiring_soon') && (
+              <button
+                type="button"
+                onClick={() =>
+                  setFilterRotationStatus((prev) => (prev === 'EXPIRING' ? 'ALL' : 'EXPIRING'))
+                }
+                className={`p-3 rounded-xl border text-left cursor-pointer transition ${
+                  filterRotationStatus === 'EXPIRING'
+                    ? 'bg-orange-50 border-orange-500'
+                    : 'bg-slate-50/70 border-slate-200 hover:border-orange-300'
+                }`}
+              >
+                <div className="flex items-center justify-between text-orange-700">
+                  <span className="text-[11px] font-montserrat font-bold">Expiring Soon</span>
+                  <AlertCircle className="w-3.5 h-3.5" />
+                </div>
+                <div className="text-lg font-montserrat font-black text-orange-900 font-mono-tabular mt-0.5">
+                  {stockHealthMetrics.expiringSoonCount} <span className="text-xs font-normal text-slate-500">SKUs</span>
+                </div>
+                <div className="text-[10px] text-orange-700">
+                  Within {thresholdSettings.defaultExpiryWarningDays}d limit
+                </div>
+              </button>
+            )}
+
+            {isInvKpiVisible('damaged_spoiled') && (
+              <button
+                type="button"
+                onClick={() =>
+                  setFilterRotationStatus((prev) => (prev === 'DAMAGED_SPOILED' ? 'ALL' : 'DAMAGED_SPOILED'))
+                }
+                className={`p-3 rounded-xl border text-left cursor-pointer transition ${
+                  filterRotationStatus === 'DAMAGED_SPOILED'
+                    ? 'bg-rose-50 border-rose-500'
+                    : 'bg-slate-50/70 border-slate-200 hover:border-rose-300'
+                }`}
+              >
+                <div className="flex items-center justify-between text-rose-700">
+                  <span className="text-[11px] font-montserrat font-bold">Damaged / Spoiled</span>
+                  <PackageX className="w-3.5 h-3.5" />
+                </div>
+                <div className="text-lg font-montserrat font-black text-rose-900 font-mono-tabular mt-0.5">
+                  {damagedSpoiledBottles} <span className="text-xs font-normal text-slate-500">btls</span>
+                </div>
+                <div className="text-[10px] text-rose-700">
+                  Loss: {formatKes(stockHealthMetrics.totalDamagedLossKes + stockHealthMetrics.totalSpoiledLossKes)}
+                </div>
               </button>
             )}
           </div>
         </div>
       )}
 
-      {/* Inventory Governance & Health Command Center (Dead Stock, Expiry, Damages, Spoilage) */}
-      <div className="bg-white border-2 border-[#0A006E]/20 rounded-2xl p-5 shadow-2xs space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 shadow-md">
-              <Sliders className="w-5 h-5 stroke-[2.2]" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-montserrat font-black text-[#0A006E] text-sm">
-                  Inventory Health & Threshold Governance Command
-                </h3>
-                <span className="px-2 py-0.5 bg-[#FFDE00] text-[#0A006E] rounded-full text-[10px] font-montserrat font-black uppercase tracking-wider">
-                  Inventory Controller & Admin
-                </span>
-              </div>
-              <p className="text-xs text-slate-600 mt-0.5">
-                Active thresholds: Dead Stock Inactivity &gt; {thresholdSettings.defaultDeadStockDays}d · Expiry Warning &lt; {thresholdSettings.defaultExpiryWarningDays}d · Damage Alert Max {thresholdSettings.defaultMaxDamagePct}% · Spoilage Alert Max {thresholdSettings.defaultMaxSpoilagePct}%
-              </p>
-            </div>
-          </div>
-
-          {canEditProduct && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={() => {
-                  setBarcodeAssignmentTargetProductId(undefined);
-                  setIsBarcodeAssignmentModalOpen(true);
-                }}
-                className="px-3.5 py-2 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] border-2 border-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-md transition hover:scale-[1.02]"
-                title="Scan and register real bottle barcodes"
-              >
-                <Barcode className="w-3.5 h-3.5 text-[#0A006E]" />
-                Scan Real Barcodes ({products.filter((p) => !p.hasRealBarcode).length} Awaiting)
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsThresholdModalOpen(true)}
-                className="px-3 py-2 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-md transition"
-              >
-                <Sliders className="w-3.5 h-3.5 text-[#FFDE00]" />
-                Configure Thresholds
-              </button>
-              {canLogDamage ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIncidentTargetProduct(null);
-                    setIsLogIncidentModalOpen(true);
-                  }}
-                  className="px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-md transition"
-                >
-                  <PackageX className="w-3.5 h-3.5" />
-                  Log Damage / Spoilage
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled
-                  title="Damage and spoilage logging stripped by Administrator"
-                  className="px-3 py-2 bg-slate-200 text-slate-400 rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-not-allowed opacity-60"
-                >
-                  <PackageX className="w-3.5 h-3.5" />
-                  Damage Logging Stripped
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* 4 Stock Health Metric Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* Card 1: Healthy Stock */}
-          <div
-            onClick={() => setFilterRotationStatus('HEALTHY')}
-            className={`p-3.5 rounded-xl border cursor-pointer transition ${
-              filterRotationStatus === 'HEALTHY'
-                ? 'bg-emerald-50 border-emerald-500 shadow-sm'
-                : 'bg-slate-50 border-slate-200 hover:border-emerald-300'
-            }`}
-          >
-            <div className="flex items-center justify-between text-emerald-700">
-              <span className="text-[11px] font-montserrat font-bold uppercase tracking-wider">Healthy Stock</span>
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
-            <div className="text-xl font-montserrat font-black text-slate-900 mt-1">
-              {Math.max(0, products.length - stockHealthMetrics.deadStockCount - stockHealthMetrics.expiringSoonCount)}
-            </div>
-            <div className="text-[10px] text-slate-500 mt-0.5">Fast & regular rotation items</div>
-          </div>
-
-          {/* Card 2: Dead Stock Alert */}
-          <div
-            onClick={() => setFilterRotationStatus('DEAD_STOCK')}
-            className={`p-3.5 rounded-xl border cursor-pointer transition ${
-              filterRotationStatus === 'DEAD_STOCK'
-                ? 'bg-amber-50 border-amber-500 shadow-sm'
-                : 'bg-slate-50 border-slate-200 hover:border-amber-300'
-            }`}
-          >
-            <div className="flex items-center justify-between text-amber-700">
-              <span className="text-[11px] font-montserrat font-bold uppercase tracking-wider">Dead Stock Alert</span>
-              <AlertTriangle className="w-4 h-4 text-amber-600" />
-            </div>
-            <div className="text-xl font-montserrat font-black text-amber-900 mt-1">
-              {stockHealthMetrics.deadStockCount} <span className="text-xs font-normal text-slate-500">SKUs</span>
-            </div>
-            <div className="text-[10px] font-bold text-amber-700 mt-0.5">
-              Tied Capital: {formatKes(stockHealthMetrics.deadStockValueKes)}
-            </div>
-          </div>
-
-          {/* Card 3: Expiring Soon */}
-          <div
-            onClick={() => setFilterRotationStatus('EXPIRING')}
-            className={`p-3.5 rounded-xl border cursor-pointer transition ${
-              filterRotationStatus === 'EXPIRING'
-                ? 'bg-orange-50 border-orange-500 shadow-sm'
-                : 'bg-slate-50 border-slate-200 hover:border-orange-300'
-            }`}
-          >
-            <div className="flex items-center justify-between text-orange-700">
-              <span className="text-[11px] font-montserrat font-bold uppercase tracking-wider">Expiring Soon</span>
-              <AlertCircle className="w-4 h-4 text-orange-600" />
-            </div>
-            <div className="text-xl font-montserrat font-black text-orange-900 mt-1">
-              {stockHealthMetrics.expiringSoonCount} <span className="text-xs font-normal text-slate-500">SKUs</span>
-            </div>
-            <div className="text-[10px] text-orange-700 mt-0.5">
-              Within {thresholdSettings.defaultExpiryWarningDays}d warning limit
-            </div>
-          </div>
-
-          {/* Card 4: Damaged / Spoiled */}
-          <div
-            onClick={() => setFilterRotationStatus('DAMAGED_SPOILED')}
-            className={`p-3.5 rounded-xl border cursor-pointer transition ${
-              filterRotationStatus === 'DAMAGED_SPOILED'
-                ? 'bg-rose-50 border-rose-500 shadow-sm'
-                : 'bg-slate-50 border-slate-200 hover:border-rose-300'
-            }`}
-          >
-            <div className="flex items-center justify-between text-rose-700">
-              <span className="text-[11px] font-montserrat font-bold uppercase tracking-wider">Damaged / Spoiled</span>
-              <PackageX className="w-4 h-4 text-rose-600" />
-            </div>
-            <div className="text-xl font-montserrat font-black text-rose-900 mt-1">
-              {stockHealthMetrics.totalDamagedBottles + stockHealthMetrics.totalSpoiledBottles}{' '}
-              <span className="text-xs font-normal text-slate-500">bottles</span>
-            </div>
-            <div className="text-[10px] font-bold text-rose-700 mt-0.5">
-              Loss: {formatKes(stockHealthMetrics.totalDamagedLossKes + stockHealthMetrics.totalSpoiledLossKes)}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Add New Independent Liquor SKU Form (Strictly for Inventory Person & Admin) */}
-      {!canEditProduct ? (
-        <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-700">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-slate-200 text-[#0A006E] rounded-xl shrink-0">
-              <Lock className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="font-montserrat font-black text-sm text-[#0A006E]">
-                Inventory Management & Bottle Upload Restricted
-              </div>
-              <p className="text-[11px] text-slate-600 mt-0.5">
-                Only the Inventory Person and System Administrator are authorized to edit products, register new SKUs, import CSVs, or upload bottle images.
-              </p>
-            </div>
-          </div>
-          <span className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-mono-tabular font-bold text-slate-600 shrink-0">
-            Role: {currentUser.role} (Read-Only)
-          </span>
-        </div>
-      ) : (
+      {/* Collapsible Add New Liquor SKU Drawer */}
+      {isAddProductOpen && canEditProduct && (
         <form
           onSubmit={handleAddProduct}
-          className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-4"
+          className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-sm"
         >
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
           <h3 className="text-sm font-montserrat font-black text-[#0A006E] flex items-center gap-2">
             <Package className="w-4 h-4 text-[#0A006E]" />
-            Register New Independent Liquor Product (Auto-SKU Generator)
+            Register New Liquor Product (Auto-SKU Generator)
           </h3>
-          <div className="px-3.5 py-1.5 bg-[#0A006E] text-white rounded-xl text-xs font-mono-tabular">
-            Auto-Generated SKU: <strong className="text-[#FFDE00]">{previewAutoSku}</strong>
+          <div className="flex items-center gap-2">
+            <div className="px-3 py-1 bg-[#0A006E] text-white rounded-lg text-xs font-mono-tabular">
+              SKU: <strong className="text-[#FFDE00]">{previewAutoSku}</strong>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsAddProductOpen(false)}
+              className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
+              aria-label="Close form"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
@@ -3832,252 +3917,363 @@ export const InventoryModule: React.FC<{
         </div>
       )}
 
-      {/* Master Catalog Filter Bar & Table */}
-      <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-4">
-        {/* Row 1: Search Bar & Stock Category Filters */}
-        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setTableLimit(60);
-              }}
-              placeholder={`Filter ${products.length} master SKUs by brand, product name, Auto-SKU, or EAN-13 barcode...`}
-              className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-montserrat"
-            />
-          </div>
-
-          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shrink-0">
-            {(['ALL', 'IPS', 'LPS'] as const).map((sc) => (
-              <button
-                key={sc}
-                type="button"
-                onClick={() => {
-                  setFilterStockCat(sc);
-                  setTableLimit(60);
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-montserrat font-black cursor-pointer transition ${
-                  filterStockCat === sc
-                    ? 'bg-[#0A006E] text-[#FFDE00]'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {sc === 'ALL' ? 'All Stock' : sc === 'IPS' ? 'IPS (Imported)' : 'LPS (Local)'}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Row 1.5: Branch / Warehouse Stock Filter & Download Hub */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0">
-              <Store className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="font-montserrat font-black text-xs text-[#0A006E]">
-                Branch &amp; Warehouse Stock View &amp; Download Filter
+      {/* Master Catalog Unified Filter Bar & Table */}
+      {(isInvWidgetVisible('filter_bar') || isInvWidgetVisible('catalog_table')) && (
+        <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3.5">
+          {isInvWidgetVisible('filter_bar') && (
+            <div className="space-y-2.5">
+              {/* Row 1: Search + Branch Selector */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5">
+                <div className="relative lg:col-span-7">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setTableLimit(60);
+                    }}
+                    placeholder={`Search ${products.length} master SKUs by name, brand, Auto-SKU, or barcode...`}
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-montserrat focus:bg-white focus:border-[#0A006E] outline-none"
+                  />
+                </div>
+                <div className="lg:col-span-5">
+                  <select
+                    value={selectedInventoryBranchId}
+                    onChange={(e) => setSelectedInventoryBranchId(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-montserrat font-bold text-[#0A006E] cursor-pointer"
+                  >
+                    <option value="ALL">All Branches &amp; Warehouses (Consolidated)</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} ({b.code}) · {b.facilityType || 'Branch'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div className="text-[10px] text-slate-500">
-                Select a specific branch or warehouse to view live available stock quantities and download branch reports.
-              </div>
-            </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            <select
-              value={selectedInventoryBranchId}
-              onChange={(e) => setSelectedInventoryBranchId(e.target.value)}
-              className="px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-montserrat font-black text-[#0A006E] cursor-pointer"
-            >
-              <option value="ALL">🌐 All Branches &amp; Warehouses (Consolidated)</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name} ({b.code}) - {b.facilityType || 'Branch'}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Row 2: Action & Wipe Toolbar */}
-        {onWipeAllProducts && (
-          <div className="flex items-center justify-between gap-2 flex-wrap pt-2 border-t border-slate-200">
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={handleSelectAllProducts}
-                className="px-3 py-2 bg-white hover:bg-slate-50 text-[#0A006E] border border-slate-300 rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-xs transition"
-              >
-                {selectedProductIds.size === filteredProducts.length && filteredProducts.length > 0 ? 'Deselect All' : `Select All (${filteredProducts.length})`}
-              </button>
-
-              {selectedProductIds.size > 0 && (
-                <button
-                  type="button"
-                  onClick={handleWipeSelectedProducts}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-xs transition"
+              {/* Row 2: Compact Spec, Health, Subcategory & Barcode Dropdowns */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2 text-xs">
+                <select
+                  value={filterStockCat}
+                  onChange={(e) => {
+                    setFilterStockCat(e.target.value as 'ALL' | StockCategory);
+                    setTableLimit(60);
+                  }}
+                  className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 cursor-pointer"
                 >
-                  Wipe Selected ({selectedProductIds.size})
-                </button>
-              )}
+                  <option value="ALL">Class: All ({products.length})</option>
+                  <option value="IPS">IPS (Imported)</option>
+                  <option value="LPS">LPS (Local)</option>
+                </select>
 
-              <button
-                type="button"
-                onClick={handleSelectAllAndWipe}
-                className="px-4 py-2 bg-red-700 hover:bg-red-800 text-[#FFDE00] border border-red-500 rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-md transition"
-              >
-                Select All & Wipe All
-              </button>
+                <select
+                  value={filterSubCat}
+                  onChange={(e) => {
+                    setFilterSubCat(e.target.value);
+                    setTableLimit(60);
+                  }}
+                  className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 cursor-pointer"
+                >
+                  <option value="ALL">Subcategory: All ({NAIROBI_DRINKS_SUB_CATEGORIES.length})</option>
+                  {NAIROBI_DRINKS_SUB_CATEGORIES.map((sub) => (
+                    <option key={sub} value={sub}>
+                      {sub}
+                    </option>
+                  ))}
+                </select>
 
-              {onWipeInventoryToZero && (
+                <select
+                  value={filterRotationStatus}
+                  onChange={(e) => {
+                    setFilterRotationStatus(e.target.value as typeof filterRotationStatus);
+                    setTableLimit(60);
+                  }}
+                  className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 cursor-pointer"
+                >
+                  <option value="ALL">Health: All ({products.length})</option>
+                  <option value="HEALTHY">Healthy Rotation</option>
+                  <option value="DEAD_STOCK">Dead Stock ({stockHealthMetrics.deadStockCount})</option>
+                  <option value="EXPIRING">Expiring Soon ({stockHealthMetrics.expiringSoonCount})</option>
+                  <option value="DAMAGED_SPOILED">Damaged/Spoiled ({damagedSpoiledBottles})</option>
+                </select>
+
+                <select
+                  value={filterBarcodeStatus}
+                  onChange={(e) => {
+                    setFilterBarcodeStatus(e.target.value as 'ALL' | 'AWAITING' | 'REGISTERED');
+                    setTableLimit(60);
+                  }}
+                  className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 cursor-pointer"
+                >
+                  <option value="ALL">Barcode: All ({products.length})</option>
+                  <option value="AWAITING">Awaiting Barcode ({awaitingBarcodeCount})</option>
+                  <option value="REGISTERED">Verified Barcode ({verifiedBarcodeCount})</option>
+                </select>
+
                 <button
                   type="button"
-                  onClick={onWipeInventoryToZero}
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-[#0A006E] border-2 border-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-md transition"
-                  title="Wipe all inventory stock levels back to 0 across all branches"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setFilterStockCat('ALL');
+                    setFilterSubCat('ALL');
+                    setFilterRotationStatus('ALL');
+                    setFilterBarcodeStatus('ALL');
+                    setSelectedInventoryBranchId('ALL');
+                    setTableLimit(60);
+                  }}
+                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-montserrat font-bold flex items-center justify-center gap-1 cursor-pointer col-span-2 sm:col-span-4 lg:col-span-1"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  Wipe Stock to Zero (0 Btls)
+                  Reset ({filteredProducts.length})
                 </button>
+              </div>
+
+              {/* Contextual Batch Selection Strip (only visible when rows are checked) */}
+              {selectedProductIds.size > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs">
+                  <span className="font-montserrat font-bold text-amber-950">
+                    {selectedProductIds.size} SKU(s) selected out of {filteredProducts.length} filtered
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedProductIds(new Set())}
+                      className="px-2.5 py-1 bg-white border border-slate-200 text-slate-700 rounded-md font-semibold cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                    {onWipeAllProducts && (
+                      <button
+                        type="button"
+                        onClick={handleWipeSelectedProducts}
+                        className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-md font-montserrat font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Wipe Selected ({selectedProductIds.size})
+                      </button>
+                    )}
+                  </div>
+                </div>
               )}
-
-              <button
-                type="button"
-                onClick={onWipeAllProducts}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-xs transition"
-                title="Completely purge all product definitions from database"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Purge All SKUs
-              </button>
             </div>
+          )}
 
-            {canEditProduct ? (
-              <span className="px-2.5 py-1 bg-[#34D186]/20 text-[#1E9E60] border border-[#34D186]/50 rounded-lg text-[10px] font-bold flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" />
-                {currentUser.role}: Can Edit Specs & Upload Photos
-              </span>
-            ) : (
-              <span className="px-2.5 py-1 bg-slate-200 text-slate-600 rounded-lg text-[10px] font-bold flex items-center gap-1">
-                <Lock className="w-3 h-3" />
-                View-Only
-              </span>
-            )}
-          </div>
-        )}
+          {isInvWidgetVisible('catalog_table') && (
+            <>
+              {/* MOBILE INVENTORY CARD VIEW (< md) */}
+              <div className="md:hidden space-y-2.5">
+                {filteredProducts.length > 0 && (
+                  <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                    <label className="flex items-center gap-2 font-montserrat font-bold text-[#0A006E] cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={filteredProducts.length > 0 && selectedProductIds.size === filteredProducts.length}
+                        onChange={handleSelectAllProducts}
+                        className="w-4 h-4 rounded accent-[#0A006E] cursor-pointer"
+                      />
+                      <span>Select All ({filteredProducts.length})</span>
+                    </label>
+                    <span className="font-mono-tabular text-[11px] font-bold text-slate-600">
+                      {selectedBranchObj ? selectedBranchObj.code : 'Consolidated'}
+                    </span>
+                  </div>
+                )}
 
-        {/* Row 3: Stock Rotation & Health Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-2 border-t border-slate-200">
-          <span className="text-[11px] font-montserrat font-black text-[#0A006E] uppercase tracking-wider shrink-0 mr-1">
-            Stock Rotation & Health:
-          </span>
-          {(
-            [
-              { id: 'ALL', label: `All Stock (${products.length})` },
-              { id: 'HEALTHY', label: 'Healthy Rotation' },
-              { id: 'DEAD_STOCK', label: `Dead Stock Alert (${stockHealthMetrics.deadStockCount})` },
-              { id: 'EXPIRING', label: `Expiring Soon (${stockHealthMetrics.expiringSoonCount})` },
-              {
-                id: 'DAMAGED_SPOILED',
-                label: `Damaged/Spoiled (${stockHealthMetrics.totalDamagedBottles + stockHealthMetrics.totalSpoiledBottles})`,
-              },
-            ] as const
-          ).map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => {
-                setFilterRotationStatus(item.id);
-                setTableLimit(60);
-              }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-montserrat font-bold whitespace-nowrap shrink-0 cursor-pointer transition ${
-                filterRotationStatus === item.id
-                  ? 'bg-[#0A006E] text-[#FFDE00] shadow-sm'
-                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+                {filteredProducts.length === 0 ? (
+                  <div className="py-12 px-4 text-center text-slate-500 font-montserrat bg-white border border-slate-200 rounded-xl">
+                    <div className="flex flex-col items-center justify-center gap-3">
+                      <div className="p-4 bg-amber-50 text-amber-700 rounded-2xl border border-amber-200 shadow-xs">
+                        <Package className="w-8 h-8 text-amber-600" />
+                      </div>
+                      <div className="text-sm font-bold text-slate-800">Inventory Database is Empty</div>
+                      <div className="text-xs text-slate-500 max-w-xs text-center">
+                        Use "Bulk Import" or "Onboard" above to upload your catalog.
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {filteredProducts.slice(0, tableLimit).map((p) => {
+                      const packSize = p.packSize || p.bottlesPerCase || 12;
+                      const abv = p.alcoholPercentage ?? p.abv ?? 40;
+                      const wholesale = p.wholesalePriceKes ?? p.baseWholesalePrice ?? 0;
+                      const retail = p.retailPriceKes ?? p.baseRetailPrice ?? 0;
+                      const branchMap = p.branchStockSummary ? JSON.parse(p.branchStockSummary) : {};
+                      const totalBtls = selectedBranchObj
+                        ? (branchMap[selectedBranchObj.id] ?? 0)
+                        : (p.totalBottles ?? 0);
 
-        {/* Row 4: Barcode Status Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-          <span className="text-[11px] font-montserrat font-black text-[#0A006E] uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
-            <Barcode className="w-3.5 h-3.5 text-[#0A006E]" />
-            Barcode Status:
-          </span>
-          {[
-            { id: 'ALL', label: `All Items (${products.length})` },
-            {
-              id: 'AWAITING',
-              label: `⚠️ Awaiting Real Barcode (${products.filter((p) => !p.hasRealBarcode).length})`,
-            },
-            {
-              id: 'REGISTERED',
-              label: `✓ Real Barcode Verified (${products.filter((p) => Boolean(p.hasRealBarcode)).length})`,
-            },
-          ].map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => {
-                setFilterBarcodeStatus(item.id as any);
-                setTableLimit(60);
-              }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-montserrat font-bold whitespace-nowrap shrink-0 cursor-pointer transition ${
-                filterBarcodeStatus === item.id
-                  ? 'bg-[#0A006E] text-[#FFDE00] shadow-sm'
-                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+                      const deadDays = p.deadStockThresholdDays || thresholdSettings.defaultDeadStockDays;
+                      const lastMove = p.lastStockMovementDate ? new Date(p.lastStockMovementDate) : new Date(p.createdAt || '2026-08-01');
+                      const daysInactive = Math.max(0, Math.floor((now.getTime() - lastMove.getTime()) / (1000 * 60 * 60 * 24)));
+                      const isDead = daysInactive >= deadDays && totalBtls > 0;
 
-        {/* Row 5: Subcategories Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1">
-          <button
-            type="button"
-            onClick={() => {
-              setFilterSubCat('ALL');
-              setTableLimit(60);
-            }}
-            className={`px-3 py-1.5 rounded-xl text-xs font-montserrat font-bold whitespace-nowrap shrink-0 cursor-pointer transition ${
-              filterSubCat === 'ALL'
-                ? 'bg-[#0A006E] text-[#FFDE00]'
-                : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            All 12 Subcategories ({filteredProducts.length})
-          </button>
-          {NAIROBI_DRINKS_SUB_CATEGORIES.map((sub) => (
-            <button
-              key={sub}
-              type="button"
-              onClick={() => {
-                setFilterSubCat(sub);
-                setTableLimit(60);
-              }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-montserrat font-bold whitespace-nowrap shrink-0 cursor-pointer transition ${
-                filterSubCat === sub
-                  ? 'bg-[#0A006E] text-[#FFDE00]'
-                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              {sub}
-            </button>
-          ))}
-        </div>
+                      const expiryDays = p.expiryThresholdDays || thresholdSettings.defaultExpiryWarningDays;
+                      const expiryDateStr = p.batchExpiryDate || p.defaultExpiryDate;
+                      let daysToExpiry: number | null = null;
+                      let isExpiringSoon = false;
+                      if (expiryDateStr) {
+                        const expDate = new Date(expiryDateStr);
+                        daysToExpiry = Math.floor((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                        if (daysToExpiry <= expiryDays && daysToExpiry >= 0) isExpiringSoon = true;
+                      }
+                      const dmg = p.damagedBottlesCount || 0;
+                      const spoil = p.spoiledBottlesCount || 0;
 
+                      return (
+                        <div
+                          key={`mob-${p.id}`}
+                          className={`p-3.5 rounded-2xl border transition space-y-2.5 ${
+                            selectedProductIds.has(p.id)
+                              ? 'bg-amber-50/70 border-amber-400'
+                              : 'bg-white border-slate-200'
+                          }`}
+                        >
+                          <div className="flex items-start gap-2.5">
+                            <input
+                              type="checkbox"
+                              checked={selectedProductIds.has(p.id)}
+                              onChange={() => {
+                                const next = new Set(selectedProductIds);
+                                if (next.has(p.id)) next.delete(p.id);
+                                else next.add(p.id);
+                                setSelectedProductIds(next);
+                              }}
+                              className="mt-1 w-4 h-4 rounded accent-[#0A006E] cursor-pointer shrink-0"
+                            />
+                            <ProductImage
+                              product={{
+                                ...p,
+                                category: p.category === 'LPS' ? 'LPS' : 'IPS',
+                              }}
+                              size="xs"
+                              onClick={canEditProduct ? () => handleStartEditProduct(p) : undefined}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                                <span className="font-mono-tabular text-[11px] font-black text-[#0A006E]">
+                                  {p.sku}
+                                </span>
+                                <span className="px-1.5 py-0.5 rounded bg-slate-100 text-[#0A006E] text-[10px] font-montserrat font-black">
+                                  {p.category} · {p.subCategory}
+                                </span>
+                              </div>
+                              <div className="font-montserrat font-bold text-xs text-slate-900 mt-0.5 leading-snug">
+                                {p.name}
+                              </div>
+                              <div className="text-[11px] text-slate-500 mt-0.5">
+                                {p.volumeMl}ml · {abv}% · {p.countryOfOrigin || p.originCountry}
+                              </div>
+                            </div>
+                          </div>
 
-        <div className="overflow-x-auto bg-white border border-slate-200 rounded-xl">
-          <table className="w-full text-left border-collapse text-xs">
+                          {/* Status & Health Pills */}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {p.hasRealBarcode && p.barcode ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded text-[10px] font-mono-tabular font-bold">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                {p.barcode}
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-300 rounded text-[10px] font-montserrat font-bold">
+                                <AlertCircle className="w-3 h-3 text-amber-600" />
+                                Awaiting Barcode
+                              </span>
+                            )}
+                            {isDead && (
+                              <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded text-[9px] font-black uppercase">
+                                Dead ({daysInactive}d)
+                              </span>
+                            )}
+                            {isExpiringSoon && (
+                              <span className="px-1.5 py-0.5 bg-orange-100 text-orange-900 border border-orange-300 rounded text-[9px] font-black uppercase">
+                                Exp {daysToExpiry}d
+                              </span>
+                            )}
+                            {(dmg > 0 || spoil > 0) && (
+                              <span className="px-1.5 py-0.5 bg-rose-100 text-rose-900 border border-rose-300 rounded text-[9px] font-black uppercase">
+                                Loss: {dmg}d/{spoil}s
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Price & Branch Stock Metric Strip */}
+                          <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-[11px]">
+                            <div>
+                              <div className="text-[10px] text-slate-500">Wholesale</div>
+                              <div className="font-mono-tabular font-bold text-slate-800">
+                                {formatKes(wholesale)}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] text-slate-500">Retail</div>
+                              <div className="font-mono-tabular font-black text-[#0A006E]">
+                                {formatKes(retail)}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-[10px] text-slate-500 truncate">
+                                {selectedBranchObj ? selectedBranchObj.code : 'Stock'}
+                              </div>
+                              <div className="font-mono-tabular font-black text-[#1E9E60]">
+                                {totalBtls} btl ({Math.floor(totalBtls / packSize)}c)
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Card Actions */}
+                          {canEditProduct && (
+                            <div className="flex items-center justify-end gap-2 pt-1 flex-wrap">
+                              {canLogDamage && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIncidentTargetProduct(p);
+                                    setIsLogIncidentModalOpen(true);
+                                  }}
+                                  className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
+                                >
+                                  <PackageX className="w-3.5 h-3.5" />
+                                  Loss
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setBarcodeAssignmentTargetProductId(p.id);
+                                  setIsBarcodeAssignmentModalOpen(true);
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition ${
+                                  p.hasRealBarcode
+                                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                                    : 'bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E]'
+                                }`}
+                              >
+                                <Barcode className="w-3.5 h-3.5" />
+                                {p.hasRealBarcode ? 'Re-Scan' : 'Scan'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditProduct(p)}
+                                className="px-3 py-1.5 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                                Edit
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* DESKTOP INVENTORY TABLE VIEW (md+) */}
+              <div className="hidden md:block overflow-x-auto bg-white border border-slate-200 rounded-xl">
+                <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
                 <th className="py-2.5 px-3 w-10 text-center">
@@ -4231,7 +4427,7 @@ export const InventoryModule: React.FC<{
                     </td>
                     {canEditProduct && (
                       <td className="py-2.5 px-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                        <div className="flex items-center justify-end gap-1">
                           {canLogDamage && (
                             <button
                               type="button"
@@ -4239,11 +4435,11 @@ export const InventoryModule: React.FC<{
                                 setIncidentTargetProduct(p);
                                 setIsLogIncidentModalOpen(true);
                               }}
-                              className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[10px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition whitespace-nowrap"
-                              title="Log damage or spoilage incident for this SKU"
+                              className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-md text-[10px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition whitespace-nowrap"
+                              title="Log damage or spoilage incident"
                             >
-                              <PackageX className="w-3 h-3 text-rose-600" />
-                              Log Loss
+                              <PackageX className="w-3 h-3" />
+                              Loss
                             </button>
                           )}
                           <button
@@ -4252,22 +4448,22 @@ export const InventoryModule: React.FC<{
                               setBarcodeAssignmentTargetProductId(p.id);
                               setIsBarcodeAssignmentModalOpen(true);
                             }}
-                            className={`px-2 py-1 rounded-lg text-[10px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition whitespace-nowrap ${
+                            className={`px-2 py-1 rounded-md text-[10px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition whitespace-nowrap ${
                               p.hasRealBarcode
-                                ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300'
-                                : 'bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] border border-amber-400 shadow-xs'
+                                ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                                : 'bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E]'
                             }`}
                             title="Scan and link real bottle barcode"
                           >
-                            <Barcode className="w-3 h-3 text-[#0A006E]" />
-                            {p.hasRealBarcode ? 'Re-Scan Barcode' : 'Scan Real Barcode'}
+                            <Barcode className="w-3 h-3" />
+                            {p.hasRealBarcode ? 'Re-Scan' : 'Scan'}
                           </button>
                           <button
                             type="button"
                             onClick={() => handleStartEditProduct(p)}
-                            className="px-2.5 py-1 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition whitespace-nowrap"
+                            className="px-2 py-1 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-md text-[10px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition whitespace-nowrap"
                           >
-                            <Edit3 className="w-3 h-3 text-[#FFDE00]" />
+                            <Edit3 className="w-3 h-3" />
                             Edit
                           </button>
                         </div>
@@ -4280,18 +4476,21 @@ export const InventoryModule: React.FC<{
           </table>
         </div>
 
-        {filteredProducts.length > tableLimit && (
-          <div className="text-center pt-2">
-            <button
-              type="button"
-              onClick={() => setTableLimit((prev) => prev + 80)}
-              className="px-5 py-2 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black cursor-pointer"
-            >
-              Show More Inventory ({filteredProducts.length - tableLimit} remaining)
-            </button>
-          </div>
-        )}
-      </div>
+              {filteredProducts.length > tableLimit && (
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setTableLimit((prev) => prev + 80)}
+                    className="px-4 py-2 bg-[#0A006E] text-[#FFDE00] rounded-lg text-xs font-montserrat font-bold cursor-pointer"
+                  >
+                    Show More Inventory ({filteredProducts.length - tableLimit} remaining)
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {/* Product Edit & Image Upload Modal (Strictly for Inventory Controller & Admin) */}
       {editingProduct && canEditProduct && (
@@ -4743,8 +4942,8 @@ export const InventoryModule: React.FC<{
 
       {/* Enhanced Inventory Duplicate Check & Resolver Modal */}
       {isDuplicateModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 animate-fade-in">
-          <div className="bg-white border-2 border-[#0A006E] rounded-3xl max-w-4xl w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col overflow-hidden">
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-0 sm:p-5 animate-fade-in">
+          <div className="bg-white border-0 sm:border-2 border-[#0A006E] rounded-none sm:rounded-3xl max-w-4xl w-full p-4 sm:p-6 shadow-2xl space-y-4 h-full sm:h-auto sm:max-h-[92dvh] flex flex-col overflow-hidden">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-200 pb-3 shrink-0">
               <div className="flex items-center gap-3">
@@ -5460,6 +5659,17 @@ export const BranchesAndTransfersModule: React.FC<{
   const canManageBranches = isAdmin;
   const canInitiateTransfer = isAdmin || isInventory || isBranchManager;
 
+  const {
+    schema: branchSchema,
+    prefs: branchPrefs,
+    setMode: setBranchMode,
+    toggleKpi: toggleBranchKpi,
+    toggleWidget: toggleBranchWidget,
+    isKpiVisible: isBranchKpiVisible,
+    isWidgetVisible: isBranchWidgetVisible,
+    resetToDefault: resetBranchPrefs,
+  } = useModulePrefs(currentUser, 'branches_transfers');
+
   // Dual mode: Warehouse Purchase Order vs Direct Inter-Branch Bonded Transfer
   const [orderMode, setOrderMode] = useState<'warehouse_purchase' | 'bonded_transfer'>('warehouse_purchase');
 
@@ -5815,11 +6025,101 @@ export const BranchesAndTransfersModule: React.FC<{
     }
   };
 
+  const pendingTransfersAuthCount = transfers.filter((t) => t.status === 'Pending Authorization').length;
+  const inTransitTransfersCount = transfers.filter(
+    (t) => t.status === 'Dispatched' || t.status === 'In Transit'
+  ).length;
+  const completedTransfersCount = transfers.filter((t) => t.status === 'Received').length;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 pb-8">
+      <MinimalDashboardBar
+        currentUser={currentUser}
+        schema={branchSchema}
+        prefs={branchPrefs}
+        onChangeMode={setBranchMode}
+        onToggleKpi={toggleBranchKpi}
+        onToggleWidget={toggleBranchWidget}
+        onReset={resetBranchPrefs}
+        actions={
+          <button
+            type="button"
+            onClick={() => {
+              const vis = transfers.filter(
+                (tr) =>
+                  !isBranchManager ||
+                  tr.fromBranchId === currentUser.branchId ||
+                  tr.toBranchId === currentUser.branchId ||
+                  tr.fromBranchName === currentUser.branchName ||
+                  tr.toBranchName === currentUser.branchName
+              );
+              exportReportToPDF(
+                'Warehouse Purchase Orders & Stock Transfer Manifest',
+                `Exported by ${currentUser.name} (${isBranchManager ? currentUser.branchName : 'All Branches'})`,
+                ['Order / Trf No', 'Type', 'From Facility', 'To Branch', 'SKU', 'Product', 'Qty Btls', 'Amount (KES)', 'Status'],
+                vis.map((t) => [
+                  t.transferNo,
+                  t.orderType === 'WAREHOUSE_PURCHASE' ? 'Warehouse Purchase' : 'Transfer',
+                  t.fromBranchName,
+                  t.toBranchName,
+                  t.sku,
+                  t.productName,
+                  t.quantityBottles,
+                  t.totalAmountKes ? Math.round(t.totalAmountKes).toLocaleString() : '—',
+                  t.status,
+                ]),
+                'Vaairo_Stock_Transfers'
+              );
+            }}
+            className="px-2.5 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export PDF
+          </button>
+        }
+      />
+
+      {isBranchWidgetVisible('kpi_strip') && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {isBranchKpiVisible('facilities') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Active Facilities</div>
+              <div className="text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                {branches.length} Locations
+              </div>
+            </div>
+          )}
+          {isBranchKpiVisible('pending_auth') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Pending Authorizations</div>
+              <div className="text-lg font-montserrat font-black text-amber-700 font-mono-tabular mt-0.5">
+                {pendingTransfersAuthCount} Orders
+              </div>
+            </div>
+          )}
+          {isBranchKpiVisible('in_transit') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Dispatched / In Transit</div>
+              <div className="text-lg font-montserrat font-black text-sky-700 font-mono-tabular mt-0.5">
+                {inTransitTransfersCount} Manifests
+              </div>
+            </div>
+          )}
+          {isBranchKpiVisible('completed') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Completed Transfers</div>
+              <div className="text-lg font-montserrat font-black text-emerald-700 font-mono-tabular mt-0.5">
+                {completedTransfersCount} Received
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {(isBranchWidgetVisible('create_facility') || isBranchWidgetVisible('transfer_builder')) && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Create New Facility Card / Boundary Card */}
-        {canManageBranches ? (
+        {isBranchWidgetVisible('create_facility') && (canManageBranches ? (
           <form
             onSubmit={handleAddBranch}
             className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-4"
@@ -6009,10 +6309,10 @@ export const BranchesAndTransfersModule: React.FC<{
             <span className="font-semibold text-slate-800">{currentUser.branchName}</span>
           </div>
         </div>
-      )}
+      ))}
 
       {/* Warehouse Purchase Order / Inter-Branch Bonded Stock Transfer Card */}
-      {canInitiateTransfer ? (
+      {isBranchWidgetVisible('transfer_builder') && (canInitiateTransfer ? (
         <form
           onSubmit={handleExecuteTransfer}
           className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-4"
@@ -6410,8 +6710,9 @@ export const BranchesAndTransfersModule: React.FC<{
             <span className="font-semibold text-slate-800">{transfers.length} Recorded Movements</span>
           </div>
         </div>
-      )}
+      ))}
       </div>
+      )}
 
       {/* Facilities & Branches Directory with Store / Shop / Warehouse Filters */}
       <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-4">
@@ -6848,6 +7149,7 @@ export const BranchesAndTransfersModule: React.FC<{
       )}
 
       {/* Stock Transfer & Warehouse Purchase Orders Ledger */}
+      {isBranchWidgetVisible('transfer_ledger') && (
       <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -7084,6 +7386,7 @@ export const BranchesAndTransfersModule: React.FC<{
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 };
@@ -7107,6 +7410,17 @@ export const GeoPricingModule: React.FC<{
   const isBranchManager = currentUser.role === 'Branch Manager';
   const isInventory = currentUser.role === 'Inventory Controller';
   const isAffiliate = currentUser.role === 'Affiliate Sales Representative';
+
+  const {
+    schema: geoSchema,
+    prefs: geoPrefs,
+    setMode: setGeoMode,
+    toggleKpi: toggleGeoKpi,
+    toggleWidget: toggleGeoWidget,
+    isKpiVisible: isGeoKpiVisible,
+    isWidgetVisible: isGeoWidgetVisible,
+    resetToDefault: resetGeoPrefs,
+  } = useModulePrefs(currentUser, 'geo_pricing');
 
   const [regionName, setRegionName] = useState('');
   const [tierType, setTierType] = useState<GeoRegion['tierType']>('Suburban Ring');
@@ -7147,82 +7461,120 @@ export const GeoPricingModule: React.FC<{
     );
   };
 
+  const suburbanZonesCount = regions.filter((r) => r.tierType === 'Suburban Ring').length;
+  const avgFreightLevy =
+    regions.length > 0
+      ? Math.round(regions.reduce((s, r) => s + Number(r.freightLevyPerCase || 0), 0) / regions.length)
+      : 0;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 pb-8">
+      <MinimalDashboardBar
+        currentUser={currentUser}
+        schema={geoSchema}
+        prefs={geoPrefs}
+        onChangeMode={setGeoMode}
+        onToggleKpi={toggleGeoKpi}
+        onToggleWidget={toggleGeoWidget}
+        onReset={resetGeoPrefs}
+      />
+
       {/* Role Boundary Callout Banner */}
       {isBranchManager && (
-        <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 flex items-center justify-between gap-3 text-amber-950 shadow-xs">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-center justify-between gap-3 text-amber-950">
           <div className="flex items-center gap-2.5">
-            <Building2 className="w-5 h-5 text-amber-700 shrink-0" />
+            <Building2 className="w-4 h-4 text-amber-700 shrink-0" />
             <div>
-              <div className="text-xs font-montserrat font-black uppercase text-amber-900">
+              <div className="text-xs font-montserrat font-bold text-amber-900">
                 Branch Manager Scope · {currentUser.branchName}
               </div>
-              <p className="text-xs text-amber-800">
-                Viewing regional multipliers and approved retail price tables for your branch territory. Master pricing schedules administered by Sales Management and Administration.
+              <p className="text-[11px] text-amber-800">
+                Viewing regional multipliers and approved retail price tables for your territory.
               </p>
             </div>
           </div>
-          <span className="px-2.5 py-1 rounded-lg bg-amber-200/80 text-amber-900 text-[11px] font-bold shrink-0">
+          <span className="px-2 py-0.5 rounded bg-amber-200/70 text-amber-900 text-[10px] font-bold shrink-0">
             View / Approved Edits
           </span>
         </div>
       )}
 
       {isInventory && (
-        <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 flex items-center justify-between gap-3 text-emerald-950 shadow-xs">
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 flex items-center justify-between gap-3 text-emerald-950">
           <div className="flex items-center gap-2.5">
-            <Package className="w-5 h-5 text-emerald-700 shrink-0" />
+            <Package className="w-4 h-4 text-emerald-700 shrink-0" />
             <div>
-              <div className="text-xs font-montserrat font-black uppercase text-emerald-900">
+              <div className="text-xs font-montserrat font-bold text-emerald-900">
                 Inventory Controller Scope · Cost &amp; Stock Valuation Mode
               </div>
-              <p className="text-xs text-emerald-800">
-                Landed costs, warehouse valuation, and case pack sizes are monitored here. Commercial selling margins and retail multipliers are governed by Sales Management.
+              <p className="text-[11px] text-emerald-800">
+                Landed costs and case pack sizes monitored here; retail multipliers governed by Sales Management.
               </p>
             </div>
           </div>
-          <span className="px-2.5 py-1 rounded-lg bg-emerald-200/80 text-emerald-900 text-[11px] font-bold shrink-0">
+          <span className="px-2 py-0.5 rounded bg-emerald-200/70 text-emerald-900 text-[10px] font-bold shrink-0">
             Cost / Stock Scope
           </span>
         </div>
       )}
 
       {isAffiliate && (
-        <div className="bg-purple-50 border-2 border-purple-300 rounded-2xl p-4 flex items-center justify-between gap-3 text-purple-950 shadow-xs">
+        <div className="bg-purple-50 border border-purple-200 rounded-xl p-3.5 flex items-center justify-between gap-3 text-purple-950">
           <div className="flex items-center gap-2.5">
-            <Tag className="w-5 h-5 text-purple-700 shrink-0" />
+            <Tag className="w-4 h-4 text-purple-700 shrink-0" />
             <div>
-              <div className="text-xs font-montserrat font-black uppercase text-purple-900">
+              <div className="text-xs font-montserrat font-bold text-purple-900">
                 Affiliate Sales Representative Scope · Approved Price Catalogue
               </div>
-              <p className="text-xs text-purple-800">
-                Standard approved prices for client distribution with your {currentUser.agreedCommissionPct || 8}% commission tier. Cannot alter price schedules.
+              <p className="text-[11px] text-purple-800">
+                Standard approved prices for your {currentUser.agreedCommissionPct || 8}% commission tier.
               </p>
             </div>
           </div>
-          <span className="px-2.5 py-1 rounded-lg bg-purple-200/80 text-purple-900 text-[11px] font-bold shrink-0">
+          <span className="px-2 py-0.5 rounded bg-purple-200/70 text-purple-900 text-[10px] font-bold shrink-0">
             Approved Prices Only
           </span>
         </div>
       )}
 
-      <div className="bg-[#FFDE00] hover-card-lift border-2 border-[#0A006E] rounded-2xl p-5 relative overflow-hidden">
-        <div className="silent-scanner-beam-dark" />
-        <div className="relative z-10">
-          <span className="text-xs font-montserrat font-black text-[#0A006E] uppercase tracking-wider">
-            Regional Tariff &amp; Purchasing Parity Engine
-          </span>
-          <h2 className="text-xl font-montserrat font-black italic text-[#0A006E] mt-1">
-            Geo-Location Alcohol Pricing Matrix (Affluent Suburb vs. Lower Region vs. Metro)
-          </h2>
-          <p className="text-xs font-medium text-slate-900 mt-0.5">
-            Because alcohol cannot be sold in affluent suburbs (e.g. Kilimani/Westlands) at the same price as lower regions (e.g. Donholm/Eastlands), configure regional multipliers, freight levies per case, or explicit SKU price overrides.
-          </p>
+      {isGeoWidgetVisible('kpi_strip') && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {isGeoKpiVisible('zones') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Pricing Zones</div>
+              <div className="text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                {regions.length} Active
+              </div>
+            </div>
+          )}
+          {isGeoKpiVisible('suburban') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Suburban Ring Zones</div>
+              <div className="text-lg font-montserrat font-black text-indigo-700 font-mono-tabular mt-0.5">
+                {suburbanZonesCount} Zones
+              </div>
+            </div>
+          )}
+          {isGeoKpiVisible('catalog_skus') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Priced Catalog SKUs</div>
+              <div className="text-lg font-montserrat font-black text-emerald-700 font-mono-tabular mt-0.5">
+                {products.length} SKUs
+              </div>
+            </div>
+          )}
+          {isGeoKpiVisible('avg_freight') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Avg Freight / Case</div>
+              <div className="text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                {formatKes(avgFreightLevy)}
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
-      {canManagePricing && (
+      {canManagePricing && isGeoWidgetVisible('zone_forms') && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Create Geo Zone */}
         <form
@@ -7372,15 +7724,16 @@ export const GeoPricingModule: React.FC<{
       )}
 
       {/* Live Comparison Table across Regions */}
+      {isGeoWidgetVisible('zone_directory') && (
       <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-3">
         <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
-          Live Geo-Location Price Comparison Across Suburbs, Metro & Lower Regions (Top 30 SKUs)
+          Live Geo-Location Price Comparison Across Suburbs, Metro &amp; Lower Regions (Top 30 SKUs)
         </h3>
         <div className="overflow-x-auto bg-white border border-slate-200 rounded-xl">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
-                <th className="py-2.5 px-3 font-black">Auto SKU & Brand</th>
+                <th className="py-2.5 px-3 font-black">Auto SKU &amp; Brand</th>
                 <th className="py-2.5 px-3 font-black text-right">Base Retail</th>
                 {regions.map((r) => (
                   <th key={r.id} className="py-2.5 px-3 font-black text-right">
@@ -7414,6 +7767,7 @@ export const GeoPricingModule: React.FC<{
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 };

@@ -1,5 +1,5 @@
-import React from 'react';
-import { Printer, Download, X, FileCheck2, ShieldCheck, Award } from 'lucide-react';
+import React, { useState } from 'react';
+import { Printer, Download, X, FileCheck2, ShieldCheck, Award, Maximize2, Minimize2 } from 'lucide-react';
 import { TransactionDoc, LineItem } from '../types';
 import { exportCommercialDocumentPDF, formatKes } from '../erpUtils';
 
@@ -9,6 +9,7 @@ interface DocumentPrintModalProps {
 }
 
 export const DocumentPrintModal: React.FC<DocumentPrintModalProps> = ({ docData, onClose }) => {
+  const [isFullScreen, setIsFullScreen] = useState(false);
   if (!docData) return null;
 
   let items: LineItem[] = [];
@@ -21,40 +22,58 @@ export const DocumentPrintModal: React.FC<DocumentPrintModalProps> = ({ docData,
   const isLogisticsOnly = docData.docType === 'Packing List' || docData.docType === 'Delivery Note';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-2 sm:p-4 overflow-y-auto">
-      <div className="bg-white border sm:border-2 border-[#0A006E] rounded-2xl max-w-3xl w-full h-auto max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
+    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs overflow-y-auto ${isFullScreen ? 'p-0' : 'p-2 sm:p-4'}`}>
+      <div className={`bg-white border sm:border-2 border-[#0A006E] shadow-2xl flex flex-col transition-all ${
+        isFullScreen
+          ? 'w-full h-full rounded-none max-w-none'
+          : 'rounded-2xl max-w-5xl w-full h-auto max-h-[94vh]'
+      }`}>
         {/* Top Action Bar (Hidden during print) */}
-        <div className="bg-[#0A006E] text-white px-6 py-4 flex items-center justify-between border-b-4 border-[#FFDE00] relative overflow-hidden print:hidden">
+        <div className="bg-[#0A006E] text-white px-5 py-3.5 flex items-center justify-between border-b-4 border-[#FFDE00] relative overflow-hidden print:hidden shrink-0">
           <div className="absolute inset-0 bg-gradient-to-r from-[#0A006E] via-indigo-950 to-[#0A006E] opacity-90" />
           <div className="flex items-center gap-3 relative z-10">
             <div className="w-9 h-9 rounded-xl bg-[#FFDE00] text-[#0A006E] flex items-center justify-center font-black shadow">
               <FileCheck2 className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-xs font-montserrat font-black uppercase tracking-wider text-[#FFDE00]">
-                Official Commercial Document · {docData.docType}
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-montserrat font-black uppercase tracking-wider text-[#FFDE00]">
+                  Official Document · {docData.docType}
+                </h3>
+                <span className="px-1.5 py-0.2 rounded text-[10px] font-montserrat font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  Full Preview Active
+                </span>
+              </div>
               <p className="text-sm font-mono-tabular font-bold text-white">{docData.docNumber}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 relative z-10">
+          <div className="flex items-center gap-2 relative z-10 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setIsFullScreen((prev) => !prev)}
+              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap border border-white/20"
+              title={isFullScreen ? 'Exit Full Screen' : 'Toggle Full Screen Preview'}
+            >
+              {isFullScreen ? <Minimize2 className="w-3.5 h-3.5 text-[#FFDE00]" /> : <Maximize2 className="w-3.5 h-3.5 text-[#FFDE00]" />}
+              <span className="hidden sm:inline">{isFullScreen ? 'Exit Full Screen' : 'Full Screen'}</span>
+            </button>
             <button
               onClick={() => exportCommercialDocumentPDF(docData)}
-              className="px-4 py-2 bg-[#FFDE00] text-[#0A006E] hover:bg-amber-400 rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 transition shadow cursor-pointer whitespace-nowrap"
+              className="px-3.5 py-1.5 bg-[#FFDE00] text-[#0A006E] hover:bg-amber-400 rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 transition shadow cursor-pointer whitespace-nowrap"
             >
-              <Download className="w-4 h-4" />
-              Download PDF
+              <Download className="w-3.5 h-3.5" />
+              <span>Download PDF</span>
             </button>
             <button
               onClick={() => window.print()}
-              className="px-4 py-2 bg-[#34D186] text-[#0A006E] hover:bg-emerald-400 rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 transition shadow cursor-pointer whitespace-nowrap"
+              className="px-3.5 py-1.5 bg-[#34D186] text-[#0A006E] hover:bg-emerald-400 rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 transition shadow cursor-pointer whitespace-nowrap"
             >
-              <Printer className="w-4 h-4" />
-              Print Document
+              <Printer className="w-3.5 h-3.5" />
+              <span>Print</span>
             </button>
             <button
               onClick={onClose}
-              className="p-2 text-slate-300 hover:text-white rounded-lg transition-colors cursor-pointer"
+              className="p-1.5 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
               aria-label="Close modal"
             >
               <X className="w-5 h-5" />

@@ -27,6 +27,8 @@ import {
   Hash,
   MessageSquare,
   Filter,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import {
   StaffMember,
@@ -356,6 +358,7 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
   const [sidebarSearch, setSidebarSearch] = useState('');
   const [threadFilter, setThreadFilter] = useState<'all' | 'transfers_only'>('all');
   const [threadSearch, setThreadSearch] = useState('');
+  const [isFullWorkspace, setIsFullWorkspace] = useState(false);
 
   // Composer state
   const [messageText, setMessageText] = useState('');
@@ -1277,51 +1280,79 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div
+      className={
+        isFullWorkspace
+          ? 'fixed inset-0 z-50 bg-slate-100 flex flex-col p-2.5 sm:p-5 pb-4 overflow-hidden animate-in fade-in duration-150'
+          : 'h-full flex-1 flex flex-col min-h-0 space-y-2.5 sm:space-y-3'
+      }
+    >
       {/* Top Workspace Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 border-2 border-[#FFDE00]/40">
-            <Inbox className="w-5 h-5 stroke-[2.3]" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-200 shrink-0">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 border-2 border-[#FFDE00]/40 shadow-xs">
+            <Inbox className="w-4.5 h-4.5 sm:w-5 sm:h-5 stroke-[2.3]" />
           </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="font-montserrat font-black text-lg sm:text-xl text-[#0A006E] tracking-tight">
-                Internal Inbox &amp; Department Chat
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              <h1 className="font-montserrat font-black text-sm sm:text-lg text-[#0A006E] tracking-tight truncate">
+                Internal Inbox
               </h1>
               <span className="px-2 py-0.5 rounded-md text-[10px] font-montserrat font-black uppercase tracking-wider bg-[#0A006E] text-[#FFDE00]">
                 {currentUser.role}
               </span>
+              <span className="hidden sm:inline-block px-2 py-0.5 rounded-md text-[10px] font-montserrat font-bold bg-emerald-50 text-emerald-800 border border-emerald-300">
+                Full Preview
+              </span>
             </div>
-            <p className="text-xs text-slate-600 font-medium">
-              Transfer invoices across departments &amp; send targeted stock transfer requests to specific staff in real time.
+            <p className="hidden sm:block text-[11px] text-slate-600 font-medium">
+              Inter-department staff communication, live invoice transfers &amp; targeted stock requests.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-wrap">
           <button
             type="button"
             onClick={openInvoiceTransferModal}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-[#0A006E] border-2 border-[#0A006E] text-xs font-montserrat font-black transition cursor-pointer whitespace-nowrap"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-[#0A006E] border-2 border-[#0A006E] text-[11px] sm:text-xs font-montserrat font-black transition cursor-pointer whitespace-nowrap shadow-xs"
           >
-            <FileText className="w-4 h-4 text-[#0A006E]" />
+            <FileText className="w-3.5 h-3.5 text-[#0A006E]" />
             <span>Transfer Invoice</span>
           </button>
 
           <button
             type="button"
             onClick={openStockRequestModal}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0A006E] hover:bg-[#150099] text-[#FFDE00] border-2 border-[#0A006E] text-xs font-montserrat font-black transition cursor-pointer whitespace-nowrap"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-[#0A006E] hover:bg-[#150099] text-[#FFDE00] border-2 border-[#0A006E] text-[11px] sm:text-xs font-montserrat font-black transition cursor-pointer whitespace-nowrap shadow-xs"
           >
-            <ArrowRightLeft className="w-4 h-4 text-[#FFDE00]" />
-            <span>Request Stock Transfer</span>
+            <ArrowRightLeft className="w-3.5 h-3.5 text-[#FFDE00]" />
+            <span>Stock Transfer</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsFullWorkspace((prev) => !prev)}
+            title={isFullWorkspace ? 'Exit Full Screen Preview' : 'Expand to Full Screen Preview'}
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-[#0A006E] border border-slate-300 text-[11px] sm:text-xs font-montserrat font-bold transition cursor-pointer whitespace-nowrap shadow-2xs"
+          >
+            {isFullWorkspace ? (
+              <>
+                <Minimize2 className="w-3.5 h-3.5 text-rose-600" />
+                <span>Exit Full</span>
+              </>
+            ) : (
+              <>
+                <Maximize2 className="w-3.5 h-3.5 text-[#0A006E]" />
+                <span>Full Preview</span>
+              </>
+            )}
           </button>
         </div>
       </div>
 
-      {/* Main Split Inbox Shell */}
-      <div className="border border-slate-200 rounded-2xl bg-white overflow-hidden grid grid-cols-1 lg:grid-cols-12 h-[calc(100vh-130px)] sm:h-[calc(100vh-200px)] min-h-[520px] max-h-[860px]">
+      {/* Main Split Inbox Shell - Takes full available height without nested iframe constraints */}
+      <div className="border border-slate-200 rounded-2xl bg-white overflow-hidden grid grid-cols-1 lg:grid-cols-12 flex-1 min-h-0 shadow-xs">
         {/* LEFT PANE: Department Channels & Direct People Directory */}
         <aside
           className={`lg:col-span-4 xl:col-span-4 border-r border-slate-200 bg-slate-50/70 flex flex-col min-h-0 ${
@@ -2236,9 +2267,9 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
                     value={taggedStaffId}
                     onChange={(e) => setTaggedStaffId(e.target.value)}
                     aria-label="Direct to specific person in channel"
-                    className="px-2 py-1 rounded-full bg-slate-100 border border-slate-200 text-[11px] font-montserrat font-semibold text-slate-700 outline-none focus:border-[#0A006E] shrink-0"
+                    className="px-2 py-1 rounded-full bg-slate-100 border border-slate-200 text-[11px] font-montserrat font-semibold text-slate-700 outline-none focus:border-[#0A006E] shrink-0 max-w-[165px]"
                   >
-                    <option value="">@ Everyone in Channel</option>
+                    <option value="">@ Everyone</option>
                     {activeColleagues.map((s) => (
                       <option key={s.id} value={s.id}>
                         @{s.name} ({s.role})
@@ -2289,7 +2320,7 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
               <button
                 type="submit"
                 disabled={!messageText.trim() || isSending}
-                className="w-10 h-10 rounded-full bg-[#0A006E] hover:bg-[#150099] disabled:opacity-40 text-[#FFDE00] font-montserrat font-black flex items-center justify-center cursor-pointer transition shrink-0 shadow-md active:scale-95"
+                className="w-10.5 h-10.5 rounded-full bg-[#0A006E] hover:bg-[#150099] disabled:opacity-40 text-[#FFDE00] font-montserrat font-black flex items-center justify-center cursor-pointer transition shrink-0 shadow-md active:scale-95"
                 title="Send message"
               >
                 <Send className="w-4 h-4 stroke-[2.5]" />
@@ -2305,11 +2336,11 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
       {isInvoiceModalOpen && (
         <div
           onClick={() => setIsInvoiceModalOpen(false)}
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-0 sm:p-4"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-2xl border-2 border-[#0A006E] max-w-xl w-full max-h-[88vh] flex flex-col overflow-hidden shadow-2xl"
+            className="bg-white rounded-none sm:rounded-2xl border-0 sm:border-2 border-[#0A006E] max-w-xl w-full h-full sm:h-auto sm:max-h-[88dvh] flex flex-col overflow-hidden shadow-2xl"
           >
             <div className="px-5 py-4 bg-[#0A006E] text-white flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -2502,11 +2533,11 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
       {isStockModalOpen && (
         <div
           onClick={() => setIsStockModalOpen(false)}
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-0 sm:p-4"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-2xl border-2 border-[#0A006E] max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl"
+            className="bg-white rounded-none sm:rounded-2xl border-0 sm:border-2 border-[#0A006E] max-w-xl w-full h-full sm:h-auto sm:max-h-[90dvh] flex flex-col overflow-hidden shadow-2xl"
           >
             <div className="px-5 py-4 bg-[#0A006E] text-white flex items-center justify-between">
               <div className="flex items-center gap-2.5">

@@ -595,20 +595,6 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
               )}
             </button>
 
-            {/* Customer Online Store Portal Launcher */}
-            {onOpenCustomerPortal && (
-              <button
-                type="button"
-                onClick={onOpenCustomerPortal}
-                title="Launch Customer Online Storefront Preview"
-                aria-label="Customer Online Store"
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#1E9E60] border border-emerald-300 text-xs font-montserrat font-bold transition cursor-pointer shadow-2xs"
-              >
-                <ShoppingBag className="w-4 h-4 text-[#1E9E60] shrink-0" />
-                <span className="hidden xl:inline">Storefront</span>
-              </button>
-            )}
-
             {/* Audio Mute / Unmute Button */}
             <button
               type="button"
@@ -813,14 +799,12 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
             </span>
           </button>
 
-          {/* 5. Barcode Scanner / Storefront */}
+          {/* 5. Barcode Scanner */}
           <button
             type="button"
             onClick={() => {
               if (onOpenPhoneScanner) {
                 onOpenPhoneScanner();
-              } else if (onOpenCustomerPortal) {
-                onOpenCustomerPortal();
               } else {
                 onSelectModule('inventory');
               }
@@ -1054,29 +1038,29 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-none sm:rounded-t-3xl h-full sm:h-auto sm:max-h-[85vh] flex flex-col overflow-hidden border-t-0 sm:border-t-4 border-[#FFDE00] shadow-2xl"
+            className="bg-white rounded-t-3xl max-h-[85dvh] flex flex-col overflow-hidden border-t-4 border-[#FFDE00] shadow-2xl"
           >
-            <div className="w-10 h-1.5 bg-slate-300 rounded-full mx-auto mt-2.5" />
-            <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
-              <div>
-                <h3 className="font-montserrat font-black italic text-sm text-[#0A006E]">
+            <div className="w-10 h-1.5 bg-slate-300 rounded-full mx-auto mt-2.5 shrink-0" />
+            <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
+              <div className="min-w-0">
+                <h3 className="font-montserrat font-black italic text-sm text-[#0A006E] truncate">
                   ERP Module Directory ({visibleNavItems.length})
                 </h3>
-                <p className="text-[10px] text-slate-500">
+                <p className="text-[10px] text-slate-500 truncate">
                   {currentUser.role} · {currentUser.branchName}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsMobileModulesSheetOpen(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer"
+                className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer shrink-0"
                 aria-label="Close Modules Sheet"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="p-4 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            <div className="p-4 pb-8 overflow-y-auto grid grid-cols-2 gap-2.5">
               {visibleNavItems.map((item) => {
                 const isActive = activeModule === item.id;
                 return (
@@ -1088,45 +1072,33 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
                       onSelectModule(item.id);
                       window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
-                    className={`p-3 rounded-2xl border flex items-center gap-3 text-left transition cursor-pointer ${
+                    className={`p-3 min-h-[56px] rounded-2xl border flex items-center gap-2.5 text-left transition cursor-pointer active:scale-[0.98] ${
                       isActive
                         ? 'bg-[#0A006E] text-white border-[#0A006E] ring-2 ring-[#FFDE00]'
                         : 'bg-slate-50 hover:bg-slate-100 text-slate-800 border-slate-200'
                     }`}
                   >
-                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
                       isActive ? 'bg-[#FFDE00] text-[#0A006E]' : 'bg-[#0A006E]/10 text-[#0A006E]'
                     }`}>
-                      {React.createElement(item.icon, { className: 'w-6 h-6 stroke-[2.4]' })}
+                      {React.createElement(item.icon, { className: 'w-5 h-5 stroke-[2.4]' })}
                     </div>
-                    <span className="text-xs font-montserrat font-black leading-tight truncate">
+                    <span className="text-xs font-montserrat font-black leading-tight line-clamp-2">
                       {item.shortLabel}
                     </span>
                   </button>
                 );
               })}
 
-              {onOpenCustomerPortal && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMobileModulesSheetOpen(false);
-                    onOpenCustomerPortal();
-                  }}
-                  className="p-3 rounded-2xl border border-emerald-300 bg-emerald-50 text-[#1E9E60] flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer"
-                >
-                  <ShoppingBag className="w-5 h-5 text-[#1E9E60]" />
-                  <span className="text-[11px] font-montserrat font-bold leading-tight">Online Store</span>
-                </button>
-              )}
-
               <button
                 type="button"
                 onClick={handleReplaySplash}
-                className="p-3 rounded-2xl border border-amber-300 bg-amber-50 text-amber-900 flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer"
+                className="p-3 min-h-[56px] rounded-2xl border border-amber-300 bg-amber-50 text-amber-900 flex items-center gap-2.5 text-left transition cursor-pointer active:scale-[0.98]"
               >
-                <Sparkles className="w-5 h-5 text-amber-600" />
-                <span className="text-[11px] font-montserrat font-bold leading-tight">Splash Screen</span>
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <span className="text-xs font-montserrat font-bold leading-tight">Splash Screen</span>
               </button>
             </div>
           </div>

@@ -878,15 +878,26 @@ export const DeliveryManagementModule: React.FC<DeliveryManagementModuleProps> =
               </div>
 
               <div>
-                <label className="block font-montserrat font-bold text-slate-700 mb-1">6-Digit Secure POS PIN</label>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <label className="block font-montserrat font-bold text-slate-700">6-Digit Secure POS PIN</label>
+                  <span className="text-[10px] font-montserrat font-bold text-[#0A006E]">
+                    {currentUser.role === 'Admin' ? 'Admin Viewable' : 'Masked (Admin View Only)'}
+                  </span>
+                </div>
                 <input
-                  type="text"
+                  type={currentUser.role === 'Admin' ? 'text' : 'password'}
+                  autoComplete="new-password"
                   value={riderPin}
-                  onChange={(e) => setRiderPin(e.target.value)}
+                  onChange={(e) => setRiderPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   maxLength={6}
                   required
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold tracking-widest"
                 />
+                {currentUser.role !== 'Admin' && (
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Masked for security — only System Admin can view users' login PINs.
+                  </p>
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">

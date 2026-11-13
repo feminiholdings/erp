@@ -24,6 +24,7 @@ import {
   RefreshCw,
   Coins,
   Eye,
+  EyeOff,
   Building2,
   Tag,
   Package,
@@ -67,7 +68,7 @@ import {
   formatKes,
   isUserFeaturePermitted,
 } from '../erpUtils';
-import { hashPassword } from '../utils/security';
+import { hashPassword, decryptPinForAdmin } from '../utils/security';
 import { cleanFirestoreData } from '../firebase';
 import { AnimatedSuccessTickIcon, StatusFeedbackToast } from './AnimatedFeedback';
 import { ConfirmationModal } from './common/ConfirmationModal';
@@ -83,6 +84,8 @@ import {
   recalculateDeductionItemsForSalary,
   summarizeDeductionItems,
 } from '../utils/hrDeductions';
+import { useModulePrefs } from '../utils/dashboardPrefs';
+import { MinimalDashboardBar } from './common/MinimalDashboardBar';
 
 // ---------------------------------------------------------------------------
 // 5. SUPPLIERS, LICENSED RETAILERS & LOGISTICS ONBOARDING MODULE
@@ -98,6 +101,17 @@ export const PartnersOnboardingModule: React.FC<{
   const isAccountant = currentUser.role === 'Accountant';
   const isBranchManager = currentUser.role === 'Branch Manager';
   const canManagePartners = currentUser.role === 'Admin' || currentUser.role === 'Sales Manager' || currentUser.role === 'Inventory Controller' || isBranchManager;
+
+  const {
+    schema: partnerSchema,
+    prefs: partnerPrefs,
+    setMode: setPartnerMode,
+    toggleKpi: togglePartnerKpi,
+    toggleWidget: togglePartnerWidget,
+    isKpiVisible: isPartnerKpiVisible,
+    isWidgetVisible: isPartnerWidgetVisible,
+    resetToDefault: resetPartnerPrefs,
+  } = useModulePrefs(currentUser, 'partners');
 
   const [partnerType, setPartnerType] = useState<Partner['partnerType']>('Supplier');
   const [companyName, setCompanyName] = useState('');
@@ -240,74 +254,115 @@ export const PartnersOnboardingModule: React.FC<{
       : list.filter((p) => p.partnerType === filterType);
   }, [partners, filterType, isBranchManager, currentUser]);
 
-  return (
-    <div className="space-y-6">
-      <div className="bg-[#FFDE00] hover-card-lift border-2 border-[#0A006E] rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden">
-        <div className="silent-scanner-beam-dark" />
-        <div className="relative z-10">
-          <span className="text-xs font-montserrat font-black text-[#0A006E] uppercase tracking-wider">
-            B2B Ecosystem & Regulatory Vetting
-          </span>
-          <h2 className="text-xl font-montserrat font-black italic text-[#0A006E] mt-1">
-            Supplier, Licensed Retailer & Bonded Logistics Onboarding
-          </h2>
-          <p className="text-xs font-medium text-slate-900 mt-0.5">
-            Verify excise licenses, KRA PINs, regional tariff zones, credit limits, and bonded carrier fleets prior to trading.
-          </p>
-        </div>
+  const verifiedPartnersCount = partners.filter((p) => p.complianceStatus === 'Verified').length;
+  const retailerPartnersCount = partners.filter((p) => p.partnerType === 'Retailer').length;
+  const suppliersAndCarriersCount = partners.filter(
+    (p) => p.partnerType === 'Supplier' || p.partnerType === 'Logistics'
+  ).length;
 
-        <div className="flex items-center gap-2 relative z-10">
-          <button
-            onClick={() =>
-              exportReportToPDF(
-                'Onboarded Suppliers, Retailers & Logistics Directory',
-                'Verified Liquor Licenses & Credit Limits',
-                ['Code', 'Type', 'Company Name', 'Contact', 'Geo-Zone', 'Liquor / Bond License', 'Credit Limit / Fleet', 'Status'],
-                filtered.map((p) => [
-                  p.code,
-                  p.partnerType,
-                  p.companyName,
-                  p.contactPerson,
-                  p.regionName,
-                  p.liquorLicenseNo,
-                  p.partnerType === 'Logistics' ? p.fleetCapacity || 'Bonded Fleet' : formatKes(p.creditLimit),
-                  p.complianceStatus,
-                ]),
-                'Vaairo_Partners_Directory'
-              )
-            }
-            className="px-3.5 py-2 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5 text-[#FFDE00]" />
-            Export PDF
-          </button>
-          <button
-            onClick={() =>
-              exportToCSV(
-                'Vaairo_Partners_Directory',
-                ['Code', 'Type', 'Company Name', 'Contact', 'Phone', 'Email', 'Geo-Zone', 'License No', 'Tax PIN', 'Expiry', 'Status'],
-                filtered.map((p) => [
-                  p.code,
-                  p.partnerType,
-                  p.companyName,
-                  p.contactPerson,
-                  p.phone,
-                  p.email,
-                  p.regionName,
-                  p.liquorLicenseNo,
-                  p.taxPin,
-                  p.licenseExpiry,
-                  p.complianceStatus,
-                ])
-              )
-            }
-            className="px-3.5 py-2 bg-white border-2 border-[#0A006E] text-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5 text-[#0A006E]" />
-            Export CSV
-          </button>
+  return (
+    <div className="space-y-4 pb-8">
+      <MinimalDashboardBar
+        currentUser={currentUser}
+        schema={partnerSchema}
+        prefs={partnerPrefs}
+        onChangeMode={setPartnerMode}
+        onToggleKpi={togglePartnerKpi}
+        onToggleWidget={togglePartnerWidget}
+        onReset={resetPartnerPrefs}
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() =>
+                exportReportToPDF(
+                  'Onboarded Suppliers, Retailers & Logistics Directory',
+                  'Verified Liquor Licenses & Credit Limits',
+                  ['Code', 'Type', 'Company Name', 'Contact', 'Geo-Zone', 'Liquor / Bond License', 'Credit Limit / Fleet', 'Status'],
+                  filtered.map((p) => [
+                    p.code,
+                    p.partnerType,
+                    p.companyName,
+                    p.contactPerson,
+                    p.regionName,
+                    p.liquorLicenseNo,
+                    p.partnerType === 'Logistics' ? p.fleetCapacity || 'Bonded Fleet' : formatKes(p.creditLimit),
+                    p.complianceStatus,
+                  ]),
+                  'Vaairo_Partners_Directory'
+                )
+              }
+              className="px-2.5 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+            >
+              <Download className="w-3.5 h-3.5" />
+              PDF
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                exportToCSV(
+                  'Vaairo_Partners_Directory',
+                  ['Code', 'Type', 'Company Name', 'Contact', 'Phone', 'Email', 'Geo-Zone', 'License No', 'Tax PIN', 'Expiry', 'Status'],
+                  filtered.map((p) => [
+                    p.code,
+                    p.partnerType,
+                    p.companyName,
+                    p.contactPerson,
+                    p.phone,
+                    p.email,
+                    p.regionName,
+                    p.liquorLicenseNo,
+                    p.taxPin,
+                    p.licenseExpiry,
+                    p.complianceStatus,
+                  ])
+                )
+              }
+              className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+            >
+              <Download className="w-3.5 h-3.5" />
+              CSV
+            </button>
+          </>
+        }
+      />
+
+      {isPartnerWidgetVisible('kpi_strip') && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {isPartnerKpiVisible('total_partners') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Total Partners</div>
+              <div className="text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                {partners.length}
+              </div>
+            </div>
+          )}
+          {isPartnerKpiVisible('verified') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Verified Licenses</div>
+              <div className="text-lg font-montserrat font-black text-emerald-700 font-mono-tabular mt-0.5">
+                {verifiedPartnersCount}
+              </div>
+            </div>
+          )}
+          {isPartnerKpiVisible('retailers') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Licensed Retailers</div>
+              <div className="text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                {retailerPartnersCount}
+              </div>
+            </div>
+          )}
+          {isPartnerKpiVisible('suppliers_logistics') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Suppliers &amp; Carriers</div>
+              <div className="text-lg font-montserrat font-black text-indigo-700 font-mono-tabular mt-0.5">
+                {suppliersAndCarriersCount}
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
       {/* Role Boundary Callout Banner */}
       {isAccountant ? (
@@ -347,7 +402,7 @@ export const PartnersOnboardingModule: React.FC<{
       ) : null}
 
       {/* Onboarding Form (Hidden for Accountant) */}
-      {!isAccountant && canManagePartners && (
+      {!isAccountant && canManagePartners && isPartnerWidgetVisible('onboarding_form') && (
       <form
         onSubmit={handleAddPartner}
         className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-4"
@@ -475,6 +530,7 @@ export const PartnersOnboardingModule: React.FC<{
       )}
 
       {/* Directory Table */}
+      {isPartnerWidgetVisible('partners_directory') && (
       <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-3">
         <div className="flex items-center gap-2 flex-wrap">
           {['All', 'Supplier', 'Retailer', 'Logistics', 'Direct Clients', 'Individual', 'Business'].map((t) => (
@@ -574,6 +630,7 @@ export const PartnersOnboardingModule: React.FC<{
           </table>
         </div>
       </div>
+      )}
 
       {/* Edit Partner Modal */}
       {editingPartner && (
@@ -754,6 +811,17 @@ export const DocumentsAndCreditNotesModule: React.FC<{
   const [filterFacilityId, setFilterFacilityId] = useState<string>('ALL');
   const [searchDocQuery, setSearchDocQuery] = useState('');
   const [isCreatorExpanded, setIsCreatorExpanded] = useState(true);
+
+  const {
+    schema: docSchema,
+    prefs: docPrefs,
+    setMode: setDocMode,
+    toggleKpi: toggleDocKpi,
+    toggleWidget: toggleDocWidget,
+    isKpiVisible: isDocKpiVisible,
+    isWidgetVisible: isDocWidgetVisible,
+    resetToDefault: resetDocPrefs,
+  } = useModulePrefs(currentUser, 'documents_credit');
 
   const issuingBranches = useMemo(
     () => (branches && branches.length > 0 ? branches : allBranches || []),
@@ -1288,89 +1356,128 @@ export const DocumentsAndCreditNotesModule: React.FC<{
     { type: 'Credit Note', label: 'Credit Note', shortDesc: 'Return / Offset' },
   ];
 
-  return (
-    <div className="space-y-6">
-      <div className="bg-[#FFDE00] hover-card-lift border-2 border-[#0A006E] rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden">
-        <div className="silent-scanner-beam-dark" />
-        <div className="relative z-10">
-          <span className="text-xs font-montserrat font-black text-[#0A006E] uppercase tracking-wider">
-            Branch &amp; Warehouse Commercial Document Studio
-          </span>
-          <h2 className="text-xl font-montserrat font-black italic text-[#0A006E] mt-1">
-            Create &amp; Issue Invoices, Quotations, Delivery Notes, Packing Lists, Receipts &amp; Credit Notes
-          </h2>
-          <p className="text-xs font-medium text-slate-900 mt-0.5">
-            Every Branch, Warehouse, Store &amp; Shop can issue official documents, convert Quotations into Invoices, settle Receipts, and export PDF/CSV.
-          </p>
-        </div>
+  const paidReceiptsCount = visibleDocs.filter((d) => d.docType === 'Receipt').length;
+  const issuedInvoicesCount = visibleDocs.filter((d) => d.docType === 'Invoice').length;
+  const creditNotesCount = visibleDocs.filter((d) => d.docType === 'Credit Note').length;
 
-        <div className="flex items-center gap-2 flex-wrap relative z-10">
-          {onOpenKraReturns && (
+  return (
+    <div className="space-y-4 pb-8">
+      <MinimalDashboardBar
+        currentUser={currentUser}
+        schema={docSchema}
+        prefs={docPrefs}
+        onChangeMode={setDocMode}
+        onToggleKpi={toggleDocKpi}
+        onToggleWidget={toggleDocWidget}
+        onReset={resetDocPrefs}
+        actions={
+          <>
+            {onOpenKraReturns && (
+              <button
+                type="button"
+                onClick={() => onOpenKraReturns('VAT3_SALES_SEC_B')}
+                className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                KRA (.xlsx)
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => onOpenKraReturns('VAT3_SALES_SEC_B')}
-              className="px-3.5 py-2 bg-[#34D186] hover:bg-[#28B873] border-2 border-[#0A006E] text-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 transition"
+              onClick={() =>
+                exportReportToPDF(
+                  'Commercial Ledger: Invoices, Quotes, Delivery Notes, Receipts & Credit Notes',
+                  `Exported by ${currentUser.name}`,
+                  ['Doc No', 'Type', 'Issuing Facility', 'Geo-Zone', 'Customer', 'Subtotal (KES)', 'Tax (KES)', 'Total (KES)', 'Status'],
+                  visibleDocs.map((d) => [
+                    d.docNumber,
+                    d.docType,
+                    d.branchName,
+                    d.regionName,
+                    d.customerName,
+                    Math.round(d.subtotal).toLocaleString(),
+                    Math.round(d.exciseAndTax).toLocaleString(),
+                    Math.round(d.totalAmount).toLocaleString(),
+                    d.status,
+                  ]),
+                  'Vaairo_Commercial_Documents_Statement'
+                )
+              }
+              className="px-2.5 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-[#0A006E]" />
-              KRA Returns (.xlsx)
+              <Download className="w-3.5 h-3.5" />
+              PDF
             </button>
+            <button
+              type="button"
+              onClick={() =>
+                exportToCSV(
+                  'Vaairo_Commercial_Documents_Statement',
+                  ['Doc No', 'Type', 'Channel', 'Facility', 'Geo-Zone', 'Customer', 'Subtotal (KES)', 'Excise/Tax (KES)', 'Total (KES)', 'Status', 'Issued By', 'Created At'],
+                  visibleDocs.map((d) => [
+                    d.docNumber,
+                    d.docType,
+                    d.channel,
+                    d.branchName,
+                    d.regionName,
+                    d.customerName,
+                    d.subtotal,
+                    d.exciseAndTax,
+                    d.totalAmount,
+                    d.status,
+                    d.createdBy,
+                    d.createdAt,
+                  ])
+                )
+              }
+              className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+            >
+              <Download className="w-3.5 h-3.5" />
+              CSV
+            </button>
+          </>
+        }
+      />
+
+      {isDocWidgetVisible('kpi_strip') && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {isDocKpiVisible('total_docs') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Total Documents</div>
+              <div className="text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                {visibleDocs.length}
+              </div>
+            </div>
           )}
-          <button
-            onClick={() =>
-              exportReportToPDF(
-                'Commercial Ledger: Invoices, Quotes, Delivery Notes, Receipts & Credit Notes',
-                `Exported by ${currentUser.name}`,
-                ['Doc No', 'Type', 'Issuing Facility', 'Geo-Zone', 'Customer', 'Subtotal (KES)', 'Tax (KES)', 'Total (KES)', 'Status'],
-                visibleDocs.map((d) => [
-                  d.docNumber,
-                  d.docType,
-                  d.branchName,
-                  d.regionName,
-                  d.customerName,
-                  Math.round(d.subtotal).toLocaleString(),
-                  Math.round(d.exciseAndTax).toLocaleString(),
-                  Math.round(d.totalAmount).toLocaleString(),
-                  d.status,
-                ]),
-                'Vaairo_Commercial_Documents_Statement'
-              )
-            }
-            className="px-3.5 py-2 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
-          >
-            <Download className="w-3.5 h-3.5 text-[#FFDE00]" />
-            Statement PDF
-          </button>
-          <button
-            onClick={() =>
-              exportToCSV(
-                'Vaairo_Commercial_Documents_Statement',
-                ['Doc No', 'Type', 'Channel', 'Facility', 'Geo-Zone', 'Customer', 'Subtotal (KES)', 'Excise/Tax (KES)', 'Total (KES)', 'Status', 'Issued By', 'Created At'],
-                visibleDocs.map((d) => [
-                  d.docNumber,
-                  d.docType,
-                  d.channel,
-                  d.branchName,
-                  d.regionName,
-                  d.customerName,
-                  d.subtotal,
-                  d.exciseAndTax,
-                  d.totalAmount,
-                  d.status,
-                  d.createdBy,
-                  d.createdAt,
-                ])
-              )
-            }
-            className="px-3.5 py-2 bg-white border-2 border-[#0A006E] text-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
-          >
-            <Download className="w-3.5 h-3.5 text-[#0A006E]" />
-            Statement CSV
-          </button>
+          {isDocKpiVisible('paid_receipts') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Paid Receipts</div>
+              <div className="text-lg font-montserrat font-black text-emerald-700 font-mono-tabular mt-0.5">
+                {paidReceiptsCount}
+              </div>
+            </div>
+          )}
+          {isDocKpiVisible('issued_invoices') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Issued Invoices</div>
+              <div className="text-lg font-montserrat font-black text-indigo-700 font-mono-tabular mt-0.5">
+                {issuedInvoicesCount}
+              </div>
+            </div>
+          )}
+          {isDocKpiVisible('credit_notes') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Credit Notes</div>
+              <div className="text-lg font-montserrat font-black text-rose-700 font-mono-tabular mt-0.5">
+                {creditNotesCount}
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
       {/* Standalone Facility Commercial Document Creator */}
-      {canCreateCommercialDocs && (
+      {canCreateCommercialDocs && isDocWidgetVisible('doc_creator') && (
         <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4">
           <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-3 flex-wrap">
             <div className="flex items-center gap-2">
@@ -1847,6 +1954,7 @@ export const DocumentsAndCreditNotesModule: React.FC<{
       )}
 
       {/* Document Filter & Ledger */}
+      {isDocWidgetVisible('docs_ledger') && (
       <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -2086,6 +2194,7 @@ export const DocumentsAndCreditNotesModule: React.FC<{
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 };
@@ -2125,6 +2234,17 @@ export const ComplianceModule: React.FC<{
   const isSalesManager = currentUser.role === 'Sales Manager';
   const canManageCompliance = currentUser.role === 'Admin' || currentUser.role === 'Inventory Controller';
   const [complianceViewTab, setComplianceViewTab] = useState<'kra_returns' | 'excise_bonds'>('kra_returns');
+
+  const {
+    schema: compSchema,
+    prefs: compPrefs,
+    setMode: setCompMode,
+    toggleKpi: toggleCompKpi,
+    toggleWidget: toggleCompWidget,
+    isKpiVisible: isCompKpiVisible,
+    isWidgetVisible: isCompWidgetVisible,
+    resetToDefault: resetCompPrefs,
+  } = useModulePrefs(currentUser, 'compliance');
 
   const visibleRecords = useMemo(() => {
     if (isBranchManager) {
@@ -2169,78 +2289,116 @@ export const ComplianceModule: React.FC<{
     setCertificateNo(`EX-CERT-${Date.now().toString().slice(-5)}`);
   };
 
+  const activeCertsCount = visibleRecords.filter((r) => r.status === 'Active').length;
+  const totalDutyPaidAmount = visibleRecords.reduce((s, r) => s + Number(r.dutyPaidAmount || 0), 0);
+
   return (
-    <div className="space-y-6">
-      <div className="bg-[#FFDE00] hover-card-lift border-2 border-[#0A006E] rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden">
-        <div className="silent-scanner-beam-dark" />
-        <div className="relative z-10">
-          <span className="text-xs font-montserrat font-black text-[#0A006E] uppercase tracking-wider">
-            KRA iTax Returns, Customs Bond &amp; Digital Excise Stamps
-          </span>
-          <h2 className="text-xl font-montserrat font-black italic text-[#0A006E] mt-1">
-            KRA Return Spreadsheets &amp; Excise Stamp Roll Tracking
-          </h2>
-          <p className="text-xs font-medium text-slate-900 mt-0.5">
-            Download KRA iTax upload spreadsheets (VAT3, PAYE P10, Housing Levy, TOT) and audit bonded customs certificates.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap relative z-10">
-          <div className="inline-flex bg-white/80 p-1 rounded-xl border-2 border-[#0A006E]">
-            <button
-              type="button"
-              onClick={() => setComplianceViewTab('kra_returns')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap transition ${
-                complianceViewTab === 'kra_returns'
-                  ? 'bg-[#0A006E] text-[#FFDE00]'
-                  : 'text-[#0A006E] hover:bg-slate-100'
-              }`}
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>KRA Returns (.xlsx / .csv)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setComplianceViewTab('excise_bonds')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap transition ${
-                complianceViewTab === 'excise_bonds'
-                  ? 'bg-[#0A006E] text-[#FFDE00]'
-                  : 'text-[#0A006E] hover:bg-slate-100'
-              }`}
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Excise Stamps ({visibleRecords.length})</span>
-            </button>
-          </div>
-          {complianceViewTab === 'excise_bonds' && (
-            <button
-              onClick={() =>
-                exportReportToPDF(
-                  'Regulatory Compliance & Excise Stamp Audit Statement',
-                  `Customs Bonds & Excise Stamp Serial Ranges (${currentUser.role} Scope)`,
-                  ['Certificate No', 'Type', 'SKU Ref', 'Branch', 'Stamp Range', 'Duty Paid (KES)', 'Expiry', 'Status'],
-                  visibleRecords.map((r) => [
-                    r.certificateNo,
-                    r.recordType,
-                    r.skuRef,
-                    r.branchName,
-                    `${r.stampRangeStart} -> ${r.stampRangeEnd}`,
-                    Math.round(r.dutyPaidAmount).toLocaleString(),
-                    r.expiryDate,
-                    r.status,
-                  ]),
-                  'Vaairo_Regulatory_Compliance'
-                )
-              }
-              className="px-3.5 py-2 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
-            >
-              <Download className="w-3.5 h-3.5 text-[#FFDE00]" />
-              Download Compliance PDF
-            </button>
+    <div className="space-y-4 pb-8">
+      <MinimalDashboardBar
+        currentUser={currentUser}
+        schema={compSchema}
+        prefs={compPrefs}
+        onChangeMode={setCompMode}
+        onToggleKpi={toggleCompKpi}
+        onToggleWidget={toggleCompWidget}
+        onReset={resetCompPrefs}
+        actions={
+          <>
+            <div className="inline-flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setComplianceViewTab('kra_returns')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition ${
+                  complianceViewTab === 'kra_returns'
+                    ? 'bg-[#0A006E] text-[#FFDE00]'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                KRA Returns
+              </button>
+              <button
+                type="button"
+                onClick={() => setComplianceViewTab('excise_bonds')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition ${
+                  complianceViewTab === 'excise_bonds'
+                    ? 'bg-[#0A006E] text-[#FFDE00]'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                Excise ({visibleRecords.length})
+              </button>
+            </div>
+            {complianceViewTab === 'excise_bonds' && (
+              <button
+                type="button"
+                onClick={() =>
+                  exportReportToPDF(
+                    'Regulatory Compliance & Excise Stamp Audit Statement',
+                    `Customs Bonds & Excise Stamp Serial Ranges (${currentUser.role} Scope)`,
+                    ['Certificate No', 'Type', 'SKU Ref', 'Branch', 'Stamp Range', 'Duty Paid (KES)', 'Expiry', 'Status'],
+                    visibleRecords.map((r) => [
+                      r.certificateNo,
+                      r.recordType,
+                      r.skuRef,
+                      r.branchName,
+                      `${r.stampRangeStart} -> ${r.stampRangeEnd}`,
+                      Math.round(r.dutyPaidAmount).toLocaleString(),
+                      r.expiryDate,
+                      r.status,
+                    ]),
+                    'Vaairo_Regulatory_Compliance'
+                  )
+                }
+                className="px-2.5 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              >
+                <Download className="w-3.5 h-3.5" />
+                PDF
+              </button>
+            )}
+          </>
+        }
+      />
+
+      {isCompWidgetVisible('kpi_strip') && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {isCompKpiVisible('active_certs') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Active Excise Certs</div>
+              <div className="text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                {activeCertsCount}
+              </div>
+            </div>
+          )}
+          {isCompKpiVisible('duty_paid') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Total Excise Duty Paid</div>
+              <div className="text-lg font-montserrat font-black text-emerald-700 font-mono-tabular mt-0.5">
+                {formatKes(totalDutyPaidAmount)}
+              </div>
+            </div>
+          )}
+          {isCompKpiVisible('payroll_runs') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Filed Payroll Runs</div>
+              <div className="text-lg font-montserrat font-black text-indigo-700 font-mono-tabular mt-0.5">
+                {payrollRuns.length}
+              </div>
+            </div>
+          )}
+          {isCompKpiVisible('taxable_tx') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Taxable Transactions</div>
+              <div className="text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                {transactions.length}
+              </div>
+            </div>
           )}
         </div>
-      </div>
+      )}
 
-      {complianceViewTab === 'kra_returns' ? (
+      {!isCompWidgetVisible('compliance_workspace') ? null : complianceViewTab === 'kra_returns' ? (
         <KraReturnsPanel
           currentUser={currentUser}
           transactions={transactions}
@@ -2538,6 +2696,17 @@ export const HrAndRbacModule: React.FC<{
     return initialTab || 'roster';
   });
 
+  const {
+    schema: hrSchema,
+    prefs: hrPrefs,
+    setMode: setHrMode,
+    toggleKpi: toggleHrKpi,
+    toggleWidget: toggleHrWidget,
+    isKpiVisible: isHrKpiVisible,
+    isWidgetVisible: isHrWidgetVisible,
+    resetToDefault: resetHrPrefs,
+  } = useModulePrefs(currentUser, 'hr_rbac');
+
   useEffect(() => {
     if (initialTab === 'payroll' && canManagePayroll) {
       setActiveTab('payroll');
@@ -2714,6 +2883,16 @@ export const HrAndRbacModule: React.FC<{
   // Delete Staff Modal State (Requirement 3: Prompt question if they are sure they want to delete because it is permanent)
   const [deletingStaff, setDeletingStaff] = useState<StaffMember | null>(null);
   const [isDeletingStaff, setIsDeletingStaff] = useState(false);
+
+  // Strict Admin-only login PIN visibility controls
+  const isAdminViewer = currentUser.role === 'Admin';
+  const [revealedPinMap, setRevealedPinMap] = useState<Record<string, boolean>>({});
+  const [showEditPin, setShowEditPin] = useState<boolean>(false);
+
+  const getAdminViewablePin = (staff: StaffMember | null): string | null => {
+    if (!isAdminViewer || !staff) return null;
+    return decryptPinForAdmin(staff.adminViewPin) || decryptPinForAdmin(staff.pin);
+  };
 
   const isGoogleRole = selectedRole === 'Admin';
 
@@ -2921,11 +3100,16 @@ export const HrAndRbacModule: React.FC<{
       return;
     }
 
-    onTriggerToast('success', 'Staff Provisioned', isCasualSalesRep
-        ? `Provisioned Casual Sales Rep "${name}" (${phone.trim() || email.trim()}) with 6-Digit PIN: ${pin}, Base Pay KES ${Number(baseSalary).toLocaleString()} & Agreed Commission: ${agreedCommissionPct}%.`
+    const pinDisplayForToast = isAdminViewer ? pin : 'Encrypted (Admin View Only)';
+    onTriggerToast(
+      'success',
+      'Staff Provisioned',
+      isCasualSalesRep
+        ? `Provisioned Casual Sales Rep "${name}" (${phone.trim() || email.trim()}) with 6-Digit PIN: ${pinDisplayForToast}, Base Pay KES ${Number(baseSalary).toLocaleString()} & Agreed Commission: ${agreedCommissionPct}%.`
         : effectiveAuthMethod === 'pin'
-        ? `Provisioned ${effectiveRole} "${name}" (${phone.trim() || email.trim()}) with 6-Digit PIN: ${pin} & Monthly Salary KES ${Number(baseSalary).toLocaleString()}.`
-        : `Provisioned ${effectiveRole} "${name}" (${email}) for Google Authentication & Monthly Salary KES ${Number(baseSalary).toLocaleString()}.`);
+        ? `Provisioned ${effectiveRole} "${name}" (${phone.trim() || email.trim()}) with 6-Digit PIN: ${pinDisplayForToast} & Monthly Salary KES ${Number(baseSalary).toLocaleString()}.`
+        : `Provisioned ${effectiveRole} "${name}" (${email}) for Google Authentication & Monthly Salary KES ${Number(baseSalary).toLocaleString()}.`
+    );
     setName('');
     setEmail('');
     setPhone('');
@@ -2940,7 +3124,8 @@ export const HrAndRbacModule: React.FC<{
     setEditRole(staff.role);
     setEditBranchId(staff.branchId);
     setEditStatus(staff.status);
-    setEditPin(staff.pin && staff.pin.length === 6 ? staff.pin : '');
+    setShowEditPin(false);
+    setEditPin(isAdminViewer ? getAdminViewablePin(staff) || '' : '');
     const defSal =
       staff.baseSalaryKes ??
       (staff.role === 'Admin'
@@ -3161,22 +3346,70 @@ export const HrAndRbacModule: React.FC<{
     }
   };
 
+  const activeStaffCount = staffList.filter((s) => s.status === 'Active').length;
+  const kraFiledStaffCount = staffList.filter((s) => Boolean(s.kraPin)).length;
+  const kraCoveragePct = staffList.length > 0 ? Math.round((kraFiledStaffCount / staffList.length) * 100) : 100;
+
   return (
-    <div className="space-y-6">
-      <div className="bg-[#FFDE00] hover-card-lift border-2 border-[#0A006E] rounded-2xl p-5 relative overflow-hidden">
-        <div className="silent-scanner-beam-dark" />
-        <div className="relative z-10">
-          <span className="text-xs font-montserrat font-black text-[#0A006E] uppercase tracking-wider">
-            Strict Hierarchical Role Provisioning & Staff Governance
-          </span>
-          <h2 className="text-xl font-montserrat font-black italic text-[#0A006E] mt-1">
-            HR & Organizational Staff Directory & Access Control
-          </h2>
-          <p className="text-xs font-medium text-slate-900 mt-0.5">
-            Enforce role onboarding, edit details, suspend/terminate access, or permanently remove staff records with full audit logging.
-          </p>
+    <div className="space-y-4 pb-8">
+      <MinimalDashboardBar
+        currentUser={currentUser}
+        schema={hrSchema}
+        prefs={hrPrefs}
+        onChangeMode={setHrMode}
+        onToggleKpi={toggleHrKpi}
+        onToggleWidget={toggleHrWidget}
+        onReset={resetHrPrefs}
+        actions={
+          onOpenAccessMatrix ? (
+            <button
+              type="button"
+              onClick={onOpenAccessMatrix}
+              className="px-2.5 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Access Matrix
+            </button>
+          ) : undefined
+        }
+      />
+
+      {isHrWidgetVisible('kpi_strip') && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {isHrKpiVisible('active_staff') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Active Staff</div>
+              <div className="text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                {activeStaffCount} / {staffList.length}
+              </div>
+            </div>
+          )}
+          {isHrKpiVisible('payroll_runs') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Payroll Runs</div>
+              <div className="text-lg font-montserrat font-black text-emerald-700 font-mono-tabular mt-0.5">
+                {payrollRuns.length} Cycles
+              </div>
+            </div>
+          )}
+          {isHrKpiVisible('pending_leave') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Pending Leave Requests</div>
+              <div className="text-lg font-montserrat font-black text-amber-700 font-mono-tabular mt-0.5">
+                {pendingLeaveCount} Pending
+              </div>
+            </div>
+          )}
+          {isHrKpiVisible('kra_coverage') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Statutory KRA Coverage</div>
+              <div className="text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                {kraCoveragePct}%
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
       {feedback && (
         <div className="p-3.5 rounded-2xl bg-emerald-50 border-2 border-[#34D186] text-xs text-emerald-950 font-montserrat font-bold flex items-center justify-between gap-3 animate-success-pop shadow-md">
@@ -3194,6 +3427,8 @@ export const HrAndRbacModule: React.FC<{
         </div>
       )}
 
+      {isHrWidgetVisible('workspace_tabs') && (
+      <>
       {/* Tab Switcher: Staff Directory vs HR Payroll */}
       <div className="flex items-center gap-2 border-b border-slate-300 pb-3">
         <button
@@ -3390,8 +3625,8 @@ export const HrAndRbacModule: React.FC<{
 
           {/* Staff Onboarding Wizard Modal */}
           {isStaffWizardOpen && (
-            <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-              <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden border-2 border-[#0A006E] shadow-2xl animate-in zoom-in-95">
+            <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 animate-in fade-in">
+              <div className="bg-white rounded-none sm:rounded-3xl max-w-2xl w-full h-full sm:h-auto sm:max-h-[90dvh] flex flex-col overflow-hidden border-0 sm:border-2 border-[#0A006E] shadow-2xl animate-in zoom-in-95">
                 {/* Wizard Header */}
                 <div className="p-5 bg-[#0A006E] text-white flex items-center justify-between border-b-2 border-[#FFDE00]">
                   <div className="flex items-center gap-3">
@@ -3456,7 +3691,7 @@ export const HrAndRbacModule: React.FC<{
                           >
                             {creatableRoles.map((r) => (
                               <option key={r} value={r}>
-                                {r} ({r === 'Accountant' || r === 'Admin' ? 'Google OAuth 2.0' : '6-Digit Secure PIN'})
+                                {r} ({r === 'Admin' ? 'Google OAuth 2.0' : r === 'Accountant' ? 'Google / Email + 6-Digit PIN (Option 2)' : '6-Digit Secure PIN'})
                               </option>
                             ))}
                           </select>
@@ -3595,27 +3830,41 @@ export const HrAndRbacModule: React.FC<{
                       {!isGoogleRole ? (
                         <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-5 space-y-3 text-center">
                           <label className="font-montserrat font-bold text-slate-800 block">
-                            Generated 6-Digit POS Terminal Login PIN
+                            {selectedRole === 'Accountant'
+                              ? 'Option 2 Security Credential: 6-Digit Accounts PIN'
+                              : 'Generated 6-Digit POS Terminal Login PIN'}
                           </label>
-                          <div className="flex items-center justify-center gap-3">
+                          <div className="flex items-center justify-center gap-3 flex-wrap">
                             <input
                               required
-                              type="text"
+                              type={isAdminViewer ? 'text' : 'password'}
+                              autoComplete="new-password"
                               maxLength={6}
                               value={pin}
                               onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                              className="w-56 h-16 px-4 bg-white border-3 border-[#0A006E] rounded-2xl font-mono-tabular font-black text-3xl tracking-widest text-[#0A006E] shadow-md text-center"
+                              className="w-full max-w-[220px] h-14 sm:h-16 px-4 bg-white border-3 border-[#0A006E] rounded-2xl font-mono-tabular font-black text-2xl sm:text-3xl tracking-widest text-[#0A006E] shadow-md text-center"
                             />
-                            <button
-                              type="button"
-                              onClick={handleRandomizePin}
-                              className="px-4 py-3 bg-[#0A006E] text-[#FFDE00] rounded-xl font-montserrat font-bold text-xs cursor-pointer shadow-xs hover:bg-[#060046] transition"
-                            >
-                              Generate New PIN
-                            </button>
+                            {isAdminViewer ? (
+                              <button
+                                type="button"
+                                onClick={handleRandomizePin}
+                                className="px-4 py-3 bg-[#0A006E] text-[#FFDE00] rounded-xl font-montserrat font-bold text-xs cursor-pointer shadow-xs hover:bg-[#060046] transition"
+                              >
+                                Generate New PIN
+                              </button>
+                            ) : (
+                              <span className="px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-montserrat font-bold text-[11px] flex items-center gap-1.5">
+                                <Lock className="w-3.5 h-3.5 text-amber-700" />
+                                Masked — Only Admin Can View PINs
+                              </span>
+                            )}
                           </div>
                           <p className="text-xs text-slate-500">
-                            This 6-digit PIN will be used by {name || 'the staff member'} to log in securely at branch POS terminals and warehouse stations.
+                            {isAdminViewer
+                              ? selectedRole === 'Accountant'
+                                ? `Accountants can sign in using Google OAuth / Email (Option 1) OR this 6-digit PIN (Option 2) from the Accounts login portal.`
+                                : `This 6-digit PIN will be used by ${name || 'the staff member'} to log in securely at branch POS terminals and warehouse stations.`
+                              : `A 6-digit security PIN is masked and encrypted automatically. Only the System Administrator can view users' login PINs.`}
                           </p>
                         </div>
                       ) : (
@@ -3624,7 +3873,7 @@ export const HrAndRbacModule: React.FC<{
                           <div>
                             <div className="font-montserrat font-black text-sm">Google OAuth 2.0 Authentication</div>
                             <p className="text-xs text-blue-900 mt-0.5">
-                              Accountants and Administrators authenticate strictly via Google Workspace using their registered corporate email address ({email || 'staff@vaairo.co.ke'}).
+                              System Administrators authenticate strictly via Google Workspace using their registered corporate email address ({email || 'feminiholdings@gmail.com'}).
                             </p>
                           </div>
                         </div>
@@ -3663,7 +3912,15 @@ export const HrAndRbacModule: React.FC<{
                         <div className="flex justify-between py-1">
                           <span className="text-slate-500 font-medium">Auth Credential:</span>
                           <span className="font-mono font-bold text-[#0A006E]">
-                            {isGoogleRole ? 'Google OAuth (Email)' : `6-Digit PIN: ${pin}`}
+                            {isGoogleRole
+                              ? 'Google OAuth (Email)'
+                              : selectedRole === 'Accountant'
+                              ? isAdminViewer
+                                ? `Google / Email + Option 2 PIN: ${pin}`
+                                : 'Google / Email + Encrypted 6-Digit PIN (••••••)'
+                              : isAdminViewer
+                              ? `6-Digit PIN: ${pin}`
+                              : 'Encrypted 6-Digit PIN (••••••)'}
                           </span>
                         </div>
                       </div>
@@ -3761,7 +4018,7 @@ export const HrAndRbacModule: React.FC<{
                 </div>
 
                 {/* Online / Offline Presence Filter Tabs */}
-                <div className="flex items-center gap-1.5 p-1 bg-white border border-slate-200 rounded-xl w-fit mt-2 shadow-2xs">
+                <div className="flex items-center gap-1.5 p-1 bg-white border border-slate-200 rounded-xl w-fit flex-wrap mt-2 shadow-2xs">
                   <button
                     type="button"
                     onClick={() => setPresenceFilter('ALL')}
@@ -3799,7 +4056,7 @@ export const HrAndRbacModule: React.FC<{
                   </button>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={() =>
                     exportToCSV(
@@ -3848,7 +4105,11 @@ export const HrAndRbacModule: React.FC<{
                         s.role,
                         s.isOnline ? 'Online' : 'Offline',
                         s.status,
-                        s.authMethod === 'google' ? 'Google OAuth' : `6-Digit PIN (${s.pin || '******'})`,
+                        s.authMethod === 'google'
+                          ? 'Google OAuth'
+                          : isAdminViewer
+                          ? `6-Digit PIN (${getAdminViewablePin(s) || 'Encrypted'})`
+                          : 'Encrypted 6-Digit PIN (Admin Only)',
                         s.branchName,
                         `${s.createdBy} (${s.createdByRole})`,
                         s.lastLoginAt ? new Date(s.lastLoginAt).toLocaleString() : 'Never',
@@ -3864,7 +4125,187 @@ export const HrAndRbacModule: React.FC<{
               </div>
             </div>
 
-            <div className="overflow-x-auto bg-white border border-slate-200 rounded-xl">
+            {/* MOBILE STAFF DIRECTORY CARDS (< md) */}
+            <div className="md:hidden space-y-2.5">
+              {displayedStaffList.length === 0 ? (
+                <div className="py-8 text-center text-slate-500 font-medium bg-white border border-slate-200 rounded-xl text-xs">
+                  No staff members found matching {presenceFilter.toLowerCase()} status.
+                </div>
+              ) : (
+                displayedStaffList.map((s) => {
+                  const canManage = canManageStaff(s);
+                  const bSal =
+                    s.baseSalaryKes ??
+                    (s.role === 'Admin' ? 180000 : s.role === 'Accountant' ? 120000 : s.role === 'Branch Manager' ? 95000 : 65000);
+                  const ded = s.deductionsKes ?? Math.round(bSal * 0.18);
+                  const pen = s.penaltiesKes ?? 0;
+                  const net = Math.max(0, bSal - ded - pen);
+
+                  return (
+                    <div
+                      key={`mob-staff-${s.id}`}
+                      className="bg-white border border-slate-200 rounded-2xl p-3.5 space-y-2.5 shadow-2xs"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span
+                              className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                                s.isOnline ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-slate-300'
+                              }`}
+                            />
+                            <span className="font-montserrat font-black text-sm text-slate-900 truncate">
+                              {s.name}
+                            </span>
+                          </div>
+                          <div className="text-[11px] font-montserrat font-bold text-[#0A006E] mt-0.5">
+                            {s.role}
+                          </div>
+                        </div>
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                            s.status === 'Active'
+                              ? 'bg-[#34D186]/20 text-[#1E9E60] border border-[#34D186]/40'
+                              : s.status === 'Suspended'
+                              ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                              : 'bg-rose-100 text-rose-800 border border-rose-300'
+                          }`}
+                        >
+                          {s.status}
+                        </span>
+                      </div>
+
+                      {/* Contact & Branch */}
+                      <div className="text-[11px] text-slate-600 space-y-1 bg-slate-50 border border-slate-100 rounded-xl p-2.5">
+                        {s.phone && (
+                          <div className="font-mono-tabular font-bold text-[#0A006E] flex items-center gap-1.5">
+                            <Phone className="w-3 h-3" />
+                            <span>{s.phone}</span>
+                          </div>
+                        )}
+                        <div className="truncate">{s.email}</div>
+                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/70">
+                          <span className="truncate font-semibold text-slate-700">{s.branchName}</span>
+                          <span className="font-mono-tabular font-black text-[#0A006E] shrink-0">
+                            Net KES {net.toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Auth & Admin-Only PIN Inspection */}
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        {s.authMethod === 'google' ? (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0A006E] bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg">
+                            <GoogleIcon className="w-3.5 h-3.5 shrink-0" />
+                            Google OAuth
+                          </span>
+                        ) : (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg font-mono-tabular">
+                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                              {isAdminViewer && revealedPinMap[s.id]
+                                ? getAdminViewablePin(s) || 'Reset in Edit'
+                                : 'Encrypted PIN'}
+                            </span>
+                            {isAdminViewer && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setRevealedPinMap((prev) => ({
+                                    ...prev,
+                                    [s.id]: !prev[s.id],
+                                  }))
+                                }
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-montserrat font-black bg-[#0A006E]/10 hover:bg-[#FFDE00] text-[#0A006E] border border-[#0A006E]/25 cursor-pointer transition"
+                              >
+                                {revealedPinMap[s.id] ? (
+                                  <>
+                                    <EyeOff className="w-3.5 h-3.5" />
+                                    <span>Hide</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Eye className="w-3.5 h-3.5" />
+                                    <span>View PIN</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Actions Strip */}
+                      {canManage ? (
+                        <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-100">
+                          {currentUser.role === 'Admin' && onOpenUserFeatureModal && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenUserFeatureModal(s)}
+                              className="px-2.5 py-1.5 bg-purple-50 text-purple-800 border border-purple-200 rounded-lg font-montserrat font-black text-[11px] flex items-center gap-1 cursor-pointer"
+                            >
+                              <Sliders className="w-3 h-3" />
+                              Features
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenCompensation(s)}
+                            className="px-2.5 py-1.5 bg-amber-50 text-[#0A006E] border border-amber-300 rounded-lg font-montserrat font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+                          >
+                            <DollarSign className="w-3 h-3 text-[#1E9E60]" />
+                            Pay
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(s)}
+                            className="px-2.5 py-1.5 bg-slate-100 text-slate-800 rounded-lg font-montserrat font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+                          >
+                            <Pencil className="w-3 h-3" />
+                            Edit
+                          </button>
+                          {s.status === 'Active' && (
+                            <button
+                              type="button"
+                              onClick={() => onSetStaffStatus?.(s.id, 'Suspended')}
+                              className="px-2.5 py-1.5 bg-amber-50 text-amber-800 rounded-lg font-montserrat font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+                            >
+                              <PauseCircle className="w-3 h-3" />
+                              Suspend
+                            </button>
+                          )}
+                          {s.status === 'Suspended' && (
+                            <button
+                              type="button"
+                              onClick={() => onSetStaffStatus?.(s.id, 'Active')}
+                              className="px-2.5 py-1.5 bg-emerald-50 text-emerald-800 rounded-lg font-montserrat font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+                            >
+                              <PlayCircle className="w-3 h-3" />
+                              Activate
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setDeletingStaff(s)}
+                            className="ml-auto p-1.5 bg-rose-50 text-rose-700 rounded-lg cursor-pointer"
+                            aria-label={`Delete ${s.name}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-slate-400 italic pt-1 border-t border-slate-100">
+                          {s.id === currentUser.id ? 'Current Session User' : 'Restricted'}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* DESKTOP STAFF DIRECTORY TABLE (md+) */}
+            <div className="hidden md:block overflow-x-auto bg-white border border-slate-200 rounded-xl">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
@@ -3947,10 +4388,39 @@ export const HrAndRbacModule: React.FC<{
                               Google OAuth
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
-                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                              Encrypted PIN
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                                {isAdminViewer && revealedPinMap[s.id]
+                                  ? getAdminViewablePin(s) || 'Reset in Edit'
+                                  : 'Encrypted PIN'}
+                              </span>
+                              {isAdminViewer && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setRevealedPinMap((prev) => ({
+                                      ...prev,
+                                      [s.id]: !prev[s.id],
+                                    }))
+                                  }
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-montserrat font-black bg-[#0A006E]/5 hover:bg-[#FFDE00] text-[#0A006E] border border-[#0A006E]/25 cursor-pointer transition"
+                                  title="Admin-Only: View or hide this user's 6-digit login PIN"
+                                >
+                                  {revealedPinMap[s.id] ? (
+                                    <>
+                                      <EyeOff className="w-3 h-3" />
+                                      <span>Hide</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Eye className="w-3 h-3" />
+                                      <span>View PIN</span>
+                                    </>
+                                  )}
+                                </button>
+                              )}
+                            </div>
                           )}
                         </td>
                         <td className="py-2.5 px-3 text-slate-700">{s.branchName}</td>
@@ -5001,28 +5471,62 @@ export const HrAndRbacModule: React.FC<{
                 </div>
 
                 {editRole !== 'Admin' && (
-                  <div className="sm:col-span-2 bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-1.5">
-                    <label className="font-montserrat font-bold text-slate-700">
-                      Assigned 6-Digit PIN (Enlarged Digits)
-                    </label>
-                    <div className="flex items-center gap-3">
+                  <div className="sm:col-span-2 bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <label className="font-montserrat font-bold text-slate-700">
+                        {editRole === 'Accountant'
+                          ? 'Assigned 6-Digit PIN (Option 2 Login for Accountant)'
+                          : 'Assigned 6-Digit PIN (Enlarged Digits)'}
+                      </label>
+                      <span className="text-[10px] font-montserrat font-bold text-[#0A006E] bg-[#FFDE00]/40 px-2 py-0.5 rounded-md">
+                        {isAdminViewer ? 'Admin View Permitted' : 'PIN Hidden (Admin Only)'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2.5 flex-wrap">
                       <input
-                        type="text"
+                        type={isAdminViewer && showEditPin ? 'text' : 'password'}
+                        autoComplete="new-password"
                         maxLength={6}
                         pattern="\d{6}"
                         value={editPin}
                         onChange={(e) => setEditPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                        placeholder={editingStaff?.pin ? '•••••• (Encrypted)' : '6 Digits'}
-                        className="w-56 h-12 px-3 bg-white border-2 border-[#0A006E] rounded-xl font-mono-tabular font-black text-xl tracking-widest text-[#0A006E] text-center"
+                        placeholder={
+                          editingStaff?.pin
+                            ? isAdminViewer
+                              ? 'Enter 6 digits to set viewable PIN'
+                              : '•••••• (Hidden — enter new 6 digits to reset)'
+                            : '6 Digits'
+                        }
+                        className="w-full sm:w-56 h-12 px-3 bg-white border-2 border-[#0A006E] rounded-xl font-mono-tabular font-black text-xl tracking-widest text-[#0A006E] text-center"
                       />
-                      <button
-                        type="button"
-                        onClick={handleRandomizeEditPin}
-                        className="px-3.5 py-2.5 bg-white hover:bg-[#FFDE00] border border-slate-300 rounded-xl font-montserrat font-bold text-xs text-[#0A006E] cursor-pointer"
-                      >
-                        Generate New PIN
-                      </button>
+                      {isAdminViewer && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setShowEditPin((prev) => !prev)}
+                            className="px-3 py-2.5 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl font-montserrat font-bold text-xs text-[#0A006E] cursor-pointer flex items-center gap-1.5"
+                          >
+                            {showEditPin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                            <span>{showEditPin ? 'Hide PIN' : 'View PIN'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleRandomizeEditPin();
+                              setShowEditPin(true);
+                            }}
+                            className="px-3.5 py-2.5 bg-white hover:bg-[#FFDE00] border border-slate-300 rounded-xl font-montserrat font-bold text-xs text-[#0A006E] cursor-pointer"
+                          >
+                            Generate New PIN
+                          </button>
+                        </>
+                      )}
                     </div>
+                    {!isAdminViewer && (
+                      <p className="text-[11px] text-slate-500">
+                        Security Policy: Existing user login PINs are masked and can only be viewed by the System Administrator.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -5103,6 +5607,8 @@ export const HrAndRbacModule: React.FC<{
           </div>
         </div>
       )}
+      </>
+      )}
     </div>
   );
 };
@@ -5123,6 +5629,17 @@ export const AuditAndSecurityModule: React.FC<{
     title: string;
     message: string;
   } | null>(null);
+
+  const {
+    schema: auditSchema,
+    prefs: auditPrefs,
+    setMode: setAuditMode,
+    toggleKpi: toggleAuditKpi,
+    toggleWidget: toggleAuditWidget,
+    isKpiVisible: isAuditKpiVisible,
+    isWidgetVisible: isAuditWidgetVisible,
+    resetToDefault: resetAuditPrefs,
+  } = useModulePrefs(currentUser, 'audit_security');
 
   // Role-scoped audit telemetry matching Target Access Model:
   // Admin: Full
@@ -5235,97 +5752,126 @@ export const AuditAndSecurityModule: React.FC<{
     return staffList;
   }, [staffList, currentUser]);
 
-  return (
-    <div className="space-y-6">
-      {/* Zero-Trust Telemetry & Activity Surveillance Banner */}
-      <div className="bg-[#F8FAFC] border-2 border-slate-300 rounded-2xl p-5 sm:p-6 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-        <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#0A006E] text-[#FFDE00] text-[11px] font-montserrat font-black uppercase tracking-wider shadow-xs">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            Zero-Trust Telemetry &amp; Activity Surveillance · {currentUser.role} Scope
-          </div>
-          <h2 className="text-xl sm:text-2xl font-montserrat font-black text-[#0A006E] tracking-tight">
-            User Monitoring, Device Fingerprints, Last Login Status &amp; Security Audit Trail
-          </h2>
-          <div className="flex flex-wrap items-center gap-2 pt-0.5">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 text-xs font-semibold shadow-2xs">
-              <Users className="w-3.5 h-3.5 text-[#0A006E]" />
-              Audit Scope: <strong className="text-[#0A006E]">{currentUser.role}</strong> ({filteredLogs.length} Scoped Records)
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 text-xs font-semibold shadow-2xs">
-              <ShieldCheck className="w-3.5 h-3.5 text-[#1E9E60]" />
-              Device Fingerprints &amp; Verification
-            </span>
-          </div>
-        </div>
+  const securityEventsCount = scopedLogs.filter((l) => l.severity === 'Security').length;
+  const criticalAlertsCount = scopedLogs.filter((l) => l.severity === 'Critical').length;
 
-        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 shrink-0">
-          {onOpenAccessMatrix && (
+  return (
+    <div className="space-y-4 pb-8">
+      <MinimalDashboardBar
+        currentUser={currentUser}
+        schema={auditSchema}
+        prefs={auditPrefs}
+        onChangeMode={setAuditMode}
+        onToggleKpi={toggleAuditKpi}
+        onToggleWidget={toggleAuditWidget}
+        onReset={resetAuditPrefs}
+        actions={
+          <>
+            {onOpenAccessMatrix && (
+              <button
+                type="button"
+                onClick={onOpenAccessMatrix}
+                className="px-2.5 py-1.5 bg-white border border-slate-200 text-[#0A006E] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                Access Matrix
+              </button>
+            )}
             <button
               type="button"
-              onClick={onOpenAccessMatrix}
-              className="h-10 px-4 inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-[#0A006E] border-2 border-[#0A006E] rounded-xl text-xs font-montserrat font-black cursor-pointer shadow-xs transition active:scale-95 whitespace-nowrap"
+              onClick={() =>
+                exportReportToPDF(
+                  'Security Audit & User Device Monitoring Log',
+                  'Immutable Activity & Device Fingerprint Statement',
+                  ['Timestamp', 'Actor', 'Role', 'Action', 'Module', 'Device Used', 'Severity'],
+                  filteredLogs.map((l) => [
+                    new Date(l.createdAt).toLocaleString(),
+                    l.actorName,
+                    l.actorRole,
+                    l.action,
+                    l.module,
+                    l.deviceFingerprint,
+                    l.severity,
+                  ]),
+                  'Vaairo_Security_Audit_Logs'
+                )
+              }
+              className="px-2.5 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
             >
-              <ShieldCheck className="w-4 h-4 text-[#0A006E]" />
-              8-Role Access Matrix
+              <Download className="w-3.5 h-3.5" />
+              PDF
             </button>
+            <button
+              type="button"
+              onClick={() =>
+                exportToCSV(
+                  'Vaairo_Security_Audit_Logs',
+                  ['Timestamp', 'Actor', 'Role', 'Identifier', 'Action', 'Module', 'Details', 'Device Fingerprint', 'Branch', 'Severity'],
+                  filteredLogs.map((l) => [
+                    l.createdAt,
+                    l.actorName,
+                    l.actorRole,
+                    l.actorEmailOrPinId,
+                    l.action,
+                    l.module,
+                    l.details,
+                    l.deviceFingerprint,
+                    l.branchName,
+                    l.severity,
+                  ])
+                )
+              }
+              className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+            >
+              <Download className="w-3.5 h-3.5" />
+              CSV
+            </button>
+          </>
+        }
+      />
+
+      {isAuditWidgetVisible('kpi_strip') && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {isAuditKpiVisible('scoped_logs') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Scoped Audit Events</div>
+              <div className="text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                {scopedLogs.length}
+              </div>
+            </div>
           )}
-          <button
-            type="button"
-            onClick={() =>
-              exportReportToPDF(
-                'Security Audit & User Device Monitoring Log',
-                'Immutable Activity & Device Fingerprint Statement',
-                ['Timestamp', 'Actor', 'Role', 'Action', 'Module', 'Device Used', 'Severity'],
-                filteredLogs.map((l) => [
-                  new Date(l.createdAt).toLocaleString(),
-                  l.actorName,
-                  l.actorRole,
-                  l.action,
-                  l.module,
-                  l.deviceFingerprint,
-                  l.severity,
-                ]),
-                'Vaairo_Security_Audit_Logs'
-              )
-            }
-            className="h-10 px-4 inline-flex items-center justify-center gap-2 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] border-2 border-[#0A006E] rounded-xl text-xs font-montserrat font-black cursor-pointer shadow-md transition active:scale-95 whitespace-nowrap"
-          >
-            <Download className="w-4 h-4 text-[#FFDE00]" />
-            Export Security PDF
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              exportToCSV(
-                'Vaairo_Security_Audit_Logs',
-                ['Timestamp', 'Actor', 'Role', 'Identifier', 'Action', 'Module', 'Details', 'Device Fingerprint', 'Branch', 'Severity'],
-                filteredLogs.map((l) => [
-                  l.createdAt,
-                  l.actorName,
-                  l.actorRole,
-                  l.actorEmailOrPinId,
-                  l.action,
-                  l.module,
-                  l.details,
-                  l.deviceFingerprint,
-                  l.branchName,
-                  l.severity,
-                ])
-              )
-            }
-            className="h-10 px-4 inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-[#0A006E] border-2 border-[#0A006E] rounded-xl text-xs font-montserrat font-black cursor-pointer shadow-xs transition active:scale-95 whitespace-nowrap"
-          >
-            <Download className="w-4 h-4 text-[#0A006E]" />
-            Export CSV
-          </button>
+          {isAuditKpiVisible('security_events') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Security Events</div>
+              <div className="text-lg font-montserrat font-black text-indigo-700 font-mono-tabular mt-0.5">
+                {securityEventsCount}
+              </div>
+            </div>
+          )}
+          {isAuditKpiVisible('critical_alerts') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Critical Alerts</div>
+              <div className="text-lg font-montserrat font-black text-rose-700 font-mono-tabular mt-0.5">
+                {criticalAlertsCount}
+              </div>
+            </div>
+          )}
+          {isAuditKpiVisible('active_sessions') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Monitored Staff</div>
+              <div className="text-lg font-montserrat font-black text-emerald-700 font-mono-tabular mt-0.5">
+                {visibleStaff.length}
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
       {/* Active User Session & Device Monitoring Grid */}
+      {isAuditWidgetVisible('session_grid') && (
       <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-3">
         <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
-          Live Staff Session & Device Monitoring Status
+          Live Staff Session &amp; Device Monitoring Status
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
           {visibleStaff.map((s) => (
@@ -5379,8 +5925,10 @@ export const AuditAndSecurityModule: React.FC<{
           ))}
         </div>
       </div>
+      )}
 
       {/* Detailed Audit Trail Table */}
+      {isAuditWidgetVisible('audit_table') && (
       <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -5442,6 +5990,7 @@ export const AuditAndSecurityModule: React.FC<{
           </table>
         </div>
       </div>
+      )}
       <StatusFeedbackToast status={feedbackToast} onDismiss={() => setFeedbackToast(null)} />
     </div>
   );

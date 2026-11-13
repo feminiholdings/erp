@@ -124,14 +124,8 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const handleCustomerWebsiteClick = () => {
-    if (onOpenCustomerPortal) {
+    if (variant === 'gateway' && onOpenCustomerPortal) {
       onOpenCustomerPortal();
-    } else if (onSelectModule) {
-      if (activeModule === 'customer_portal') {
-        onSelectModule('overview');
-      } else {
-        onSelectModule('customer_portal');
-      }
     }
   };
 
@@ -166,26 +160,48 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Zone 2: Navigation & Action Controls */}
         {variant === 'authenticated' ? (
           <>
-            {/* Mobile Header: Customer Website + Hamburger Button (< md) */}
-            <div className="flex md:hidden items-center gap-2 shrink-0 relative z-10">
-              <button
-                type="button"
-                onClick={handleCustomerWebsiteClick}
-                className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-all cursor-pointer active:scale-95 ${
-                  activeModule === 'customer_portal'
-                    ? 'bg-[#FFDE00] text-[#0A006E] border-white'
-                    : 'bg-white text-[#0A006E] hover:bg-[#FFDE00] border-white'
-                }`}
-                title="Customer Website / Online Storefront"
-                aria-label="Customer Website / Online Storefront"
-              >
-                <Globe className="w-4 h-4 stroke-[2.2]" />
-              </button>
+            {/* Mobile Header: Quick Profile, Lock & Hamburger (< md) — Never show Storefront when logged in */}
+            <div className="flex md:hidden items-center gap-1.5 shrink-0 relative z-10">
+              {onOpenAccessMatrix && (
+                <button
+                  type="button"
+                  onClick={onOpenAccessMatrix}
+                  className="w-9.5 h-9.5 rounded-xl flex items-center justify-center border bg-[#FFDE00] text-[#0A006E] border-white cursor-pointer transition active:scale-95"
+                  title="Access Model Matrix"
+                  aria-label="Access Model Matrix"
+                >
+                  <ShieldCheck className="w-4.5 h-4.5 stroke-[2.4]" />
+                </button>
+              )}
+
+              {currentUser && onOpenUserProfile && (
+                <button
+                  type="button"
+                  onClick={onOpenUserProfile}
+                  className="w-9.5 h-9.5 rounded-xl flex items-center justify-center border bg-white text-[#0A006E] border-white cursor-pointer transition active:scale-95"
+                  title={`${currentUser.name} (${currentUser.role})`}
+                  aria-label="User Profile"
+                >
+                  <User className="w-4.5 h-4.5 stroke-[2.3]" />
+                </button>
+              )}
+
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="w-9.5 h-9.5 rounded-xl flex items-center justify-center border bg-white text-[#0A006E] hover:text-rose-600 border-white cursor-pointer transition active:scale-95"
+                  title="Lock Terminal / Sign Out"
+                  aria-label="Lock Terminal / Sign Out"
+                >
+                  <Lock className="w-4.5 h-4.5 stroke-[2.3]" />
+                </button>
+              )}
 
               <button
                 type="button"
                 onClick={onToggleMobileDrawer}
-                className={`relative w-9 h-9 rounded-xl flex items-center justify-center border cursor-pointer transition active:scale-95 ${
+                className={`relative w-10 h-10 rounded-xl flex items-center justify-center border cursor-pointer transition active:scale-95 ${
                   !mobileDrawerOpen && unreadInboxCount > 0
                     ? 'bg-red-600 text-white border-white'
                     : 'bg-white text-[#0A006E] border-white'
@@ -208,22 +224,6 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Desktop Header: Header Right Action Icons */}
             <div className="hidden md:flex items-center gap-2 shrink-0 relative z-10">
-              <button
-                type="button"
-                onClick={handleCustomerWebsiteClick}
-                className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-all cursor-pointer relative group ${
-                  activeModule === 'customer_portal'
-                    ? 'bg-[#FFDE00] text-[#0A006E] border-white'
-                    : 'bg-white text-[#0A006E] hover:bg-[#FFDE00] border-white'
-                }`}
-                title="Customer Website / Online Storefront"
-                aria-label="Customer Website / Online Storefront"
-              >
-                <Globe className="w-4.5 h-4.5 stroke-[2.2] group-hover:rotate-12 transition-transform" />
-                <span className="absolute -bottom-8 right-0 hidden group-hover:block bg-slate-900 text-white text-[10px] font-montserrat font-bold py-1 px-2 rounded-md whitespace-nowrap shadow-md z-50 pointer-events-none">
-                  Customer Website
-                </span>
-              </button>
 
               {onOpenAccessMatrix && (
                 <button

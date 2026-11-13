@@ -31,6 +31,8 @@ import {
   LeaveUrgency,
 } from '../types';
 import { exportToCSV, exportReportToPDF } from '../erpUtils';
+import { useModulePrefs } from '../utils/dashboardPrefs';
+import { MinimalDashboardBar } from './common/MinimalDashboardBar';
 
 const COMPANY_ENTITLEMENTS: Record<string, number> = {
   'Annual Leave': 21,
@@ -172,6 +174,17 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
   const [viewMode, setViewMode] = useState<'hr_approvals' | 'my_requests'>(() =>
     mode === 'hr_inbox' && canReviewAsHr ? 'hr_approvals' : 'my_requests'
   );
+
+  const {
+    schema: leaveSchema,
+    prefs: leavePrefs,
+    setMode: setLeaveMode,
+    toggleKpi: toggleLeaveKpi,
+    toggleWidget: toggleLeaveWidget,
+    isKpiVisible: isLeaveKpiVisible,
+    isWidgetVisible: isLeaveWidgetVisible,
+    resetToDefault: resetLeavePrefs,
+  } = useModulePrefs(currentUser, 'leave_management');
 
   // Request Form State
   const today = useMemo(() => getTodayIso(), []);
@@ -485,138 +498,170 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
     return 'bg-slate-100 text-slate-700 border-slate-200';
   };
 
-  return (
-    <div className="space-y-6">
-      {/* Top Banner + Mode Switch for HR/Admin */}
-      <div className="bg-[#FFDE00] border-2 border-[#0A006E] rounded-2xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 relative overflow-hidden">
-        <div className="silent-scanner-beam-dark" />
-        <div className="relative z-10">
-          <span className="text-xs font-montserrat font-black text-[#0A006E] uppercase tracking-wider">
-            Company Leave, Off-Day, Emergency &amp; Maternity Governance
-          </span>
-          <h2 className="text-xl font-montserrat font-black italic text-[#0A006E] mt-1">
-            {viewMode === 'hr_approvals'
-              ? 'HR Leave, Off-Days & Emergency Approvals Desk'
-              : 'My Leave, Off-Day & Emergency Request Portal'}
-          </h2>
-          <p className="text-xs font-medium text-slate-900 mt-0.5">
-            {viewMode === 'hr_approvals'
-              ? 'Review incoming staff requests across all branches, check relief cover, and approve or decline with instant employee notification.'
-              : 'Track your leave balances and submit Annual Leave, Off-Days, Emergency, Sick, Maternity, or Paternity requests directly to HR.'}
-          </p>
-        </div>
+  const totalScopedLeave = viewMode === 'hr_approvals' ? sortedAllRequests.length : myRequests.length;
+  const pendingScopedLeave =
+    viewMode === 'hr_approvals'
+      ? pendingRequests.length
+      : myRequests.filter((r) => r.status === 'Pending HR Approval').length;
+  const approvedScopedLeave =
+    viewMode === 'hr_approvals'
+      ? sortedAllRequests.filter((r) => r.status === 'Approved').length
+      : myRequests.filter((r) => r.status === 'Approved').length;
 
-        <div className="flex flex-wrap items-center gap-2 relative z-10">
-          {canReviewAsHr && (
-            <div className="inline-flex bg-white border-2 border-[#0A006E] rounded-xl p-1 shadow-xs">
-              <button
-                type="button"
-                onClick={() => setViewMode('hr_approvals')}
-                className={`px-3.5 py-2 rounded-lg text-xs font-montserrat font-black cursor-pointer transition flex items-center gap-1.5 ${
-                  viewMode === 'hr_approvals'
-                    ? 'bg-[#0A006E] text-[#FFDE00]'
-                    : 'text-[#0A006E] hover:bg-slate-100'
-                }`}
-              >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>HR Approvals Desk</span>
-                {pendingRequests.length > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-rose-600 text-white font-mono-tabular">
-                    {pendingRequests.length}
-                  </span>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('my_requests')}
-                className={`px-3.5 py-2 rounded-lg text-xs font-montserrat font-black cursor-pointer transition flex items-center gap-1.5 ${
-                  viewMode === 'my_requests'
-                    ? 'bg-[#0A006E] text-[#FFDE00]'
-                    : 'text-[#0A006E] hover:bg-slate-100'
-                }`}
-              >
-                <Calendar className="w-3.5 h-3.5" />
-                <span>Submit / My Requests</span>
-              </button>
+  return (
+    <div className="space-y-4 pb-8">
+      <MinimalDashboardBar
+        currentUser={currentUser}
+        schema={leaveSchema}
+        prefs={leavePrefs}
+        onChangeMode={setLeaveMode}
+        onToggleKpi={toggleLeaveKpi}
+        onToggleWidget={toggleLeaveWidget}
+        onReset={resetLeavePrefs}
+        actions={
+          <>
+            {canReviewAsHr && (
+              <div className="inline-flex bg-slate-100 border border-slate-200 rounded-lg p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('hr_approvals')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-montserrat font-bold cursor-pointer transition flex items-center gap-1 ${
+                    viewMode === 'hr_approvals'
+                      ? 'bg-[#0A006E] text-[#FFDE00]'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>HR Desk</span>
+                  {pendingRequests.length > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-600 text-white font-mono-tabular">
+                      {pendingRequests.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('my_requests')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-montserrat font-bold cursor-pointer transition flex items-center gap-1 ${
+                    viewMode === 'my_requests'
+                      ? 'bg-[#0A006E] text-[#FFDE00]'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>My Requests</span>
+                </button>
+              </div>
+            )}
+
+            {viewMode === 'hr_approvals' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() =>
+                    exportToCSV(
+                      'Vaairo_HR_Leave_Register',
+                      [
+                        'Request No',
+                        'Staff Name',
+                        'Role',
+                        'Branch',
+                        'Category',
+                        'Start Date',
+                        'End Date',
+                        'Days',
+                        'Urgency',
+                        'Relief Staff',
+                        'Status',
+                        'HR Reviewer',
+                        'HR Remarks',
+                        'Submitted At',
+                      ],
+                      filteredHrRequests.map((r) => [
+                        r.requestNo,
+                        r.staffName,
+                        r.staffRole,
+                        r.branchName,
+                        r.leaveType,
+                        r.startDate,
+                        r.endDate,
+                        r.totalDays,
+                        r.urgency,
+                        r.reliefStaffName || 'None',
+                        r.status,
+                        r.hrReviewerName || 'Pending',
+                        r.hrDecisionNote || '',
+                        r.createdAt,
+                      ])
+                    )
+                  }
+                  className="px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    exportReportToPDF(
+                      'Company Leave, Off-Day & Emergency Register',
+                      `Generated by ${currentUser.name} (${currentUser.role})`,
+                      ['Req No', 'Staff', 'Branch', 'Type', 'Dates', 'Days', 'Urgency', 'Status'],
+                      filteredHrRequests.map((r) => [
+                        r.requestNo,
+                        `${r.staffName} (${r.staffRole})`,
+                        r.branchName,
+                        r.leaveType,
+                        `${r.startDate} → ${r.endDate}`,
+                        String(r.totalDays),
+                        r.urgency,
+                        r.status,
+                      ]),
+                      'Vaairo_Leave_Register'
+                    )
+                  }
+                  className="px-2.5 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  PDF
+                </button>
+              </>
+            )}
+          </>
+        }
+      />
+
+      {isLeaveWidgetVisible('kpi_strip') && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {isLeaveKpiVisible('total_requests') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Total Requests</div>
+              <div className="text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                {totalScopedLeave}
+              </div>
             </div>
           )}
-
-          {viewMode === 'hr_approvals' && (
-            <>
-              <button
-                type="button"
-                onClick={() =>
-                  exportToCSV(
-                    'Vaairo_HR_Leave_Register',
-                    [
-                      'Request No',
-                      'Staff Name',
-                      'Role',
-                      'Branch',
-                      'Category',
-                      'Start Date',
-                      'End Date',
-                      'Days',
-                      'Urgency',
-                      'Relief Staff',
-                      'Status',
-                      'HR Reviewer',
-                      'HR Remarks',
-                      'Submitted At',
-                    ],
-                    filteredHrRequests.map((r) => [
-                      r.requestNo,
-                      r.staffName,
-                      r.staffRole,
-                      r.branchName,
-                      r.leaveType,
-                      r.startDate,
-                      r.endDate,
-                      r.totalDays,
-                      r.urgency,
-                      r.reliefStaffName || 'None',
-                      r.status,
-                      r.hrReviewerName || 'Pending',
-                      r.hrDecisionNote || '',
-                      r.createdAt,
-                    ])
-                  )
-                }
-                className="px-3.5 py-2 bg-white hover:bg-slate-50 border-2 border-[#0A006E] text-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer"
-              >
-                <Download className="w-3.5 h-3.5" />
-                Export CSV
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  exportReportToPDF(
-                    'Company Leave, Off-Day & Emergency Register',
-                    `Generated by ${currentUser.name} (${currentUser.role})`,
-                    ['Req No', 'Staff', 'Branch', 'Type', 'Dates', 'Days', 'Urgency', 'Status'],
-                    filteredHrRequests.map((r) => [
-                      r.requestNo,
-                      `${r.staffName} (${r.staffRole})`,
-                      r.branchName,
-                      r.leaveType,
-                      `${r.startDate} → ${r.endDate}`,
-                      String(r.totalDays),
-                      r.urgency,
-                      r.status,
-                    ]),
-                    'Vaairo_Leave_Register'
-                  )
-                }
-                className="px-3.5 py-2 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer"
-              >
-                <Download className="w-3.5 h-3.5" />
-                Export PDF
-              </button>
-            </>
+          {isLeaveKpiVisible('pending_hr') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Pending HR Review</div>
+              <div className="text-lg font-montserrat font-black text-amber-700 font-mono-tabular mt-0.5">
+                {pendingScopedLeave}
+              </div>
+            </div>
+          )}
+          {isLeaveKpiVisible('approved') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Approved Requests</div>
+              <div className="text-lg font-montserrat font-black text-emerald-700 font-mono-tabular mt-0.5">
+                {approvedScopedLeave}
+              </div>
+            </div>
           )}
         </div>
-      </div>
+      )}
 
+      {isLeaveWidgetVisible('leave_portal') && (
+      <>
       {/* =================================================================== */}
       {/* HR APPROVALS DESK VIEW                                              */}
       {/* =================================================================== */}
@@ -1573,6 +1618,8 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
             </div>
           </form>
         </div>
+      )}
+      </>
       )}
     </div>
   );
