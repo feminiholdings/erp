@@ -472,14 +472,29 @@ export interface ExternalCustomer {
 export interface StockTransfer {
   id: string;
   transferNo: string;
+  purchaseBatchNo?: string;
+  orderType?: 'WAREHOUSE_PURCHASE' | 'INTER_BRANCH_TRANSFER';
   fromBranchId: string;
   fromBranchName: string;
+  fromFacilityType?: FacilityType;
   toBranchId: string;
   toBranchName: string;
+  toFacilityType?: FacilityType;
   productId: string;
   sku: string;
   productName: string;
   quantityBottles: number;
+  unitPriceKes?: number;
+  totalAmountKes?: number;
+  paymentMethod?: string;
+  paymentStatus?: 'Pending Settlement' | 'Invoiced' | 'Paid / Settled';
+  linkedInvoiceId?: string;
+  linkedInvoiceNo?: string;
+  linkedDeliveryNoteId?: string;
+  linkedDeliveryNoteNo?: string;
+  linkedReceiptId?: string;
+  linkedReceiptNo?: string;
+  orderNotes?: string;
   logisticsPartnerName: string;
   vehicleReg: string;
   excisePermitNo: string;
@@ -537,8 +552,12 @@ export interface TransactionDoc {
   docNumber: string;
   docType: DocType;
   channel: 'Retail Counter POS' | 'B2B Wholesale POS' | 'Customer Online Portal' | 'Affiliate Rep' | 'Restaurant & Club POS' | 'Merchant Shop POS';
+  orderCategory?: 'POS_SALE' | 'WAREHOUSE_PURCHASE' | 'FACILITY_DOCUMENT';
   branchId: string;
   branchName: string;
+  supplierFacilityType?: FacilityType;
+  buyerBranchId?: string;
+  buyerBranchName?: string;
   businessUnitId?: string;
   businessUnitName?: string;
   tableNumber?: string;
@@ -565,6 +584,10 @@ export interface TransactionDoc {
   paymentMethod: string;
   status: 'Paid' | 'Issued' | 'Approved' | 'Fulfilled' | 'Credited' | 'Pending Verification';
   relatedInvoiceNo?: string;
+  linkedTransferId?: string;
+  linkedTransferNo?: string;
+  validUntil?: string;
+  notes?: string;
   creditReason?: string;
   createdBy: string;
   createdByRole: string;
@@ -618,7 +641,8 @@ export type ERPModuleId =
   | 'customer_portal'
   | 'outlets_restaurants'
   | 'delivery_management'
-  | 'internal_inbox';
+  | 'internal_inbox'
+  | 'leave_management';
 
 export type InternalChatThreadType = 'department' | 'direct';
 
@@ -940,3 +964,97 @@ export interface ApprovalRequest {
   createdAt: string;
 }
 
+export type ExpenseCategory =
+  | 'Rent & Warehouse Lease'
+  | 'Utilities & Power'
+  | 'Fuel & Fleet Logistics'
+  | 'KRA Excise & Licenses'
+  | 'Staff Allowances & Casuals'
+  | 'Marketing & Promotions'
+  | 'Repairs & Maintenance'
+  | 'Office & POS Supplies'
+  | 'Security & Insurance'
+  | 'Petty Cash & Miscellaneous';
+
+export type ExpensePaymentMethod =
+  | 'M-Pesa'
+  | 'Cash'
+  | 'Bank Transfer'
+  | 'Petty Cash'
+  | 'Cheque'
+  | 'Credit / Payable';
+
+export type ExpenseStatus = 'Recorded' | 'Approved' | 'Paid';
+
+export interface AccountingExpense {
+  id: string;
+  expenseNo: string;
+  title: string;
+  category: ExpenseCategory;
+  amountKes: number;
+  branchId: string;
+  branchName: string;
+  paymentMethod: ExpensePaymentMethod;
+  referenceNo?: string;
+  vendorName?: string;
+  expenseDate: string; // YYYY-MM-DD
+  status: ExpenseStatus;
+  notes?: string;
+  recordedBy: string;
+  recordedByRole: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export type LeaveType =
+  | 'Annual Leave'
+  | 'Off-Day'
+  | 'Emergency Leave'
+  | 'Maternity Leave'
+  | 'Paternity Leave'
+  | 'Sick / Medical Leave'
+  | 'Compassionate / Study Leave';
+
+export type LeaveDurationMode =
+  | 'Full Days'
+  | 'Half Day (Morning)'
+  | 'Half Day (Afternoon)';
+
+export type LeaveUrgency = 'Standard' | 'Urgent' | 'Emergency';
+
+export type LeaveRequestStatus =
+  | 'Pending HR Approval'
+  | 'Approved'
+  | 'Declined'
+  | 'Cancelled';
+
+export interface LeaveRequest {
+  id: string;
+  requestNo: string;
+  staffId: string;
+  staffName: string;
+  staffEmail: string;
+  staffPhone?: string;
+  staffRole: StaffRole;
+  branchId: string;
+  branchName: string;
+  leaveType: LeaveType;
+  durationMode?: LeaveDurationMode;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  totalDays: number;
+  urgency: LeaveUrgency;
+  reason: string;
+  reliefStaffId?: string;
+  reliefStaffName?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  expectedDeliveryDate?: string; // For Maternity / Paternity context
+  status: LeaveRequestStatus;
+  hrReviewerName?: string;
+  hrReviewerRole?: string;
+  hrReviewedAt?: string;
+  hrDecisionNote?: string;
+  createdAt: string;
+  updatedAt?: string;
+}

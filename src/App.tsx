@@ -47,6 +47,7 @@ import {
   Truck,
   FileSpreadsheet,
   Inbox,
+  Calendar,
 } from 'lucide-react';
 import {
   db,
@@ -81,6 +82,9 @@ import {
   RestaurantInventoryItem,
   HrDeductionCatalogItem,
   InternalChatMessage,
+  AccountingExpense,
+  LineItem,
+  LeaveRequest,
 } from './types';
 import {
   getDeviceFingerprint,
@@ -135,6 +139,7 @@ import {
   computeUnreadInboxSummary,
 } from './components/InternalInboxModule';
 import { DesktopInboxArrivalPopup } from './components/DesktopInboxArrivalPopup';
+import { LeaveManagementPortal } from './components/LeaveManagementPortal';
 import { hashPin, isPinHashed, verifyPin, hashPassword, verifyPassword } from './utils/security';
 import { broadcastProductScanned } from './utils/productScanBroadcast';
 import { initGlobalClickSound, playSuccessSound, playErrorSound } from './utils/audioBeep';
@@ -160,6 +165,7 @@ const MODULE_META: Record<
   external_customers: { label: 'External Customers (Sales)', shortMobileLabel: 'Customers', oneWordLabel: 'Customers', icon: Users },
   delivery_management: { label: 'Delivery & Dispatch Operations', shortMobileLabel: 'Deliveries', oneWordLabel: 'Deliveries', icon: Truck },
   internal_inbox: { label: 'Internal Inbox & Dept Chat', shortMobileLabel: 'Inbox Chat', oneWordLabel: 'Inbox', icon: Inbox },
+  leave_management: { label: 'Leave, Off & Emergency Requests', shortMobileLabel: 'Leave', oneWordLabel: 'Leave', icon: Calendar },
 };
 
 const ERP_DEPARTMENTS: {
@@ -174,7 +180,7 @@ const ERP_DEPARTMENTS: {
     title: 'Executive & Governance',
     oneWordTitle: 'Executive',
     icon: ShieldCheck,
-    modules: ['overview', 'hr_rbac', 'payroll', 'compliance', 'geo_pricing'],
+    modules: ['overview', 'hr_rbac', 'payroll', 'leave_management', 'compliance', 'geo_pricing'],
   },
   {
     id: 'sales',
@@ -526,9 +532,41 @@ export default function App() {
       return [];
     }
   });
+  const [expenses, setExpenses] = useState<AccountingExpense[]>(() => {
+    try {
+      const saved = localStorage.getItem('erp_expenses_backup');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(() => {
+    try {
+      const saved = localStorage.getItem('erp_leave_requests_backup');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [hrRequestedTab, setHrRequestedTab] = useState<
+    'roster' | 'payroll' | 'leave_requests' | 'master_security' | undefined
+  >(undefined);
   const [inboxReadTick, setInboxReadTick] = useState(0);
   const [requestedInboxThreadId, setRequestedInboxThreadId] = useState<string | null>(null);
-  const [activeInboxThreadId, setActiveInboxThreadId] = useState<string | null>(null);
+  const [activeInboxThreadId, setActiveInboxThreadId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('erp_active_inbox_thread');
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (activeInboxThreadId) {
+      localStorage.setItem('erp_active_inbox_thread', activeInboxThreadId);
+    } else {
+      localStorage.removeItem('erp_active_inbox_thread');
+    }
+  }, [activeInboxThreadId]);
   const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>(() => {
     try {
       const saved = localStorage.getItem('erp_business_units');
@@ -571,7 +609,24 @@ export default function App() {
   const [isBannerDismissed, setIsBannerDismissed] = useState(false);
 
   // Active User Session State
-  const [currentUser, setCurrentUser] = useState<StaffMember | null>(null);
+  const [currentUser, setCurrentUser] = useState<StaffMember | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('erp_current_user');
+        if (saved) return JSON.parse(saved);
+      } catch {}
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('erp_current_user', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('erp_current_user');
+      localStorage.removeItem('erp_active_inbox_thread');
+    }
+  }, [currentUser]);
   const [showOnboarding, setShowOnboarding] = useState(() => {
     return typeof window !== 'undefined' && !localStorage.getItem('vaairo_onboarding_completed');
   });
@@ -823,11 +878,27 @@ export default function App() {
       return transactions.filter(
         (t) =>
           t.branchId === branchManagerBranchId ||
-          t.branchName === branchManagerBranchName
+          t.branchName === branchManagerBranchName ||
+          t.buyerBranchId === branchManagerBranchId ||
+          t.buyerBranchName === branchManagerBranchName
       );
     }
     return transactions;
   }, [transactions, isBranchManager, branchManagerBranchId, branchManagerBranchName]);
+
+  const scopedExpenses = useMemo(() => {
+    const list =
+      isBranchManager && branchManagerBranchId
+        ? expenses.filter(
+            (e) =>
+              e.branchId === branchManagerBranchId ||
+              e.branchName === branchManagerBranchName
+          )
+        : expenses;
+    return [...list].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }, [expenses, isBranchManager, branchManagerBranchId, branchManagerBranchName]);
 
   const liveInspectingOrder = useMemo<TransactionDoc | null>(() => {
     if (!inspectingOrderTx) return null;
@@ -1248,6 +1319,28 @@ export default function App() {
       'internal_chat_messages'
     );
 
+    const unsubExpenses = subscribeWithFallback<AccountingExpense>(
+      'expenses',
+      (list) => {
+        setExpenses(list);
+        try {
+          localStorage.setItem('erp_expenses_backup', JSON.stringify(list));
+        } catch {}
+      },
+      'expenses'
+    );
+
+    const unsubLeaveRequests = subscribeWithFallback<LeaveRequest>(
+      'leave_requests',
+      (list) => {
+        setLeaveRequests(list);
+        try {
+          localStorage.setItem('erp_leave_requests_backup', JSON.stringify(list));
+        } catch {}
+      },
+      'leave_requests'
+    );
+
     return () => {
       unsubStaff();
       unsubBranches();
@@ -1264,6 +1357,8 @@ export default function App() {
       unsubBusinessUnits();
       unsubRestaurantInventory();
       unsubInternalChat();
+      unsubExpenses();
+      unsubLeaveRequests();
     };
   }, []);
 
@@ -2009,8 +2104,22 @@ export default function App() {
 
   const handleSelectModule = (modId: ERPModuleId) => {
     if (!allowedModules.includes(modId)) return;
+    if (modId !== 'hr_rbac') {
+      setHrRequestedTab(undefined);
+    }
     setActiveModule(modId);
     setMobileDrawerOpen(false);
+  };
+
+  const handleOpenHrLeaveTab = () => {
+    setHrRequestedTab('leave_requests');
+    if (allowedModules.includes('hr_rbac')) {
+      setActiveModule('hr_rbac');
+      setMobileDrawerOpen(false);
+    } else if (allowedModules.includes('leave_management')) {
+      setActiveModule('leave_management');
+      setMobileDrawerOpen(false);
+    }
   };
 
   // Enterprise Access Model Handlers
@@ -2782,6 +2891,393 @@ export default function App() {
     return fullTr;
   };
 
+  const handleCreateWarehousePurchaseOrder = async (payload: {
+    fromBranch: Branch;
+    toBranch: Branch;
+    items: Array<{
+      product: Product;
+      quantityBottles: number;
+      unitPriceKes: number;
+      lineTotalKes: number;
+    }>;
+    paymentMethod: string;
+    taxRatePct: number;
+    logisticsPartnerName: string;
+    vehicleReg: string;
+    excisePermitNo: string;
+    orderNotes: string;
+    dispatchImmediately: boolean;
+  }): Promise<{ invoiceDoc: TransactionDoc | null; deliveryNoteDoc: TransactionDoc | null; transfers: StockTransfer[] }> => {
+    if (!currentUser) {
+      return { invoiceDoc: null, deliveryNoteDoc: null, transfers: [] };
+    }
+    const {
+      fromBranch,
+      toBranch,
+      items,
+      paymentMethod,
+      taxRatePct,
+      logisticsPartnerName,
+      vehicleReg,
+      excisePermitNo,
+      orderNotes,
+      dispatchImmediately,
+    } = payload;
+
+    const nowIso = new Date().toISOString();
+    const suffix = Date.now().toString().slice(-6);
+    const batchNo = `WPO-${suffix}`;
+    const invoiceNo = `INV-${batchNo}`;
+    const dnNo = `DN-${batchNo}`;
+    const supplierReg =
+      regions.find((r) => r.id === fromBranch.regionId || r.name === fromBranch.regionName) || regions[0];
+
+    const lineItems: LineItem[] = items.map((it) => {
+      const packSize = it.product.packSize || it.product.bottlesPerCase || 12;
+      return {
+        productId: it.product.id,
+        sku: it.product.sku,
+        name: it.product.name,
+        unitMode: 'Bottle',
+        bottlesPerCase: packSize,
+        quantityUnits: it.quantityBottles,
+        totalBottles: it.quantityBottles,
+        unitPrice: it.unitPriceKes,
+        lineTotal: it.lineTotalKes,
+      };
+    });
+
+    const subtotal = Math.round(lineItems.reduce((s, li) => s + li.lineTotal, 0));
+    const exciseAndTax = Math.round((subtotal * taxRatePct) / 100);
+    const totalAmount = subtotal + exciseAndTax;
+
+    const isImmediatePaid =
+      !paymentMethod.toLowerCase().includes('credit') &&
+      !paymentMethod.toLowerCase().includes('net');
+
+    const invoiceId = `tx-${Date.now()}-inv`;
+    const invoiceDoc: TransactionDoc = cleanFirestoreData({
+      id: invoiceId,
+      docNumber: invoiceNo,
+      docType: 'Invoice',
+      channel: 'B2B Wholesale POS',
+      orderCategory: 'WAREHOUSE_PURCHASE',
+      branchId: fromBranch.id,
+      branchName: fromBranch.name,
+      supplierFacilityType: fromBranch.facilityType || 'warehouse',
+      buyerBranchId: toBranch.id,
+      buyerBranchName: toBranch.name,
+      regionId: supplierReg?.id || fromBranch.regionId || 'reg-metro-core',
+      regionName: supplierReg?.name || fromBranch.regionName || 'Metropolitan Zone',
+      customerName: `${toBranch.name}`,
+      customerLicenseNo: toBranch.exciseBondLicense || 'INTERNAL-BRANCH-BOND',
+      deliveryAddress: toBranch.address || '',
+      itemsSummary: JSON.stringify(lineItems),
+      subtotal,
+      exciseAndTax,
+      totalAmount,
+      paymentMethod,
+      status: isImmediatePaid ? 'Paid' : 'Issued',
+      linkedTransferNo: batchNo,
+      notes:
+        orderNotes.trim() ||
+        `Branch Purchase Order ${batchNo} supplied by ${fromBranch.name} to ${toBranch.name}.`,
+      createdBy: currentUser.name,
+      createdByRole: currentUser.role,
+      createdAt: nowIso,
+    });
+
+    let deliveryNoteDoc: TransactionDoc | null = null;
+    if (dispatchImmediately) {
+      const dnId = `tx-${Date.now()}-dn`;
+      deliveryNoteDoc = cleanFirestoreData({
+        id: dnId,
+        docNumber: dnNo,
+        docType: 'Delivery Note',
+        channel: 'B2B Wholesale POS',
+        orderCategory: 'WAREHOUSE_PURCHASE',
+        branchId: fromBranch.id,
+        branchName: fromBranch.name,
+        supplierFacilityType: fromBranch.facilityType || 'warehouse',
+        buyerBranchId: toBranch.id,
+        buyerBranchName: toBranch.name,
+        regionId: supplierReg?.id || fromBranch.regionId || 'reg-metro-core',
+        regionName: supplierReg?.name || fromBranch.regionName || 'Metropolitan Zone',
+        customerName: `${toBranch.name}`,
+        customerLicenseNo: toBranch.exciseBondLicense || 'INTERNAL-BRANCH-BOND',
+        deliveryAddress: toBranch.address || '',
+        itemsSummary: JSON.stringify(lineItems),
+        subtotal,
+        exciseAndTax,
+        totalAmount,
+        paymentMethod,
+        status: 'Issued',
+        relatedInvoiceNo: invoiceNo,
+        linkedTransferNo: batchNo,
+        notes: `${vehicleReg ? `Vehicle: ${vehicleReg} · ` : ''}${excisePermitNo ? `Permit: ${excisePermitNo} · ` : ''}Warehouse Purchase Dispatch`,
+        createdBy: currentUser.name,
+        createdByRole: currentUser.role,
+        createdAt: nowIso,
+      });
+    }
+
+    const newDocsToPersist = deliveryNoteDoc ? [deliveryNoteDoc, invoiceDoc] : [invoiceDoc];
+    setTransactions((prev) => {
+      const next = [...newDocsToPersist, ...prev];
+      try {
+        localStorage.setItem('erp_transactions_backup', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    for (const d of newDocsToPersist) {
+      try {
+        await setDoc(doc(db, 'transactions', d.id), d);
+      } catch (err) {
+        console.warn('[Firestore] Purchase doc saved locally, cloud sync pending:', err);
+      }
+    }
+
+    const createdTransfers: StockTransfer[] = [];
+    for (let idx = 0; idx < items.length; idx++) {
+      const item = items[idx];
+      const trId = `trf-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 5)}`;
+
+      let branchStock: Record<string, number> = {};
+      try {
+        branchStock = item.product.branchStockSummary ? JSON.parse(item.product.branchStockSummary) : {};
+      } catch {
+        branchStock = {};
+      }
+      const sourceAvail =
+        branchStock[fromBranch.id] ??
+        item.product.totalBottles ??
+        (item.product.packSize || 12) * 30;
+
+      if (dispatchImmediately) {
+        branchStock[fromBranch.id] = Math.max(0, sourceAvail - item.quantityBottles);
+        await persistProductState(item.product.id, {
+          branchStockSummary: JSON.stringify(branchStock),
+        });
+      }
+
+      const trRecord: StockTransfer = cleanFirestoreData({
+        id: trId,
+        transferNo: `${batchNo}-${item.product.sku.slice(0, 4)}`,
+        purchaseBatchNo: batchNo,
+        orderType: 'WAREHOUSE_PURCHASE',
+        fromBranchId: fromBranch.id,
+        fromBranchName: fromBranch.name,
+        fromFacilityType: fromBranch.facilityType || 'warehouse',
+        toBranchId: toBranch.id,
+        toBranchName: toBranch.name,
+        toFacilityType: toBranch.facilityType || 'branch_depot',
+        productId: item.product.id,
+        sku: item.product.sku,
+        productName: item.product.name,
+        quantityBottles: item.quantityBottles,
+        unitPriceKes: item.unitPriceKes,
+        totalAmountKes: item.lineTotalKes,
+        paymentMethod,
+        paymentStatus: isImmediatePaid ? 'Paid / Settled' : 'Invoiced',
+        linkedInvoiceId: invoiceDoc.id,
+        linkedInvoiceNo: invoiceDoc.docNumber,
+        linkedDeliveryNoteId: deliveryNoteDoc?.id,
+        linkedDeliveryNoteNo: deliveryNoteDoc?.docNumber,
+        orderNotes,
+        logisticsPartnerName,
+        vehicleReg,
+        excisePermitNo,
+        status: dispatchImmediately ? 'Dispatched' : 'Pending Authorization',
+        initiatedBy: `${currentUser.name} (${currentUser.role})`,
+        initiatedByRole: currentUser.role,
+        authorizedBy: dispatchImmediately ? currentUser.name : undefined,
+        authorizedByRole: dispatchImmediately ? currentUser.role : undefined,
+        authorizedAt: dispatchImmediately ? nowIso : undefined,
+        createdAt: nowIso,
+      });
+
+      createdTransfers.push(trRecord);
+      try {
+        await setDoc(doc(db, 'stock_transfers', trId), trRecord);
+      } catch (err) {
+        console.warn('[Firestore] Warehouse purchase transfer saved locally:', err);
+      }
+    }
+
+    setTransfers((prev) => {
+      const next = [...createdTransfers, ...prev];
+      try {
+        localStorage.setItem('erp_transfers_backup', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    triggerToast(
+      'success',
+      `Warehouse Purchase ${batchNo} Created`,
+      `Issued Purchase Invoice ${invoiceNo} (${formatKes(totalAmount)}) from ${fromBranch.name} to ${toBranch.name}.`
+    );
+
+    await recordAuditLog(
+      currentUser.name,
+      currentUser.role,
+      currentUser.email,
+      `Warehouse Purchase Order ${batchNo}`,
+      'Branches & Transfers',
+      `${toBranch.name} requested/purchased ${items.length} SKU(s) totaling ${formatKes(totalAmount)} from ${fromBranch.name} (Invoice ${invoiceNo})`,
+      toBranch.name,
+      'Financial'
+    );
+
+    return { invoiceDoc, deliveryNoteDoc, transfers: createdTransfers };
+  };
+
+  const handleSettleWarehousePurchase = async (transferId: string): Promise<TransactionDoc | null> => {
+    if (!currentUser) return null;
+    const tr = transfers.find((t) => t.id === transferId);
+    if (!tr) return null;
+
+    const batchKey = tr.purchaseBatchNo || tr.transferNo;
+    const siblingTransfers = transfers.filter(
+      (t) =>
+        t.id === transferId ||
+        (tr.purchaseBatchNo && t.purchaseBatchNo === tr.purchaseBatchNo) ||
+        (tr.linkedInvoiceId && t.linkedInvoiceId === tr.linkedInvoiceId)
+    );
+
+    const linkedInv = tr.linkedInvoiceId
+      ? transactions.find((d) => d.id === tr.linkedInvoiceId)
+      : transactions.find((d) => d.docNumber === tr.linkedInvoiceNo);
+
+    const totalBatchAmount =
+      linkedInv?.totalAmount ??
+      siblingTransfers.reduce((s, item) => s + Number(item.totalAmountKes || 0), 0);
+    const subtotalBatch = linkedInv?.subtotal ?? totalBatchAmount;
+    const taxBatch = linkedInv?.exciseAndTax ?? 0;
+
+    const lineItems: LineItem[] = linkedInv
+      ? (() => {
+          try {
+            return JSON.parse(linkedInv.itemsSummary);
+          } catch {
+            return [];
+          }
+        })()
+      : siblingTransfers.map((item) => {
+          const matched = products.find((p) => p.id === item.productId);
+          return {
+            productId: item.productId,
+            sku: item.sku,
+            name: item.productName,
+            unitMode: 'Bottle',
+            bottlesPerCase: matched?.packSize || matched?.bottlesPerCase || 12,
+            quantityUnits: item.quantityBottles,
+            totalBottles: item.quantityBottles,
+            unitPrice: item.unitPriceKes || 0,
+            lineTotal: item.totalAmountKes || 0,
+          };
+        });
+
+    const fromBr = branches.find((b) => b.id === tr.fromBranchId);
+    const toBr = branches.find((b) => b.id === tr.toBranchId);
+    const reg =
+      regions.find((r) => r.id === fromBr?.regionId || r.name === fromBr?.regionName) || regions[0];
+
+    const nowIso = new Date().toISOString();
+    const receiptId = `tx-${Date.now()}-rcp`;
+    const receiptNo = `RCP-${batchKey}`;
+    const receiptDoc: TransactionDoc = cleanFirestoreData({
+      id: receiptId,
+      docNumber: receiptNo,
+      docType: 'Receipt',
+      channel: 'B2B Wholesale POS',
+      orderCategory: 'WAREHOUSE_PURCHASE',
+      branchId: tr.fromBranchId,
+      branchName: tr.fromBranchName,
+      supplierFacilityType: tr.fromFacilityType || fromBr?.facilityType || 'warehouse',
+      buyerBranchId: tr.toBranchId,
+      buyerBranchName: tr.toBranchName,
+      regionId: reg?.id || 'reg-metro-core',
+      regionName: reg?.name || 'Metropolitan Zone',
+      customerName: tr.toBranchName,
+      customerLicenseNo: toBr?.exciseBondLicense || 'INTERNAL-BRANCH-BOND',
+      deliveryAddress: toBr?.address || '',
+      itemsSummary: JSON.stringify(lineItems),
+      subtotal: subtotalBatch,
+      exciseAndTax: taxBatch,
+      totalAmount: totalBatchAmount,
+      paymentMethod: tr.paymentMethod || 'Branch Settlement',
+      status: 'Paid',
+      relatedInvoiceNo: linkedInv?.docNumber || tr.linkedInvoiceNo,
+      linkedTransferNo: batchKey,
+      notes: `Settlement receipt for Warehouse Purchase ${batchKey}`,
+      createdBy: currentUser.name,
+      createdByRole: currentUser.role,
+      createdAt: nowIso,
+    });
+
+    setTransactions((prev) => {
+      const updated = prev.map((d) =>
+        linkedInv && d.id === linkedInv.id ? { ...d, status: 'Paid' as const } : d
+      );
+      const next = [receiptDoc, ...updated];
+      try {
+        localStorage.setItem('erp_transactions_backup', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    try {
+      await setDoc(doc(db, 'transactions', receiptId), receiptDoc);
+      if (linkedInv) {
+        await setDoc(doc(db, 'transactions', linkedInv.id), { status: 'Paid' }, { merge: true });
+      }
+    } catch (err) {
+      console.warn('[Firestore] Receipt saved locally:', err);
+    }
+
+    const updatedIds = new Set(siblingTransfers.map((s) => s.id));
+    setTransfers((prev) => {
+      const next = prev.map((item) =>
+        updatedIds.has(item.id)
+          ? cleanFirestoreData({
+              ...item,
+              paymentStatus: 'Paid / Settled' as const,
+              linkedReceiptId: receiptDoc.id,
+              linkedReceiptNo: receiptDoc.docNumber,
+            })
+          : item
+      );
+      try {
+        localStorage.setItem('erp_transfers_backup', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    for (const sId of updatedIds) {
+      try {
+        await setDoc(
+          doc(db, 'stock_transfers', sId),
+          {
+            paymentStatus: 'Paid / Settled',
+            linkedReceiptId: receiptDoc.id,
+            linkedReceiptNo: receiptDoc.docNumber,
+          },
+          { merge: true }
+        );
+      } catch {}
+    }
+
+    triggerToast(
+      'success',
+      `Purchase Settled · ${receiptNo}`,
+      `Warehouse purchase ${batchKey} marked Paid & Settlement Receipt issued.`
+    );
+
+    return receiptDoc;
+  };
+
   const handleSendInternalChatMessage = async (
     draft: Omit<InternalChatMessage, 'id' | 'createdAt'>
   ) => {
@@ -2849,6 +3345,157 @@ export default function App() {
     }
   };
 
+  const handleSubmitLeaveRequest = async (
+    draft: Omit<LeaveRequest, 'id' | 'requestNo' | 'createdAt' | 'status'>
+  ): Promise<LeaveRequest | null> => {
+    const id = `lv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const nowIso = new Date().toISOString();
+    const seq = String(leaveRequests.length + 1).padStart(4, '0');
+    const requestNo = `LV-${new Date().getFullYear()}-${seq}`;
+
+    const fullReq: LeaveRequest = cleanFirestoreData({
+      ...draft,
+      id,
+      requestNo,
+      status: 'Pending HR Approval',
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    });
+
+    setLeaveRequests((prev) => {
+      const next = [fullReq, ...prev.filter((r) => r.id !== id)];
+      try {
+        localStorage.setItem('erp_leave_requests_backup', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    try {
+      await setDoc(doc(db, 'leave_requests', id), fullReq);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'leave_requests');
+    }
+
+    await recordAuditLog(
+      draft.staffName,
+      draft.staffRole,
+      draft.staffEmail,
+      `Submitted ${draft.leaveType} (${requestNo})`,
+      'HR & Leave Governance',
+      `${draft.totalDays} day(s) from ${draft.startDate} to ${draft.endDate} · Urgency: ${draft.urgency}`,
+      draft.branchName,
+      draft.urgency === 'Emergency' ? 'Financial' : 'Info'
+    );
+
+    triggerToast(
+      'success',
+      `Leave Request ${requestNo} Sent`,
+      `Your ${draft.leaveType} (${draft.totalDays} day${draft.totalDays === 1 ? '' : 's'}) has been routed to HR for approval.`
+    );
+
+    return fullReq;
+  };
+
+  const handleReviewLeaveRequest = async (
+    requestId: string,
+    decision: 'Approved' | 'Declined',
+    decisionNote: string
+  ) => {
+    if (!currentUser || (currentUser.role !== 'HR' && currentUser.role !== 'Admin')) {
+      triggerToast('error', 'Restricted Action', 'Only HR or System Admin can approve or decline leave requests.');
+      return;
+    }
+    const existing = leaveRequests.find((r) => r.id === requestId);
+    if (!existing) return;
+
+    const nowIso = new Date().toISOString();
+    const updated: LeaveRequest = cleanFirestoreData({
+      ...existing,
+      status: decision,
+      hrReviewerName: currentUser.name,
+      hrReviewerRole: currentUser.role,
+      hrReviewedAt: nowIso,
+      hrDecisionNote: decisionNote.trim() || undefined,
+      updatedAt: nowIso,
+    });
+
+    setLeaveRequests((prev) => {
+      const next = prev.map((r) => (r.id === requestId ? updated : r));
+      try {
+        localStorage.setItem('erp_leave_requests_backup', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    try {
+      await setDoc(doc(db, 'leave_requests', requestId), updated);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'leave_requests');
+    }
+
+    await recordAuditLog(
+      currentUser.name,
+      currentUser.role,
+      currentUser.email,
+      `HR ${decision} Leave (${existing.requestNo})`,
+      'HR & Leave Governance',
+      `${decision} ${existing.leaveType} for ${existing.staffName} (${existing.startDate} to ${existing.endDate})${decisionNote ? ` · Note: ${decisionNote}` : ''}`,
+      existing.branchName,
+      'Info'
+    );
+
+    triggerToast(
+      decision === 'Approved' ? 'success' : 'error',
+      `Leave Request ${decision}`,
+      `${existing.requestNo} (${existing.staffName} — ${existing.leaveType}) marked ${decision}.`
+    );
+  };
+
+  const handleCancelLeaveRequest = async (requestId: string) => {
+    const existing = leaveRequests.find((r) => r.id === requestId);
+    if (!existing) return;
+
+    const nowIso = new Date().toISOString();
+    const updated: LeaveRequest = cleanFirestoreData({
+      ...existing,
+      status: 'Cancelled',
+      updatedAt: nowIso,
+    });
+
+    setLeaveRequests((prev) => {
+      const next = prev.map((r) => (r.id === requestId ? updated : r));
+      try {
+        localStorage.setItem('erp_leave_requests_backup', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    try {
+      await setDoc(doc(db, 'leave_requests', requestId), updated);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'leave_requests');
+    }
+
+    if (currentUser) {
+      await recordAuditLog(
+        currentUser.name,
+        currentUser.role,
+        currentUser.email,
+        `Withdrew Leave Request (${existing.requestNo})`,
+        'HR & Leave Governance',
+        `${existing.staffName} cancelled pending ${existing.leaveType} request.`,
+        existing.branchName,
+        'Info'
+      );
+    }
+
+    triggerToast(
+      'success',
+      'Request Withdrawn',
+      `${existing.requestNo} has been withdrawn before HR approval.`
+    );
+  };
+
   const handleAuthorizeStockTransfer = async (transferId: string) => {
     if (!currentUser || (currentUser.role !== 'Admin' && currentUser.role !== 'Branch Manager')) {
       triggerToast('error', 'Authorization Restricted', 'Only Admin or Branch Manager can authorize stock transfers.');
@@ -2875,12 +3522,95 @@ export default function App() {
     }
 
     const nowIso = new Date().toISOString();
+
+    // Auto-create Delivery Note if this is a Warehouse Purchase Order and no DN exists yet for the batch
+    let createdDeliveryNote: TransactionDoc | null = null;
+    if (tr.orderType === 'WAREHOUSE_PURCHASE' && !tr.linkedDeliveryNoteId) {
+      const batchKey = tr.purchaseBatchNo || tr.transferNo;
+      const existingDn = transactions.find(
+        (d) =>
+          d.docType === 'Delivery Note' &&
+          (d.linkedTransferNo === batchKey || d.id === tr.linkedDeliveryNoteId)
+      );
+
+      if (!existingDn) {
+        const fromBr = branches.find((b) => b.id === tr.fromBranchId);
+        const toBr = branches.find((b) => b.id === tr.toBranchId);
+        const reg =
+          regions.find((r) => r.id === fromBr?.regionId || r.name === fromBr?.regionName) || regions[0];
+        const packSize = prod?.packSize || prod?.bottlesPerCase || 12;
+        const unitPrice = tr.unitPriceKes || prod?.wholesalePriceKes || prod?.baseWholesalePrice || 0;
+        const lineItems: LineItem[] = [
+          {
+            productId: tr.productId,
+            sku: tr.sku,
+            name: tr.productName,
+            unitMode: 'Bottle',
+            bottlesPerCase: packSize,
+            quantityUnits: tr.quantityBottles,
+            totalBottles: tr.quantityBottles,
+            unitPrice,
+            lineTotal: tr.totalAmountKes || Math.round(unitPrice * tr.quantityBottles),
+          },
+        ];
+        const subtotal = lineItems.reduce((s, li) => s + li.lineTotal, 0);
+        const dnId = `tx-${Date.now()}-dn`;
+        createdDeliveryNote = cleanFirestoreData({
+          id: dnId,
+          docNumber: `DN-${tr.transferNo.slice(0, 14)}`,
+          docType: 'Delivery Note',
+          channel: 'B2B Wholesale POS',
+          orderCategory: 'WAREHOUSE_PURCHASE',
+          branchId: tr.fromBranchId,
+          branchName: tr.fromBranchName,
+          supplierFacilityType: tr.fromFacilityType || fromBr?.facilityType || 'warehouse',
+          buyerBranchId: tr.toBranchId,
+          buyerBranchName: tr.toBranchName,
+          regionId: reg?.id || 'reg-metro-core',
+          regionName: reg?.name || 'Metropolitan Zone',
+          customerName: tr.toBranchName,
+          customerLicenseNo: toBr?.exciseBondLicense || 'INTERNAL-BRANCH-BOND',
+          deliveryAddress: toBr?.address || '',
+          itemsSummary: JSON.stringify(lineItems),
+          subtotal,
+          exciseAndTax: 0,
+          totalAmount: subtotal,
+          paymentMethod: tr.paymentMethod || 'Warehouse Dispatch',
+          status: 'Issued',
+          relatedInvoiceNo: tr.linkedInvoiceNo,
+          linkedTransferNo: batchKey,
+          notes: `Dispatched Delivery Note for ${tr.transferNo}`,
+          createdBy: currentUser.name,
+          createdByRole: currentUser.role,
+          createdAt: nowIso,
+        });
+
+        setTransactions((prev) => {
+          const next = [createdDeliveryNote!, ...prev];
+          try {
+            localStorage.setItem('erp_transactions_backup', JSON.stringify(next));
+          } catch {}
+          return next;
+        });
+
+        try {
+          await setDoc(doc(db, 'transactions', createdDeliveryNote.id), createdDeliveryNote);
+        } catch (err) {
+          console.warn('[Firestore] Delivery Note saved locally:', err);
+        }
+      } else {
+        createdDeliveryNote = existingDn;
+      }
+    }
+
     const updatedTr: StockTransfer = cleanFirestoreData({
       ...tr,
       status: 'Dispatched',
       authorizedBy: currentUser.name,
       authorizedByRole: currentUser.role,
       authorizedAt: nowIso,
+      linkedDeliveryNoteId: createdDeliveryNote?.id || tr.linkedDeliveryNoteId,
+      linkedDeliveryNoteNo: createdDeliveryNote?.docNumber || tr.linkedDeliveryNoteNo,
     });
 
     setTransfers((prev) => {
@@ -2906,7 +3636,9 @@ export default function App() {
     triggerToast(
       'success',
       `Transfer ${tr.transferNo} Authorized & Dispatched`,
-      `Authorized ${tr.quantityBottles} btls of ${tr.productName} (${tr.fromBranchName} → ${tr.toBranchName}).`
+      createdDeliveryNote
+        ? `Authorized ${tr.quantityBottles} btls of ${tr.productName} & issued Delivery Note ${createdDeliveryNote.docNumber}.`
+        : `Authorized ${tr.quantityBottles} btls of ${tr.productName} (${tr.fromBranchName} → ${tr.toBranchName}).`
     );
 
     await recordAuditLog(
@@ -2986,10 +3718,10 @@ export default function App() {
       branchStock[tr.toBranchId] = currentDestStock + tr.quantityBottles;
     }
 
-    const updatedTr: StockTransfer = {
+    const updatedTr: StockTransfer = cleanFirestoreData({
       ...tr,
       status: 'Received',
-    };
+    });
 
     setTransfers((prev) => {
       const next = prev.map((t) => (t.id === transferId ? updatedTr : t));
@@ -3009,6 +3741,17 @@ export default function App() {
       await setDoc(doc(db, 'stock_transfers', transferId), updatedTr, { merge: true });
     } catch (error) {
       console.warn('[Firestore] Transfer update saved locally, cloud sync pending:', error);
+    }
+
+    // If this was an immediate-payment Warehouse Purchase without a Receipt yet, issue the Receipt automatically
+    if (
+      tr.orderType === 'WAREHOUSE_PURCHASE' &&
+      !tr.linkedReceiptId &&
+      tr.paymentMethod &&
+      !tr.paymentMethod.toLowerCase().includes('credit') &&
+      !tr.paymentMethod.toLowerCase().includes('net')
+    ) {
+      await handleSettleWarehousePurchase(transferId);
     }
 
     triggerToast(
@@ -3189,6 +3932,134 @@ export default function App() {
       await deleteDoc(doc(db, 'external_customers', customerId));
     } catch (error) {
       console.warn('[Firestore] Error deleting external customer:', error);
+    }
+  };
+
+  const handleCreateExpense = async (
+    draft: Omit<AccountingExpense, 'id' | 'expenseNo' | 'createdAt' | 'recordedBy' | 'recordedByRole'>
+  ) => {
+    const id = `exp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const expenseNo = `EXP-${new Date().getFullYear().toString().slice(-2)}${String(
+      new Date().getMonth() + 1
+    ).padStart(2, '0')}-${String(expenses.length + 101).padStart(3, '0')}`;
+    const now = new Date().toISOString();
+    const record: AccountingExpense = cleanFirestoreData({
+      ...draft,
+      id,
+      expenseNo,
+      recordedBy: currentUser?.name || 'Accountant',
+      recordedByRole: currentUser?.role || 'Accountant',
+      createdAt: now,
+    });
+
+    setExpenses((prev) => {
+      const next = [record, ...prev.filter((e) => e.id !== id)];
+      try {
+        localStorage.setItem('erp_expenses_backup', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    try {
+      await setDoc(doc(db, 'expenses', id), record);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `expenses/${id}`);
+    }
+
+    await recordAuditLog(
+      currentUser?.name || 'Accountant',
+      currentUser?.role || 'Accountant',
+      currentUser?.email || 'system',
+      'Operating Expense Recorded',
+      'Accounting',
+      `Logged ${record.expenseNo} (${record.category}): ${record.title} — ${formatKes(record.amountKes)} via ${record.paymentMethod} for ${record.branchName}`,
+      record.branchName,
+      'Financial'
+    );
+
+    triggerToast(
+      'success',
+      `Expense ${record.expenseNo} Logged`,
+      `${record.title} (${formatKes(record.amountKes)}) synced to Accounting P&L.`
+    );
+  };
+
+  const handleUpdateExpenseStatus = async (
+    expenseId: string,
+    status: AccountingExpense['status']
+  ) => {
+    const target = expenses.find((e) => e.id === expenseId);
+    if (!target) return;
+    const updated: AccountingExpense = cleanFirestoreData({
+      ...target,
+      status,
+      updatedAt: new Date().toISOString(),
+    });
+
+    setExpenses((prev) => {
+      const next = prev.map((e) => (e.id === expenseId ? updated : e));
+      try {
+        localStorage.setItem('erp_expenses_backup', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    try {
+      await setDoc(doc(db, 'expenses', expenseId), updated);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `expenses/${expenseId}`);
+    }
+
+    await recordAuditLog(
+      currentUser?.name || 'Accountant',
+      currentUser?.role || 'Accountant',
+      currentUser?.email || 'system',
+      `Expense Marked ${status}`,
+      'Accounting',
+      `Updated ${target.expenseNo} (${target.title}) status to ${status}.`,
+      target.branchName,
+      'Financial'
+    );
+
+    triggerToast(
+      'success',
+      `Expense ${status}`,
+      `${target.expenseNo} (${target.title}) updated to ${status}.`
+    );
+  };
+
+  const handleDeleteExpense = async (expenseId: string) => {
+    const target = expenses.find((e) => e.id === expenseId);
+    setExpenses((prev) => {
+      const next = prev.filter((e) => e.id !== expenseId);
+      try {
+        localStorage.setItem('erp_expenses_backup', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    try {
+      await deleteDoc(doc(db, 'expenses', expenseId));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `expenses/${expenseId}`);
+    }
+
+    if (target) {
+      await recordAuditLog(
+        currentUser?.name || 'Accountant',
+        currentUser?.role || 'Accountant',
+        currentUser?.email || 'system',
+        'Operating Expense Deleted',
+        'Accounting',
+        `Removed expense voucher ${target.expenseNo} (${target.title}, ${formatKes(target.amountKes)}).`,
+        target.branchName,
+        'Financial'
+      );
+      triggerToast(
+        'success',
+        'Expense Removed',
+        `${target.expenseNo} deleted from operating ledger.`
+      );
     }
   };
 
@@ -4282,6 +5153,45 @@ export default function App() {
               />
             </button>
 
+            {/* Quick Action: Leave, Off-Day, Emergency & Maternity Portal (All Staff) */}
+            {allowedModules.includes('leave_management') && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (currentUser.role === 'HR' && allowedModules.includes('hr_rbac')) {
+                    handleOpenHrLeaveTab();
+                  } else {
+                    handleSelectModule('leave_management');
+                  }
+                  setMobileDrawerOpen(false);
+                }}
+                className="w-full p-3 rounded-2xl border-2 border-[#0A006E]/30 bg-white hover:border-[#0A006E] flex items-center justify-between cursor-pointer transition shadow-xs active:scale-98"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-fuchsia-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <Calendar className="w-5 h-5 stroke-[2.2]" />
+                  </div>
+                  <div className="text-left min-w-0">
+                    <div className="text-xs font-montserrat font-black leading-tight text-[#0A006E] flex items-center gap-1.5">
+                      <span>Leave, Off &amp; Emergency</span>
+                      {(currentUser.role === 'HR' || currentUser.role === 'Admin') &&
+                        leaveRequests.filter((r) => r.status === 'Pending HR Approval').length > 0 && (
+                          <span className="px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-mono-tabular font-black">
+                            {leaveRequests.filter((r) => r.status === 'Pending HR Approval').length} Pending
+                          </span>
+                        )}
+                    </div>
+                    <div className="text-[10px] text-slate-600 font-medium truncate">
+                      {currentUser.role === 'HR'
+                        ? 'Approve/decline staff leave, off & maternity'
+                        : 'Request annual, off-day, emergency or maternity'}
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-[#0A006E] shrink-0" />
+              </button>
+            )}
+
             {/* Quick Action: Onboard Items & Barcode Scanner for Branch Managers & Admin */}
             {(currentUser.role === 'Branch Manager' || currentUser.role === 'Admin' || currentUser.role === 'Inventory Controller') && (
               <button
@@ -4510,30 +5420,51 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 pt-1">
-              {allowedModules.includes('hr_rbac') && (
+            <div className="flex flex-col gap-2 pt-1">
+              {allowedModules.includes('leave_management') && (
                 <button
                   type="button"
                   onClick={() => {
-                    handleSelectModule('hr_rbac');
+                    if (currentUser.role === 'HR' && allowedModules.includes('hr_rbac')) {
+                      handleOpenHrLeaveTab();
+                    } else {
+                      handleSelectModule('leave_management');
+                    }
                     setShowUserProfileModal(false);
                   }}
-                  className="flex-1 py-2.5 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] font-montserrat font-black text-xs rounded-xl cursor-pointer shadow-xs transition-colors"
+                  className="w-full py-2.5 bg-fuchsia-50 hover:bg-fuchsia-100 border border-fuchsia-300 text-fuchsia-900 font-montserrat font-black text-xs rounded-xl cursor-pointer transition-colors flex items-center justify-center gap-1.5"
                 >
-                  Manage HR Staff
+                  <Calendar className="w-3.5 h-3.5 text-fuchsia-700" />
+                  <span>
+                    {currentUser.role === 'HR' ? 'HR Leave & Off Approvals' : 'Request Leave, Off & Emergency'}
+                  </span>
                 </button>
               )}
-              <button
-                type="button"
-                onClick={() => {
-                  setShowUserProfileModal(false);
-                  handleLogout();
-                }}
-                className="flex-1 py-2.5 bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 font-montserrat font-bold text-xs rounded-xl cursor-pointer transition-colors flex items-center justify-center gap-1.5"
-              >
-                <Lock className="w-3.5 h-3.5" />
-                Lock Terminal
-              </button>
+              <div className="flex items-center gap-2">
+                {allowedModules.includes('hr_rbac') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSelectModule('hr_rbac');
+                      setShowUserProfileModal(false);
+                    }}
+                    className="flex-1 py-2.5 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] font-montserrat font-black text-xs rounded-xl cursor-pointer shadow-xs transition-colors"
+                  >
+                    Manage HR Staff
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUserProfileModal(false);
+                    handleLogout();
+                  }}
+                  className="flex-1 py-2.5 bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 font-montserrat font-bold text-xs rounded-xl cursor-pointer transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  Lock Terminal
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -4705,7 +5636,7 @@ export default function App() {
           {activeModule === 'overview' && (
             <OverviewModule
               currentUser={currentUser}
-              products={scopedProducts}
+              products={inventoryCatalogProducts}
               branches={scopedBranches}
               regions={scopedRegions}
               partners={scopedPartners}
@@ -4716,6 +5647,12 @@ export default function App() {
               staffList={scopedStaffList}
               latestPayrollRecord={currentUserLatestPayrollRecord}
               payrollRuns={payrollRuns}
+              expenses={scopedExpenses}
+              leaveRequests={leaveRequests}
+              onOpenHrLeaveTab={handleOpenHrLeaveTab}
+              onCreateExpense={handleCreateExpense}
+              onUpdateExpenseStatus={handleUpdateExpenseStatus}
+              onDeleteExpense={handleDeleteExpense}
               onOpenPayslip={(record) => setViewingPayslipRecord(record)}
               onPreviewDoc={(d) => setPreviewDoc(d)}
               onInspectOrder={(d) => setInspectingOrderTx(d)}
@@ -4749,6 +5686,7 @@ export default function App() {
               onCommitTransaction={handleCommitTransaction}
               onPreviewDoc={(d) => setPreviewDoc(d)}
               onUpdateRestaurantItem={handleUpdateRestaurantItem}
+              onNavigateModule={handleSelectModule}
             />
           )}
 
@@ -4778,6 +5716,7 @@ export default function App() {
                 onCommitTransaction={handleCommitTransaction}
                 onPreviewDoc={(d) => setPreviewDoc(d)}
                 onUpdateRestaurantItem={handleUpdateRestaurantItem}
+                onNavigateModule={handleSelectModule}
               />
             )
           )}
@@ -4805,16 +5744,21 @@ export default function App() {
               branches={scopedBranches}
               allBranches={branches}
               regions={scopedRegions}
+              allRegions={regions}
               products={products}
               partners={scopedPartners}
               transfers={scopedTransfers}
+              transactions={scopedTransactions}
               onCreateBranch={handleCreateBranch}
               onDeleteBranch={handleDeleteBranch}
               onSetMainBranch={handleSetMainBranch}
               onCreateStockTransfer={handleCreateStockTransfer}
+              onCreateWarehousePurchaseOrder={handleCreateWarehousePurchaseOrder}
+              onSettleWarehousePurchase={handleSettleWarehousePurchase}
               onAuthorizeStockTransfer={handleAuthorizeStockTransfer}
               onRejectStockTransfer={handleRejectStockTransfer}
               onReceiveStockTransfer={handleReceiveStockTransfer}
+              onPreviewDoc={(d) => setPreviewDoc(d)}
             />
           )}
 
@@ -4844,9 +5788,15 @@ export default function App() {
               currentUser={currentUser}
               transactions={scopedTransactions}
               branches={scopedBranches}
+              allBranches={branches}
               regions={scopedRegions}
+              allRegions={regions}
               products={products}
+              externalCustomers={scopedExternalCustomers}
+              partners={scopedPartners}
               onIssueCreditNote={(cn) => handleCommitTransaction(cn, [])}
+              onCreateDocument={handleCommitTransaction}
+              onUpdateDocument={handleUpdateTransaction}
               onPreviewDoc={(d) => setPreviewDoc(d)}
               onInspectOrder={(d) => setInspectingOrderTx(d)}
               onOpenKraReturns={handleOpenKraReturns}
@@ -4876,7 +5826,8 @@ export default function App() {
               staffList={scopedStaffList}
               branches={scopedBranches}
               payrollRuns={payrollRuns}
-              initialTab={activeModule === 'payroll' ? 'payroll' : 'roster'}
+              leaveRequests={leaveRequests}
+              initialTab={activeModule === 'payroll' ? 'payroll' : hrRequestedTab || 'roster'}
               customDeductionCatalog={hrDeductionCatalog}
               onCreateCatalogDeduction={handleCreateCatalogDeduction}
               onDeleteCatalogDeduction={handleDeleteCatalogDeduction}
@@ -4885,6 +5836,9 @@ export default function App() {
               onSetStaffStatus={handleSetStaffStatus}
               onDeleteStaff={handleDeleteStaff}
               onExecutePayrollRun={handleExecutePayrollRun}
+              onSubmitLeaveRequest={handleSubmitLeaveRequest}
+              onReviewLeaveRequest={handleReviewLeaveRequest}
+              onCancelLeaveRequest={handleCancelLeaveRequest}
               onOpenPayslip={(record) => setViewingPayslipRecord(record)}
               onOpenAccessMatrix={() => setIsAccessMatrixOpen(true)}
               onOpenUserFeatureModal={(staff) => {
@@ -4892,6 +5846,20 @@ export default function App() {
                 setIsUserFeatureModalOpen(true);
               }}
               onOpenKraReturns={handleOpenKraReturns}
+              onTriggerToast={triggerToast}
+            />
+          )}
+
+          {activeModule === 'leave_management' && (
+            <LeaveManagementPortal
+              mode={currentUser.role === 'HR' ? 'hr_inbox' : 'staff_portal'}
+              currentUser={currentUser}
+              leaveRequests={leaveRequests}
+              staffList={staffList}
+              branches={branches}
+              onSubmitLeaveRequest={handleSubmitLeaveRequest}
+              onReviewLeaveRequest={handleReviewLeaveRequest}
+              onCancelLeaveRequest={handleCancelLeaveRequest}
               onTriggerToast={triggerToast}
             />
           )}
@@ -4950,6 +5918,7 @@ export default function App() {
               onInspectCustomerOrder={(tx) => setInspectingOrderTx(tx)}
               onProcessDeliveryUpdate={handleProcessCustomerDeliveryUpdate}
               onPreviewDoc={(d) => setPreviewDoc(d)}
+              onNavigateModule={handleSelectModule}
               onTriggerToast={triggerToast}
             />
           )}

@@ -329,6 +329,8 @@ export type AccessLevel =
   | 'Delivery notes'
   | 'Employ riders'
   | 'Dispatch audit'
+  | 'Self-service'
+  | 'Approve / Decline'
   | 'None';
 
 export interface ModuleAccessItem {
@@ -594,6 +596,23 @@ export const TARGET_ACCESS_MATRIX: ModuleAccessItem[] = [
       'Delivery Rider': 'Limited',
     },
   },
+  {
+    moduleName: 'Leave, Off-Days & Emergency Requests',
+    moduleId: 'leave_management',
+    description: 'Standard company leave system: Annual, Off-Day, Emergency, Sick, Maternity, and Paternity requests with HR approve/decline workflow.',
+    permissions: {
+      Admin: 'Full',
+      Accountant: 'Self-service',
+      HR: 'Approve / Decline',
+      'Sales Manager': 'Self-service',
+      'Branch Manager': 'Self-service',
+      'Inventory Controller': 'Self-service',
+      'Counter Cashier': 'Self-service',
+      'Affiliate Sales Representative': 'Self-service',
+      'Delivery Manager': 'Self-service',
+      'Delivery Rider': 'Self-service',
+    },
+  },
 ];
 
 export const ROLE_DISTINCTIONS: Record<StaffRole, string> = {
@@ -647,6 +666,7 @@ export const ROLE_PERMISSIONS: Record<
       'outlets_restaurants',
       'delivery_management',
       'internal_inbox',
+      'leave_management',
     ],
     canCreateRoles: ['HR'], // Admin provisions HR, who then manages other operational roles
     badgeTitle: 'Executive System Administrator (Google Auth)',
@@ -662,6 +682,7 @@ export const ROLE_PERMISSIONS: Record<
       'audit_security',
       'outlets_restaurants',
       'internal_inbox',
+      'leave_management',
     ],
     canCreateRoles: [],
     badgeTitle: 'Chief Financial Accountant (Google Auth)',
@@ -669,7 +690,7 @@ export const ROLE_PERMISSIONS: Record<
     scopeToAssignedBranch: false,
   },
   HR: {
-    allowedModules: ['overview', 'hr_rbac', 'audit_security', 'internal_inbox'],
+    allowedModules: ['overview', 'hr_rbac', 'audit_security', 'internal_inbox', 'leave_management'],
     canCreateRoles: [
       'Accountant',
       'Sales Manager',
@@ -700,6 +721,7 @@ export const ROLE_PERMISSIONS: Record<
       'customer_portal',
       'delivery_management',
       'internal_inbox',
+      'leave_management',
     ],
     canCreateRoles: [],
     badgeTitle: 'National Distribution Sales Manager (6-Digit PIN)',
@@ -722,6 +744,7 @@ export const ROLE_PERMISSIONS: Record<
       'outlets_restaurants',
       'delivery_management',
       'internal_inbox',
+      'leave_management',
     ],
     canCreateRoles: ['Counter Cashier', 'Affiliate Sales Representative', 'Delivery Rider'],
     badgeTitle: 'Regional Branch Manager (6-Digit PIN)',
@@ -740,6 +763,7 @@ export const ROLE_PERMISSIONS: Record<
       'audit_security',
       'outlets_restaurants',
       'internal_inbox',
+      'leave_management',
     ],
     canCreateRoles: [],
     badgeTitle: 'Bonded Warehouse & Inventory Controller (6-Digit PIN)',
@@ -747,28 +771,28 @@ export const ROLE_PERMISSIONS: Record<
     scopeToAssignedBranch: false,
   },
   'Counter Cashier': {
-    allowedModules: ['retail_pos', 'documents_credit', 'audit_security', 'outlets_restaurants', 'internal_inbox'],
+    allowedModules: ['retail_pos', 'documents_credit', 'audit_security', 'outlets_restaurants', 'internal_inbox', 'leave_management'],
     canCreateRoles: [],
     badgeTitle: 'Retail Checkout Counter Cashier (6-Digit PIN)',
     authRequirement: 'pin',
     scopeToAssignedBranch: true,
   },
   'Affiliate Sales Representative': {
-    allowedModules: ['sales_pos', 'internal_inbox'],
+    allowedModules: ['sales_pos', 'internal_inbox', 'leave_management'],
     canCreateRoles: [],
     badgeTitle: 'Field & Affiliate Sales Representative (6-Digit PIN)',
     authRequirement: 'pin',
     scopeToAssignedBranch: true,
   },
   'Delivery Manager': {
-    allowedModules: ['overview', 'delivery_management', 'audit_security', 'internal_inbox'],
+    allowedModules: ['overview', 'delivery_management', 'audit_security', 'internal_inbox', 'leave_management'],
     canCreateRoles: ['Delivery Rider'],
     badgeTitle: 'Logistics & Delivery Operations Manager (6-Digit PIN)',
     authRequirement: 'pin',
     scopeToAssignedBranch: false,
   },
   'Delivery Rider': {
-    allowedModules: ['delivery_management', 'internal_inbox'],
+    allowedModules: ['delivery_management', 'internal_inbox', 'leave_management'],
     canCreateRoles: [],
     badgeTitle: 'Field Delivery & Dispatch Rider (6-Digit PIN)',
     authRequirement: 'pin',
@@ -912,6 +936,14 @@ export const ERP_FEATURE_CATALOG: GranularFeatureDefinition[] = [
     description: 'Departmental channels and direct staff messaging with inline invoice transfers and person-targeted stock transfer requests.',
     isModule: true,
     moduleId: 'internal_inbox',
+  },
+  {
+    key: 'leave_management',
+    label: 'Company Leave, Off-Day & Emergency Portal',
+    category: 'HR, Access & Administration',
+    description: 'Submit Annual, Off-Day, Emergency, Sick, Maternity, and Paternity requests and process HR approvals.',
+    isModule: true,
+    moduleId: 'leave_management',
   },
 
   // Granular Sub-Features
@@ -1164,29 +1196,37 @@ export function exportCommercialDocumentPDF(tx: TransactionDoc): void {
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Bonded Importer & Regional Distributor · Branch: ${tx.branchName} (${tx.regionName})`, 40, 56);
+  const facilityLabel = tx.supplierFacilityType ? ` [${tx.supplierFacilityType.toUpperCase()}]` : '';
+  doc.text(`Issuing Facility: ${tx.branchName}${facilityLabel} (${tx.regionName})`, 40, 56);
   doc.text(`Channel: ${tx.channel} · Issued By: ${tx.createdBy} (${tx.createdByRole})`, 40, 72);
 
   // Document Type Title
   doc.setTextColor(10, 0, 110);
   doc.setFontSize(20);
   doc.setFont('helvetica', 'bold');
-  doc.text(tx.docType.toUpperCase(), 40, 125);
+  const titleSuffix = tx.orderCategory === 'WAREHOUSE_PURCHASE' ? ' (WAREHOUSE PURCHASE)' : '';
+  doc.text(`${tx.docType.toUpperCase()}${titleSuffix}`, 40, 125);
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(51, 65, 85);
   doc.text(`Document No: ${tx.docNumber}`, 40, 145);
   doc.text(`Date & Time: ${new Date(tx.createdAt).toLocaleString()}`, 40, 160);
-  doc.text(`Status: ${tx.status}`, 40, 175);
+  doc.text(`Status: ${tx.status}${tx.validUntil ? ` · Valid Until: ${tx.validUntil}` : ''}`, 40, 175);
 
-  doc.text(`Customer / Consignee: ${tx.customerName}`, 320, 145);
-  doc.text(`Liquor License / PIN: ${tx.customerLicenseNo || 'Walk-in Retail Verified 21+'}`, 320, 160);
-  doc.text(`Payment / Terms: ${tx.paymentMethod}`, 320, 175);
+  doc.text(`${tx.buyerBranchName ? 'Purchasing Branch' : 'Customer / Consignee'}: ${tx.customerName}`, 310, 145);
+  doc.text(`License / KRA PIN: ${tx.customerKraPin || tx.customerLicenseNo || 'Commercial Verified 21+'}`, 310, 160);
+  doc.text(`Payment / Terms: ${tx.paymentMethod}`, 310, 175);
 
-  if (tx.relatedInvoiceNo) {
+  if (tx.linkedTransferNo) {
+    doc.setTextColor(10, 0, 110);
+    doc.text(`Linked Transfer / Purchase Batch: ${tx.linkedTransferNo}`, 40, 191);
+  } else if (tx.relatedInvoiceNo) {
     doc.setTextColor(180, 83, 9);
-    doc.text(`Ref Invoice: ${tx.relatedInvoiceNo} | Reason: ${tx.creditReason || 'Return / Adjustment'}`, 40, 192);
+    doc.text(`Ref Document: ${tx.relatedInvoiceNo}${tx.creditReason ? ` | Reason: ${tx.creditReason}` : ''}`, 40, 191);
+  } else if (tx.notes) {
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Notes: ${tx.notes.slice(0, 90)}`, 40, 191);
   }
 
   let items: LineItem[] = [];
