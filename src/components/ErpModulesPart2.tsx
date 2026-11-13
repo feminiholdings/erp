@@ -2681,15 +2681,35 @@ export const HrAndRbacModule: React.FC<{
   const [payrollPeriod, setPayrollPeriod] = useState<string>('October 2026');
   const [isRunningPayroll, setIsRunningPayroll] = useState<boolean>(false);
 
-  // Online / Offline Staff Presence Filtering
+  // Online / Offline Staff Presence Filtering & Wizard
+  const [isStaffWizardOpen, setIsStaffWizardOpen] = useState(false);
+  const [wizardStep, setWizardStep] = useState(1);
+  const [directorySearch, setDirectorySearch] = useState('');
+  const [directoryRoleFilter, setDirectoryRoleFilter] = useState('ALL');
+  const [directoryBranchFilter, setDirectoryBranchFilter] = useState('ALL');
+
   const [presenceFilter, setPresenceFilter] = useState<'ALL' | 'ONLINE' | 'OFFLINE'>('ALL');
   const onlineCount = useMemo(() => staffList.filter((s) => s.isOnline).length, [staffList]);
   const offlineCount = useMemo(() => staffList.filter((s) => !s.isOnline).length, [staffList]);
   const displayedStaffList = useMemo(() => {
-    if (presenceFilter === 'ONLINE') return staffList.filter((s) => s.isOnline);
-    if (presenceFilter === 'OFFLINE') return staffList.filter((s) => !s.isOnline);
-    return staffList;
-  }, [staffList, presenceFilter]);
+    let list = staffList;
+    if (presenceFilter === 'ONLINE') list = list.filter((s) => s.isOnline);
+    if (presenceFilter === 'OFFLINE') list = list.filter((s) => !s.isOnline);
+    if (directoryRoleFilter !== 'ALL') list = list.filter((s) => s.role === directoryRoleFilter);
+    if (directoryBranchFilter !== 'ALL') list = list.filter((s) => s.branchId === directoryBranchFilter || s.branchName === directoryBranchFilter);
+    if (directorySearch.trim()) {
+      const q = directorySearch.toLowerCase();
+      list = list.filter(
+        (s) =>
+          s.name.toLowerCase().includes(q) ||
+          s.email.toLowerCase().includes(q) ||
+          (s.phone && s.phone.toLowerCase().includes(q)) ||
+          s.role.toLowerCase().includes(q) ||
+          s.branchName.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [staffList, presenceFilter, directorySearch, directoryRoleFilter, directoryBranchFilter]);
 
   // Delete Staff Modal State (Requirement 3: Prompt question if they are sure they want to delete because it is permanent)
   const [deletingStaff, setDeletingStaff] = useState<StaffMember | null>(null);
@@ -3342,233 +3362,364 @@ export const HrAndRbacModule: React.FC<{
               Your current role (<strong>{currentUser.role}</strong>) has read-only visibility into the organizational directory and cannot provision new staff accounts.
             </div>
           ) : (
-            <form
-              onSubmit={handleProvisionStaff}
-              className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs"
-            >
-              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                <h3 className="text-sm font-montserrat font-black text-[#0A006E] flex items-center gap-2">
-                  <UserPlus className="w-4 h-4 text-[#0A006E]" />
-                  Provision New Staff Account (Authorized for {currentUser.role})
-                </h3>
-                <span className="text-xs text-slate-600">
-                  Allowed Roles: <strong>{creatableRoles.join(', ')}</strong>
+            <div className="bg-[#0A006E] text-white border-2 border-[#FFDE00] rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
+              <div>
+                <span className="text-[10px] font-montserrat font-black text-[#FFDE00] uppercase tracking-wider">
+                  Step-by-Step Staff Provisioning Wizard
                 </span>
+                <h3 className="text-lg font-montserrat font-black text-white mt-0.5">
+                  Onboard New Employee or POS Cashier
+                </h3>
+                <p className="text-xs text-slate-200 mt-1">
+                  Guided wizard: Role &amp; Identity → Branch Station → Compensation &amp; Deductions → Security PIN.
+                </p>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setWizardStep(1);
+                  setIsStaffWizardOpen(true);
+                }}
+                className="px-6 py-3.5 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-2xl font-montserrat font-black text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer shadow-lg transition-transform active:scale-95 shrink-0"
+              >
+                <UserPlus className="w-5 h-5 stroke-[2.5]" />
+                <span>Launch Staff Onboarding Wizard (+)</span>
+              </button>
+            </div>
+          )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 text-xs">
-                <div>
-                  <label className="font-montserrat font-bold text-slate-700">Full Legal Name *</label>
-                  <input
-                    required
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Brenda Wanjiku"
-                    className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-montserrat font-bold text-slate-700">Mobile Phone Number *</label>
-                  <input
-                    required
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="e.g. +254 712 345 678"
-                    className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-jakarta font-bold font-mono-tabular text-slate-900"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-montserrat font-bold text-slate-700">Corporate Email *</label>
-                  <input
-                    required
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="staff@vaairo.co.ke"
-                    className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-montserrat font-bold text-slate-700">Target ERP Role</label>
-                  <select
-                    value={creatableRoles.includes(selectedRole) ? selectedRole : creatableRoles[0]}
-                    onChange={(e) => setSelectedRole(e.target.value as StaffRole)}
-                    className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-montserrat font-black text-[#0A006E]"
-                  >
-                    {creatableRoles.map((r) => (
-                      <option key={r} value={r}>
-                        {r} ({r === 'Accountant' || r === 'Admin' ? 'Google Login' : '6-Digit PIN'})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="sm:col-span-2 lg:col-span-4">
-                  <label className="font-montserrat font-bold text-slate-700">Assigned Branch</label>
-                  <select
-                    disabled={currentUser.role === 'Branch Manager'}
-                    value={
-                      currentUser.role === 'Branch Manager' ? currentUser.branchId : branchId
-                    }
-                    onChange={(e) => setBranchId(e.target.value)}
-                    className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl"
-                  >
-                    {branches.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.code} · {b.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Initial Compensation & Selectable Deduction Items */}
-                <div>
-                  <label className="font-montserrat font-bold text-slate-700">Basic Monthly Salary (KES)</label>
-                  <input
-                    type="number"
-                    value={baseSalary}
-                    onChange={(e) => handleOnboardingSalaryChange(Number(e.target.value))}
-                    className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-mono-tabular tabular-nums font-bold"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-montserrat font-bold text-slate-700">KRA Tax PIN</label>
-                  <input
-                    type="text"
-                    value={kraPin}
-                    onChange={(e) => setKraPin(e.target.value.toUpperCase())}
-                    className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-mono-tabular uppercase"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-montserrat font-bold text-slate-700">Total Selected Deductions</label>
-                  <div className="w-full mt-1 px-3 py-2 bg-rose-50/70 border border-rose-200 rounded-xl font-mono-tabular tabular-nums font-bold text-rose-700">
-                    -KES {deductions.toLocaleString()} ({deductionItems.length} item{deductionItems.length === 1 ? '' : 's'})
+          {/* Staff Onboarding Wizard Modal */}
+          {isStaffWizardOpen && (
+            <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+              <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden border-2 border-[#0A006E] shadow-2xl animate-in zoom-in-95">
+                {/* Wizard Header */}
+                <div className="p-5 bg-[#0A006E] text-white flex items-center justify-between border-b-2 border-[#FFDE00]">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#FFDE00] text-[#0A006E] flex items-center justify-center font-black">
+                      <UserPlus className="w-5 h-5 stroke-[2.3]" />
+                    </div>
+                    <div>
+                      <h3 className="font-montserrat font-black text-base text-[#FFDE00]">
+                        Staff Onboarding Wizard · Step {wizardStep} of 5
+                      </h3>
+                      <p className="text-xs text-slate-200">
+                        {wizardStep === 1 && 'Step 1: Target Role & Personal Identity'}
+                        {wizardStep === 2 && 'Step 2: Contact Details & Branch Station'}
+                        {wizardStep === 3 && 'Step 3: Compensation, Salary & Deductions'}
+                        {wizardStep === 4 && 'Step 4: Authentication Method & Security PIN'}
+                        {wizardStep === 5 && 'Step 5: Review Summary & Provision Account'}
+                      </p>
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsStaffWizardOpen(false)}
+                    className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
 
-                <div>
-                  <label className="font-montserrat font-bold text-slate-700">Estimated Net Pay</label>
-                  <div className="w-full mt-1 px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl font-mono-tabular tabular-nums font-black text-[#0A006E]">
-                    KES {Math.max(0, baseSalary - deductions - penalties).toLocaleString()}
-                  </div>
-                </div>
-
-                <div className="sm:col-span-2 lg:col-span-4">
-                  <HrDeductionItemsSelector
-                    basicSalary={baseSalary}
-                    items={deductionItems}
-                    customCatalog={customDeductionCatalog}
-                    onSaveCustomCatalogItem={onCreateCatalogDeduction}
-                    onChange={(nextItems, totalKes, breakdownStr) => {
-                      setDeductionItems(nextItems);
-                      setDeductions(totalKes);
-                      setDeductionsBreakdown(breakdownStr);
-                    }}
+                {/* Progress Bar */}
+                <div className="w-full bg-slate-100 h-2">
+                  <div
+                    className="bg-[#34D186] h-2 transition-all duration-300"
+                    style={{ width: `${(wizardStep / 5) * 100}%` }}
                   />
                 </div>
 
-                {/* Casual Sales Representative Agreement Section */}
-                {(selectedRole === 'Affiliate Sales Representative' || currentUser.role === 'Branch Manager') && (
-                  <div className="sm:col-span-2 lg:col-span-4 bg-[#FFDE00]/25 border-2 border-[#0A006E]/30 rounded-2xl p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-montserrat font-black bg-[#0A006E] text-[#FFDE00]">
-                          Casual Sales Representative Agreement
-                        </span>
-                        <span className="text-xs text-slate-700 font-semibold">
-                          Branch casual employment: base pay + agreed commission %
-                        </span>
+                {/* Wizard Body */}
+                <div className="p-6 overflow-y-auto space-y-5 flex-1 text-xs">
+                  {wizardStep === 1 && (
+                    <div className="space-y-4">
+                      <h4 className="font-montserrat font-black text-sm text-[#0A006E]">
+                        Select Target ERP Role & Full Legal Name
+                      </h4>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="font-montserrat font-bold text-slate-700 block mb-1">Full Legal Name *</label>
+                          <input
+                            required
+                            type="text"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="e.g. Brenda Wanjiku"
+                            className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 focus:border-[#0A006E] rounded-xl text-sm font-semibold outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-montserrat font-bold text-slate-700 block mb-1">Target ERP Role *</label>
+                          <select
+                            value={creatableRoles.includes(selectedRole) ? selectedRole : creatableRoles[0]}
+                            onChange={(e) => setSelectedRole(e.target.value as StaffRole)}
+                            className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 focus:border-[#0A006E] rounded-xl font-montserrat font-black text-[#0A006E] text-sm outline-none"
+                          >
+                            {creatableRoles.map((r) => (
+                              <option key={r} value={r}>
+                                {r} ({r === 'Accountant' || r === 'Admin' ? 'Google OAuth 2.0' : '6-Digit Secure PIN'})
+                              </option>
+                            ))}
+                          </select>
+                          <p className="text-[11px] text-slate-500 mt-1.5">
+                            Role permissions determine accessible modules and supervisory approval thresholds.
+                          </p>
+                        </div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                      <div>
-                        <label className="font-montserrat font-bold text-slate-800">
-                          Agreed Base Pay (KES) *
-                        </label>
-                        <input
-                          type="number"
-                          value={baseSalary}
-                          onChange={(e) => handleOnboardingSalaryChange(Number(e.target.value))}
-                          className="w-full mt-1 px-3 py-2 bg-white border border-slate-300 rounded-xl font-mono-tabular font-bold text-[#0A006E]"
-                          placeholder="e.g. 25000"
-                        />
-                        <span className="text-[11px] text-slate-600 mt-1 block">
-                          Casual base stipend / retainer negotiated for this branch.
-                        </span>
+                  )}
+
+                  {wizardStep === 2 && (
+                    <div className="space-y-4">
+                      <h4 className="font-montserrat font-black text-sm text-[#0A006E]">
+                        Contact Information & Assigned Branch Station
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="font-montserrat font-bold text-slate-700 block mb-1">Mobile Phone Number *</label>
+                          <input
+                            required
+                            type="tel"
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                            placeholder="+254 712 345 678"
+                            className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 focus:border-[#0A006E] rounded-xl font-mono-tabular font-bold text-sm outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-montserrat font-bold text-slate-700 block mb-1">Corporate Email Address *</label>
+                          <input
+                            required
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder="staff@vaairo.co.ke"
+                            className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 focus:border-[#0A006E] rounded-xl text-sm font-semibold outline-none"
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="font-montserrat font-bold text-slate-700 block mb-1">Assigned Operational Branch Depot *</label>
+                          <select
+                            disabled={currentUser.role === 'Branch Manager'}
+                            value={currentUser.role === 'Branch Manager' ? currentUser.branchId : branchId}
+                            onChange={(e) => setBranchId(e.target.value)}
+                            className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 focus:border-[#0A006E] rounded-xl font-semibold text-sm outline-none"
+                          >
+                            {branches.map((b) => (
+                              <option key={b.id} value={b.id}>
+                                {b.code} · {b.name} ({b.regionName || 'Active Station'})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
-                      <div>
-                        <label className="font-montserrat font-bold text-slate-800">
-                          Agreed Sales Commission (%) *
-                        </label>
-                        <div className="relative mt-1">
+                    </div>
+                  )}
+
+                  {wizardStep === 3 && (
+                    <div className="space-y-4">
+                      <h4 className="font-montserrat font-black text-sm text-[#0A006E]">
+                        Compensation, Salary & Statutory Deductions
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="font-montserrat font-bold text-slate-700 block mb-1">Basic Monthly Salary (KES) *</label>
                           <input
                             type="number"
-                            step="0.5"
-                            min="0"
-                            max="100"
-                            value={agreedCommissionPct}
-                            onChange={(e) => setAgreedCommissionPct(Number(e.target.value))}
-                            className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-mono-tabular font-black text-[#0A006E] pr-8"
-                            placeholder="e.g. 8.0"
+                            value={baseSalary}
+                            onChange={(e) => handleOnboardingSalaryChange(Number(e.target.value))}
+                            className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 focus:border-[#0A006E] rounded-xl font-mono-tabular font-black text-sm text-[#0A006E] outline-none"
                           />
-                          <span className="absolute right-3 top-2.5 font-montserrat font-bold text-slate-500">%</span>
                         </div>
-                        <span className="text-[11px] text-slate-600 mt-1 block">
-                          Earns {agreedCommissionPct}% commission on all verified beverage dispatch volume.
-                        </span>
+                        <div>
+                          <label className="font-montserrat font-bold text-slate-700 block mb-1">KRA Tax PIN *</label>
+                          <input
+                            type="text"
+                            value={kraPin}
+                            onChange={(e) => setKraPin(e.target.value.toUpperCase())}
+                            className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 focus:border-[#0A006E] rounded-xl font-mono-tabular font-bold text-sm uppercase outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Deductions Selector */}
+                      <div className="pt-2">
+                        <HrDeductionItemsSelector
+                          basicSalary={baseSalary}
+                          items={deductionItems}
+                          customCatalog={customDeductionCatalog}
+                          onSaveCustomCatalogItem={onCreateCatalogDeduction}
+                          onChange={(nextItems, totalKes, breakdownStr) => {
+                            setDeductionItems(nextItems);
+                            setDeductions(totalKes);
+                            setDeductionsBreakdown(breakdownStr);
+                          }}
+                        />
+                      </div>
+
+                      {(selectedRole === 'Affiliate Sales Representative' || currentUser.role === 'Branch Manager') && (
+                        <div className="bg-[#FFDE00]/20 border-2 border-[#0A006E]/30 rounded-2xl p-4 space-y-3">
+                          <div className="font-montserrat font-black text-[#0A006E]">
+                            Casual Sales Commission Structure
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="font-bold text-slate-700 block mb-1">Agreed Base Pay (KES)</label>
+                              <input
+                                type="number"
+                                value={baseSalary}
+                                onChange={(e) => handleOnboardingSalaryChange(Number(e.target.value))}
+                                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-mono-tabular font-bold"
+                              />
+                            </div>
+                            <div>
+                              <label className="font-bold text-slate-700 block mb-1">Agreed Commission (%)</label>
+                              <input
+                                type="number"
+                                step="0.5"
+                                value={agreedCommissionPct}
+                                onChange={(e) => setAgreedCommissionPct(Number(e.target.value))}
+                                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-mono-tabular font-bold"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {wizardStep === 4 && (
+                    <div className="space-y-4">
+                      <h4 className="font-montserrat font-black text-sm text-[#0A006E]">
+                        Authentication Method & Security PIN
+                      </h4>
+                      {!isGoogleRole ? (
+                        <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-5 space-y-3 text-center">
+                          <label className="font-montserrat font-bold text-slate-800 block">
+                            Generated 6-Digit POS Terminal Login PIN
+                          </label>
+                          <div className="flex items-center justify-center gap-3">
+                            <input
+                              required
+                              type="text"
+                              maxLength={6}
+                              value={pin}
+                              onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                              className="w-56 h-16 px-4 bg-white border-3 border-[#0A006E] rounded-2xl font-mono-tabular font-black text-3xl tracking-widest text-[#0A006E] shadow-md text-center"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleRandomizePin}
+                              className="px-4 py-3 bg-[#0A006E] text-[#FFDE00] rounded-xl font-montserrat font-bold text-xs cursor-pointer shadow-xs hover:bg-[#060046] transition"
+                            >
+                              Generate New PIN
+                            </button>
+                          </div>
+                          <p className="text-xs text-slate-500">
+                            This 6-digit PIN will be used by {name || 'the staff member'} to log in securely at branch POS terminals and warehouse stations.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-5 flex items-center gap-3 text-blue-950">
+                          <Lock className="w-8 h-8 text-blue-700 shrink-0" />
+                          <div>
+                            <div className="font-montserrat font-black text-sm">Google OAuth 2.0 Authentication</div>
+                            <p className="text-xs text-blue-900 mt-0.5">
+                              Accountants and Administrators authenticate strictly via Google Workspace using their registered corporate email address ({email || 'staff@vaairo.co.ke'}).
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {wizardStep === 5 && (
+                    <div className="space-y-4">
+                      <h4 className="font-montserrat font-black text-sm text-[#0A006E]">
+                        Review Summary & Provision Staff Account
+                      </h4>
+                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 text-xs">
+                        <div className="flex justify-between py-1 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Full Name:</span>
+                          <strong className="text-slate-900 font-montserrat text-sm">{name || '—'}</strong>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Target Role:</span>
+                          <strong className="text-[#0A006E] font-montserrat">{selectedRole}</strong>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Phone & Email:</span>
+                          <span className="font-mono">{phone || '—'} · {email || '—'}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Branch Station:</span>
+                          <span className="font-semibold text-slate-800">{branches.find(b => b.id === branchId)?.name || 'HQ'}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Basic Salary & Net Pay:</span>
+                          <span className="font-mono-tabular font-bold text-emerald-700">
+                            Base KES {Number(baseSalary).toLocaleString()} · Net KES {Math.max(0, baseSalary - deductions - penalties).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between py-1">
+                          <span className="text-slate-500 font-medium">Auth Credential:</span>
+                          <span className="font-mono font-bold text-[#0A006E]">
+                            {isGoogleRole ? 'Google OAuth (Email)' : `6-Digit PIN: ${pin}`}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
-                {!isGoogleRole ? (
-                  <div className="sm:col-span-2 lg:col-span-4 bg-white border border-slate-200 rounded-2xl p-3.5 space-y-2">
-                    <label className="font-montserrat font-bold text-slate-700">
-                      Assigned 6-Digit Authentication PIN (Enlarged Digits)
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <input
-                        required
-                        type="text"
-                        maxLength={6}
-                        pattern="\d{6}"
-                        value={pin}
-                        onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                        className="w-52 h-12 px-4 bg-white border-2 border-[#0A006E] rounded-xl font-mono-tabular font-black text-2xl tracking-widest text-[#0A006E] shadow-xs text-center"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleRandomizePin}
-                        className="px-4 py-2.5 bg-slate-50 hover:bg-[#FFDE00] border border-slate-300 hover:border-[#0A006E] rounded-xl text-xs font-montserrat font-bold text-[#0A006E] cursor-pointer transition-colors"
-                      >
-                        Generate New PIN
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="sm:col-span-2 lg:col-span-4 flex items-center text-xs text-slate-600 bg-white p-3 rounded-xl border border-slate-200">
-                    <Lock className="w-4 h-4 text-[#0A006E] mr-2 shrink-0" />
-                    Accountant & Admin authenticate strictly via Google OAuth using their corporate email address.
-                  </div>
-                )}
+                {/* Wizard Footer Controls */}
+                <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+                  {wizardStep > 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => setWizardStep((prev) => prev - 1)}
+                      className="px-4 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-xl font-montserrat font-bold text-xs cursor-pointer hover:bg-slate-100 transition"
+                    >
+                      ← Previous Step
+                    </button>
+                  ) : (
+                    <div />
+                  )}
+
+                  {wizardStep < 5 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (wizardStep === 1 && !name.trim()) {
+                          onTriggerToast('error', 'Required Field', 'Please enter full legal name.');
+                          return;
+                        }
+                        if (wizardStep === 2 && (!phone.trim() || !email.trim())) {
+                          onTriggerToast('error', 'Required Field', 'Please enter mobile phone and email address.');
+                          return;
+                        }
+                        setWizardStep((prev) => prev + 1);
+                      }}
+                      className="px-5 py-2.5 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-xl font-montserrat font-black text-xs cursor-pointer shadow-sm transition flex items-center gap-1.5"
+                    >
+                      <span>Next Step →</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={async (e) => {
+                        await handleProvisionStaff(e as any);
+                        setIsStaffWizardOpen(false);
+                        setWizardStep(1);
+                      }}
+                      className="px-6 py-3 bg-[#FFDE00] hover:bg-amber-400 border-2 border-[#0A006E] text-[#0A006E] rounded-xl font-montserrat font-black text-xs cursor-pointer shadow-md transition flex items-center gap-2"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      <span>Provision Staff Account Now</span>
+                    </button>
+                  )}
+                </div>
               </div>
-
-              <button
-                type="submit"
-                className="px-5 py-2.5 bg-[#FFDE00] hover:bg-amber-400 border-2 border-[#0A006E] text-[#0A006E] font-montserrat font-black text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-sm"
-              >
-                <UserPlus className="w-4 h-4" />
-                Create Staff Account & Activate Role Permissions
-              </button>
-            </form>
+            </div>
           )}
 
           {/* Organization Staff Directory Table */}
@@ -3578,6 +3729,37 @@ export const HrAndRbacModule: React.FC<{
                 <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
                   Provisioned Organization Directory ({staffList.length} Staff)
                 </h3>
+                {/* View-Friendly Search & Filter Toolbar */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 my-3">
+                  <input
+                    type="text"
+                    value={directorySearch}
+                    onChange={(e) => setDirectorySearch(e.target.value)}
+                    placeholder="Search staff by name, email, phone, role..."
+                    className="px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold outline-none shadow-2xs"
+                  />
+                  <select
+                    value={directoryRoleFilter}
+                    onChange={(e) => setDirectoryRoleFilter(e.target.value)}
+                    className="px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold shadow-2xs"
+                  >
+                    <option value="ALL">All Roles</option>
+                    {Array.from(new Set(staffList.map((s) => s.role))).map((role) => (
+                      <option key={role} value={role}>{role}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={directoryBranchFilter}
+                    onChange={(e) => setDirectoryBranchFilter(e.target.value)}
+                    className="px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold shadow-2xs"
+                  >
+                    <option value="ALL">All Branches</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.name}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Online / Offline Presence Filter Tabs */}
                 <div className="flex items-center gap-1.5 p-1 bg-white border border-slate-200 rounded-xl w-fit mt-2 shadow-2xs">
                   <button

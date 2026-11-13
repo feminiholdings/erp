@@ -36,6 +36,10 @@ import {
   TrendingUp,
   Camera,
   Check,
+  CheckCheck,
+  CheckSquare,
+  Square,
+  Loader2,
   Users,
   DollarSign,
   Eye,
@@ -2597,14 +2601,14 @@ export const InventoryModule: React.FC<{
   const [isBarcodeAssignmentModalOpen, setIsBarcodeAssignmentModalOpen] = useState(false);
   const [barcodeAssignmentTargetProductId, setBarcodeAssignmentTargetProductId] = useState<string | undefined>(undefined);
   const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
-  const [duplicateFindings, setDuplicateFindings] = useState<{
-    duplicateSkus: { sku: string; items: Product[] }[];
-    duplicateBarcodes: { barcode: string; items: Product[] }[];
-    duplicateNames: { name: string; items: Product[] }[];
-    totalDuplicates: number;
-  }>({ duplicateSkus: [], duplicateBarcodes: [], duplicateNames: [], totalDuplicates: 0 });
+  const [duplicateTab, setDuplicateTab] = useState<'ALL' | 'SKU' | 'BARCODE' | 'NAME'>('ALL');
+  const [duplicateSearch, setDuplicateSearch] = useState('');
+  const [isDeletingDuplicates, setIsDeletingDuplicates] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState<{ current: number; total: number } | null>(null);
 
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
+  const [selectedInventoryBranchId, setSelectedInventoryBranchId] = useState<string>('ALL');
+  const selectedBranchObj = useMemo(() => branches.find((b) => b.id === selectedInventoryBranchId), [branches, selectedInventoryBranchId]);
 
   const handleSelectAllProducts = () => {
     if (selectedProductIds.size === filteredProducts.length) {
@@ -2649,26 +2653,45 @@ export const InventoryModule: React.FC<{
     }
   };
 
-  const handleRunDuplicateCheck = () => {
+  // Helper to sort duplicate group items: master/keeper record first, then redundant copies
+  const sortGroupItems = (items: Product[]): Product[] => {
+    return [...items].sort((a, b) => {
+      // 1. Items with stock > 0 first
+      const stockA = a.totalBottles ?? 0;
+      const stockB = b.totalBottles ?? 0;
+      if (stockA > 0 && stockB === 0) return -1;
+      if (stockB > 0 && stockA === 0) return 1;
+      if (stockA !== stockB) return stockB - stockA; // higher stock first
+
+      // 2. Real barcode verified first
+      if (a.hasRealBarcode && !b.hasRealBarcode) return -1;
+      if (!a.hasRealBarcode && b.hasRealBarcode) return 1;
+
+      // 3. Oldest creation date first
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateA - dateB;
+    });
+  };
+
+  const computeDuplicates = (prods: Product[]) => {
     const skuMap: Record<string, Product[]> = {};
     const barcodeMap: Record<string, Product[]> = {};
     const nameMap: Record<string, Product[]> = {};
 
-    for (const p of products) {
-      if (p.sku) {
+    for (const p of prods) {
+      if (p.sku && p.sku.trim()) {
         const cleanSku = p.sku.trim().toUpperCase();
         if (!skuMap[cleanSku]) skuMap[cleanSku] = [];
         skuMap[cleanSku].push(p);
       }
-      if (p.barcode) {
+      if (p.barcode && p.barcode.trim()) {
         const cleanBarcode = p.barcode.trim();
-        if (cleanBarcode) {
-          if (!barcodeMap[cleanBarcode]) barcodeMap[cleanBarcode] = [];
-          barcodeMap[cleanBarcode].push(p);
-        }
+        if (!barcodeMap[cleanBarcode]) barcodeMap[cleanBarcode] = [];
+        barcodeMap[cleanBarcode].push(p);
       }
-      if (p.name) {
-        const cleanName = p.name.trim().toLowerCase();
+      if (p.name && p.name.trim()) {
+        const cleanName = p.name.trim().toLowerCase().replace(/\s+/g, ' ');
         if (!nameMap[cleanName]) nameMap[cleanName] = [];
         nameMap[cleanName].push(p);
       }
@@ -2676,23 +2699,67 @@ export const InventoryModule: React.FC<{
 
     const duplicateSkus = Object.entries(skuMap)
       .filter(([_, items]) => items.length > 1)
-      .map(([sku, items]) => ({ sku, items }));
+      .map(([sku, items]) => ({ key: sku, items: sortGroupItems(items) }));
 
     const duplicateBarcodes = Object.entries(barcodeMap)
       .filter(([_, items]) => items.length > 1)
-      .map(([barcode, items]) => ({ barcode, items }));
+      .map(([barcode, items]) => ({ key: barcode, items: sortGroupItems(items) }));
 
     const duplicateNames = Object.entries(nameMap)
       .filter(([_, items]) => items.length > 1)
-      .map(([name, items]) => ({ name, items }));
+      .map(([name, items]) => ({ key: name, items: sortGroupItems(items) }));
 
     const totalDuplicates = duplicateSkus.length + duplicateBarcodes.length + duplicateNames.length;
 
-    setDuplicateFindings({ duplicateSkus, duplicateBarcodes, duplicateNames, totalDuplicates });
-    setIsDuplicateModalOpen(true);
+    // Collect all unique duplicate item IDs and redundant item IDs (index > 0 in any group)
+    const allItemIdsSet = new Set<string>();
+    const allRedundantIdsSet = new Set<string>();
+
+    [...duplicateSkus, ...duplicateBarcodes, ...duplicateNames].forEach((group) => {
+      group.items.forEach((item, idx) => {
+        allItemIdsSet.add(item.id);
+        if (idx > 0) {
+          allRedundantIdsSet.add(item.id);
+        }
+      });
+    });
+
+    return {
+      duplicateSkus,
+      duplicateBarcodes,
+      duplicateNames,
+      totalDuplicates,
+      allUniqueDuplicateItemIds: Array.from(allItemIdsSet),
+      allRedundantItemIds: Array.from(allRedundantIdsSet),
+    };
   };
 
+  const [duplicateFindings, setDuplicateFindings] = useState<{
+    duplicateSkus: { key: string; items: Product[] }[];
+    duplicateBarcodes: { key: string; items: Product[] }[];
+    duplicateNames: { key: string; items: Product[] }[];
+    totalDuplicates: number;
+    allUniqueDuplicateItemIds: string[];
+    allRedundantItemIds: string[];
+  }>({
+    duplicateSkus: [],
+    duplicateBarcodes: [],
+    duplicateNames: [],
+    totalDuplicates: 0,
+    allUniqueDuplicateItemIds: [],
+    allRedundantItemIds: [],
+  });
+
   const [selectedForDeletion, setSelectedForDeletion] = useState<Set<string>>(new Set());
+
+  const handleRunDuplicateCheck = () => {
+    const findings = computeDuplicates(products);
+    setDuplicateFindings(findings);
+    setSelectedForDeletion(new Set());
+    setDuplicateTab('ALL');
+    setDuplicateSearch('');
+    setIsDuplicateModalOpen(true);
+  };
 
   const toggleItemSelection = (id: string) => {
     setSelectedForDeletion((prev) => {
@@ -2703,13 +2770,96 @@ export const InventoryModule: React.FC<{
     });
   };
 
-  const handleClearSelectedDuplicates = async () => {
-    if (!onDeleteProduct) return;
-    for (const id of selectedForDeletion) {
-      await onDeleteProduct(id);
-    }
+  // Smart Select All Redundant: selects all duplicates (items > 0) while keeping the best master copy
+  const handleSelectAllRedundant = () => {
+    const newSelected = new Set<string>(duplicateFindings.allRedundantItemIds);
+    setSelectedForDeletion(newSelected);
+  };
+
+  // Select all items appearing in duplicate findings
+  const handleSelectAllDuplicateItems = () => {
+    const newSelected = new Set<string>(duplicateFindings.allUniqueDuplicateItemIds);
+    setSelectedForDeletion(newSelected);
+  };
+
+  const handleDeselectAll = () => {
     setSelectedForDeletion(new Set());
-    setIsDuplicateModalOpen(false);
+  };
+
+  const handleSelectGroupRedundant = (groupItems: Product[]) => {
+    setSelectedForDeletion((prev) => {
+      const next = new Set(prev);
+      groupItems.slice(1).forEach((item) => next.add(item.id));
+      return next;
+    });
+  };
+
+  const handleToggleGroupAll = (groupItems: Product[]) => {
+    const allSelected = groupItems.every((item) => selectedForDeletion.has(item.id));
+    setSelectedForDeletion((prev) => {
+      const next = new Set(prev);
+      if (allSelected) {
+        groupItems.forEach((item) => next.delete(item.id));
+      } else {
+        groupItems.forEach((item) => next.add(item.id));
+      }
+      return next;
+    });
+  };
+
+  const handleDeleteSingleDuplicate = async (productId: string, productName: string) => {
+    if (!onDeleteProduct) return;
+    if (!confirm(`Are you sure you want to permanently delete "${productName}" from the catalog?`)) return;
+    try {
+      await onDeleteProduct(productId);
+      setSelectedForDeletion((prev) => {
+        const next = new Set(prev);
+        next.delete(productId);
+        return next;
+      });
+      const remaining = products.filter((p) => p.id !== productId);
+      setDuplicateFindings(computeDuplicates(remaining));
+      setProductFeedback(`Deleted duplicate "${productName}".`);
+      setTimeout(() => setProductFeedback(null), 4000);
+    } catch (err) {
+      console.error('Failed to delete duplicate product:', err);
+    }
+  };
+
+  const handleClearSelectedDuplicates = async () => {
+    if (!onDeleteProduct || selectedForDeletion.size === 0) return;
+    const count = selectedForDeletion.size;
+    if (!confirm(`Are you sure you want to permanently delete ${count} selected duplicate product(s)?\n\nThis will remove them completely from the inventory database.`)) {
+      return;
+    }
+
+    setIsDeletingDuplicates(true);
+    setDeleteProgress({ current: 0, total: count });
+    let deletedCount = 0;
+    const ids = Array.from(selectedForDeletion);
+
+    try {
+      for (let i = 0; i < ids.length; i++) {
+        const id = ids[i];
+        try {
+          await onDeleteProduct(id);
+          deletedCount++;
+        } catch (err) {
+          console.error('Failed to delete duplicate product id:', id, err);
+        }
+        setDeleteProgress({ current: i + 1, total: count });
+      }
+
+      setSelectedForDeletion(new Set());
+      const remaining = products.filter((p) => !selectedForDeletion.has(p.id));
+      const nextFindings = computeDuplicates(remaining);
+      setDuplicateFindings(nextFindings);
+      setProductFeedback(`Successfully removed ${deletedCount} duplicate item(s) from inventory.`);
+      setTimeout(() => setProductFeedback(null), 5000);
+    } finally {
+      setIsDeletingDuplicates(false);
+      setDeleteProgress(null);
+    }
   };
 
   const handleSaveThresholdSettings = (newSettings: InventoryThresholdSettings) => {
@@ -3068,210 +3218,86 @@ export const InventoryModule: React.FC<{
   };
 
   const handleExportInventoryPDF = () => {
+    const branchTitle = selectedBranchObj ? `${selectedBranchObj.name} (${selectedBranchObj.code})` : 'All Branches & Warehouses (Consolidated)';
     exportReportToPDF(
-      'Bonded Master Inventory & Auto-SKU Valuation Report (IPS & LPS)',
+      `Bonded Master Inventory & Auto-SKU Report - ${branchTitle}`,
       `Filtered ${filteredProducts.length} of ${products.length} Master SKUs`,
-      ['Auto SKU', 'Stock', 'Product Name', 'Subcategory', 'Vol / ABV', 'Origin', 'Wholesale (KES)', 'Retail (KES)', 'Total Btls'],
-      filteredProducts.slice(0, 250).map((p) => [
-        p.sku,
-        p.category,
-        p.name,
-        p.subCategory || p.category,
-        `${p.volumeMl}ml / ${p.alcoholPercentage ?? p.abv ?? 40}%`,
-        p.countryOfOrigin || p.originCountry || 'Imported',
-        Math.round(p.wholesalePriceKes ?? p.baseWholesalePrice ?? 0).toLocaleString(),
-        Math.round(p.retailPriceKes ?? p.baseRetailPrice ?? 0).toLocaleString(),
-        p.totalBottles ?? 0,
-      ]),
-      'Vaairo_Bonded_Inventory_Report'
+      ['Auto SKU', 'Stock', 'Product Name', 'Subcategory', 'Vol / ABV', 'Origin', 'Wholesale (KES)', 'Retail (KES)', selectedBranchObj ? `${selectedBranchObj.code} Stock` : 'Total Btls'],
+      filteredProducts.slice(0, 250).map((p) => {
+        const bMap = p.branchStockSummary ? JSON.parse(p.branchStockSummary) : {};
+        const stockQty = selectedBranchObj ? (bMap[selectedBranchObj.id] ?? 0) : (p.totalBottles ?? 0);
+        return [
+          p.sku,
+          p.category,
+          p.name,
+          p.subCategory || p.category,
+          `${p.volumeMl}ml / ${p.alcoholPercentage ?? p.abv ?? 40}%`,
+          p.countryOfOrigin || p.originCountry || 'Imported',
+          Math.round(p.wholesalePriceKes ?? p.baseWholesalePrice ?? 0).toLocaleString(),
+          Math.round(p.retailPriceKes ?? p.baseRetailPrice ?? 0).toLocaleString(),
+          stockQty,
+        ];
+      }),
+      `Vaairo_Inventory_${selectedBranchObj ? selectedBranchObj.code : 'All_Branches'}_Report`
     );
   };
 
   const handleExportInventoryCSV = () => {
+    const branchCode = selectedBranchObj ? selectedBranchObj.code : 'All_Branches';
     exportToCSV(
-      'Vaairo_Bonded_Inventory_Report',
-      ['Auto SKU', 'Stock Class', 'Subcategory', 'Product Name', 'Brand', 'Barcode (EAN-13)', 'Volume (ml)', 'ABV (%)', 'Pack Size', 'Origin', 'Wholesale (KES)', 'Retail (KES)', 'Total Bottles'],
-      filteredProducts.map((p) => [
-        p.sku,
-        p.category,
-        p.subCategory || '',
-        p.name,
-        p.brand || '',
-        p.barcode || '',
-        p.volumeMl,
-        p.alcoholPercentage ?? p.abv ?? 40,
-        p.packSize || p.bottlesPerCase || 12,
-        p.countryOfOrigin || p.originCountry || '',
-        p.wholesalePriceKes ?? p.baseWholesalePrice ?? 0,
-        p.retailPriceKes ?? p.baseRetailPrice ?? 0,
-        p.totalBottles ?? 0,
-      ])
+      `Vaairo_Inventory_${branchCode}_Report`,
+      ['Auto SKU', 'Stock Class', 'Subcategory', 'Product Name', 'Brand', 'Barcode (EAN-13)', 'Volume (ml)', 'ABV (%)', 'Pack Size', 'Origin', 'Wholesale (KES)', 'Retail (KES)', selectedBranchObj ? `${selectedBranchObj.code} Stock` : 'Total Bottles'],
+      filteredProducts.map((p) => {
+        const bMap = p.branchStockSummary ? JSON.parse(p.branchStockSummary) : {};
+        const stockQty = selectedBranchObj ? (bMap[selectedBranchObj.id] ?? 0) : (p.totalBottles ?? 0);
+        return [
+          p.sku,
+          p.category,
+          p.subCategory || '',
+          p.name,
+          p.brand || '',
+          p.barcode || '',
+          p.volumeMl,
+          p.alcoholPercentage ?? p.abv ?? 40,
+          p.packSize || p.bottlesPerCase || 12,
+          p.countryOfOrigin || p.originCountry || '',
+          p.wholesalePriceKes ?? p.baseWholesalePrice ?? 0,
+          p.retailPriceKes ?? p.baseRetailPrice ?? 0,
+          stockQty,
+        ];
+      })
     );
   };
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Inventory Manager App Menu of Box Buttons */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <button
-          type="button"
-          onClick={() => onNavigateModule?.('inventory')}
-          className="p-6 sm:p-8 bg-white border-3 border-slate-200 hover:border-[#34D186] rounded-3xl text-left flex flex-col justify-between gap-4 shadow-md hover:shadow-xl transition cursor-pointer group"
-        >
-          <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-700 group-hover:bg-[#34D186] group-hover:text-[#0A006E] flex items-center justify-center transition shadow-inner">
-            <Package className="w-7 h-7" />
-          </div>
-          <div>
-            <div className="text-sm sm:text-base font-montserrat font-black text-slate-900 group-hover:text-[#0A006E]">
-              Master Inventory
-            </div>
-            <div className="text-xs text-slate-500 font-medium mt-1">SKUs &amp; Bonded Stock</div>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onNavigateModule?.('branches_transfers')}
-          className="p-6 sm:p-8 bg-white border-3 border-slate-200 hover:border-amber-400 rounded-3xl text-left flex flex-col justify-between gap-4 shadow-md hover:shadow-xl transition cursor-pointer group relative"
-        >
-          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-700 group-hover:bg-amber-500 group-hover:text-white flex items-center justify-center transition shadow-inner">
-            <ArrowRightLeft className="w-7 h-7" />
-          </div>
-          <div>
-            <div className="flex items-center justify-between gap-1">
-              <span className="text-sm sm:text-base font-montserrat font-black text-slate-900 group-hover:text-amber-800">
-                Stock Transfers
-              </span>
-              {pendingTransfersCount > 0 && (
-                <span className="px-2 py-1 rounded-full bg-amber-500 text-white text-[11px] font-mono-tabular font-black">
-                  {pendingTransfersCount}
-                </span>
-              )}
-            </div>
-            <div className="text-xs text-slate-500 font-medium mt-1">Inter-Depot Dispatch</div>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onNavigateModule?.('internal_inbox')}
-          className="p-6 sm:p-8 bg-white border-3 border-slate-200 hover:border-red-400 rounded-3xl text-left flex flex-col justify-between gap-4 shadow-md hover:shadow-xl transition cursor-pointer group"
-        >
-          <div className="w-14 h-14 rounded-2xl bg-red-50 text-red-600 group-hover:bg-red-600 group-hover:text-white flex items-center justify-center transition shadow-inner">
-            <Inbox className="w-7 h-7" />
-          </div>
-          <div>
-            <div className="text-sm sm:text-base font-montserrat font-black text-slate-900 group-hover:text-red-700">
-              Internal Inbox
-            </div>
-            <div className="text-xs text-slate-500 font-medium mt-1">Dept &amp; Colleague Chat</div>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onNavigateModule?.('inventory')}
-          className="p-6 sm:p-8 bg-white border-3 border-slate-200 hover:border-cyan-400 rounded-3xl text-left flex flex-col justify-between gap-4 shadow-md hover:shadow-xl transition cursor-pointer group"
-        >
-          <div className="w-14 h-14 rounded-2xl bg-cyan-50 text-cyan-700 group-hover:bg-cyan-600 group-hover:text-white flex items-center justify-center transition shadow-inner">
-            <Barcode className="w-7 h-7" />
-          </div>
-          <div>
-            <div className="text-sm sm:text-base font-montserrat font-black text-slate-900 group-hover:text-cyan-800">
-              Barcode Audit
-            </div>
-            <div className="text-xs text-slate-500 font-medium mt-1">Scan &amp; Verify Stamps</div>
-          </div>
-        </button>
-      </div>
-
-      {/* Mobile Only: Action Buttons Row (Hero banner removed on mobile) */}
-      <div className="flex sm:hidden items-center gap-2 overflow-x-auto pb-1 pt-1">
-        {onOpenOnboardItems && (
-          <button
-            type="button"
-            onClick={onOpenOnboardItems}
-            className="flex-1 min-w-[130px] px-3 py-2 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] border-2 border-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition active:scale-95 whitespace-nowrap"
-          >
-            <Barcode className="w-3.5 h-3.5 text-[#0A006E]" />
-            Onboard Items
-          </button>
-        )}
-        {canEditProduct && (
-          <button
-            type="button"
-            onClick={() => setIsCsvModalOpen(true)}
-            className="flex-1 min-w-[120px] px-3 py-2 bg-[#34D186] hover:bg-[#28B873] text-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition active:scale-95 whitespace-nowrap"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            Upload CSV
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={handleExportInventoryPDF}
-          className="flex-1 min-w-[110px] px-3 py-2 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition active:scale-95 whitespace-nowrap"
-        >
-          <Download className="w-3.5 h-3.5 text-[#FFDE00]" />
-          PDF Export
-        </button>
-        <button
-          type="button"
-          onClick={handleExportInventoryCSV}
-          className="flex-1 min-w-[110px] px-3 py-2 bg-white border-2 border-[#0A006E] text-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition active:scale-95 whitespace-nowrap"
-        >
-          <Download className="w-3.5 h-3.5 text-[#0A006E]" />
-          CSV Export
-        </button>
-        <button
-          type="button"
-          onClick={handleRunDuplicateCheck}
-          className="flex-1 min-w-[110px] px-3 py-2 bg-amber-400 hover:bg-amber-500 text-slate-950 rounded-xl text-xs font-montserrat font-black flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition active:scale-95 whitespace-nowrap"
-        >
-          <AlertTriangle className="w-3.5 h-3.5" />
-          Duplicate Check
-        </button>
-        {onWipeAllProducts && canEditProduct && (
-          <button
-            type="button"
-            onClick={onWipeAllProducts}
-            className="flex-1 min-w-[120px] px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-montserrat font-black flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition active:scale-95 whitespace-nowrap"
-            title="Wipe all inventory SKUs"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            Wipe Inventory
-          </button>
-        )}
-      </div>
-
-      {/* Desktop/Tablet: Minimalized Streamlined Hero Bar (Hidden on Mobile) */}
-      <div className="hidden sm:flex bg-[#FFDE00] border-2 border-[#0A006E] rounded-2xl py-3 px-5 items-center justify-between gap-4 relative overflow-hidden shadow-xs">
-        <div className="silent-scanner-beam-dark" />
-        <div className="relative z-10 flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 shadow-xs">
+      {/* Minimized & Streamlined Inventory Header */}
+      <div className="bg-[#FFDE00] border-2 border-[#0A006E] rounded-2xl py-3 px-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative overflow-hidden shadow-xs">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 shadow-xs">
             <Package className="w-5 h-5 stroke-[2.2]" />
           </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm sm:text-base font-montserrat font-black italic text-[#0A006E] truncate">
-                Liquor Inventory &amp; Auto-SKU Controller
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-sm sm:text-base font-montserrat font-black italic text-[#0A006E]">
+                Liquor Inventory &amp; Bonded Controller
               </h2>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-montserrat font-black bg-[#0A006E] text-[#FFDE00] whitespace-nowrap">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-montserrat font-black bg-[#0A006E] text-[#FFDE00]">
                 {products.length} SKUs
               </span>
             </div>
-            <p className="text-[11px] font-medium text-slate-900 truncate">
-              IPS imported &amp; LPS local stock valuation, excise bond registers, and deterministic catalog.
+            <p className="text-[11px] font-medium text-slate-900">
+              Manage stock levels, branch allocation, valuation, and excise audits.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 relative z-10 shrink-0">
+        <div className="flex items-center gap-2 flex-wrap shrink-0 w-full sm:w-auto justify-end">
           {onOpenOnboardItems && (
             <button
               type="button"
               onClick={onOpenOnboardItems}
-              className="px-3.5 py-2 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] border border-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-xs transition whitespace-nowrap"
+              className="px-3.5 py-2 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-xs transition whitespace-nowrap"
             >
               <Barcode className="w-3.5 h-3.5 text-[#FFDE00]" />
               Onboard Items
@@ -3287,41 +3313,34 @@ export const InventoryModule: React.FC<{
               Upload CSV
             </button>
           )}
-          <button
-            type="button"
-            onClick={handleExportInventoryPDF}
-            className="px-3 py-2 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-xs transition whitespace-nowrap"
-          >
-            <Download className="w-3.5 h-3.5 text-[#FFDE00]" />
-            PDF
-          </button>
-          <button
-            type="button"
-            onClick={handleExportInventoryCSV}
-            className="px-3 py-2 bg-white hover:bg-slate-50 border-2 border-[#0A006E] text-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer transition whitespace-nowrap"
-          >
-            <Download className="w-3.5 h-3.5 text-[#0A006E]" />
-            CSV
-          </button>
+          <div className="flex items-center gap-1 bg-white/80 p-1 rounded-xl border border-[#0A006E]/20">
+            <button
+              type="button"
+              onClick={handleExportInventoryPDF}
+              className="px-2.5 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
+              title="Export PDF Report"
+            >
+              <Download className="w-3.5 h-3.5" />
+              PDF
+            </button>
+            <button
+              type="button"
+              onClick={handleExportInventoryCSV}
+              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-[#0A006E] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
+              title="Export CSV"
+            >
+              <Download className="w-3.5 h-3.5" />
+              CSV
+            </button>
+          </div>
           <button
             type="button"
             onClick={handleRunDuplicateCheck}
-            className="px-3 py-2 bg-amber-400 hover:bg-amber-500 text-slate-950 rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-xs transition whitespace-nowrap"
+            className="px-3 py-2 bg-white hover:bg-slate-50 border border-[#0A006E]/30 text-[#0A006E] rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition whitespace-nowrap"
           >
-            <AlertTriangle className="w-3.5 h-3.5" />
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
             Duplicate Check
           </button>
-          {onWipeAllProducts && canEditProduct && (
-            <button
-              type="button"
-              onClick={onWipeAllProducts}
-              className="px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-xs transition whitespace-nowrap"
-              title="Wipe entire inventory to 0 SKUs"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              Wipe Inventory
-            </button>
-          )}
         </div>
       </div>
 
@@ -3852,6 +3871,38 @@ export const InventoryModule: React.FC<{
           </div>
         </div>
 
+        {/* Row 1.5: Branch / Warehouse Stock Filter & Download Hub */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0">
+              <Store className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="font-montserrat font-black text-xs text-[#0A006E]">
+                Branch &amp; Warehouse Stock View &amp; Download Filter
+              </div>
+              <div className="text-[10px] text-slate-500">
+                Select a specific branch or warehouse to view live available stock quantities and download branch reports.
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedInventoryBranchId}
+              onChange={(e) => setSelectedInventoryBranchId(e.target.value)}
+              className="px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-montserrat font-black text-[#0A006E] cursor-pointer"
+            >
+              <option value="ALL">🌐 All Branches &amp; Warehouses (Consolidated)</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name} ({b.code}) - {b.facilityType || 'Branch'}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         {/* Row 2: Action & Wipe Toolbar */}
         {onWipeAllProducts && (
           <div className="flex items-center justify-between gap-2 flex-wrap pt-2 border-t border-slate-200">
@@ -4046,7 +4097,9 @@ export const InventoryModule: React.FC<{
                 <th className="py-2.5 px-3 font-black text-right">Wholesale (KES)</th>
                 <th className="py-2.5 px-3 font-black text-right">Retail (KES)</th>
                 <th className="py-2.5 px-3 font-black text-right">
-                  {currentUser.role === 'Branch Manager'
+                  {selectedBranchObj
+                    ? `Stock at ${selectedBranchObj.code}`
+                    : currentUser.role === 'Branch Manager'
                     ? `Branch Stock (${currentUser.branchName})`
                     : 'Total Bottles'}
                 </th>
@@ -4076,7 +4129,10 @@ export const InventoryModule: React.FC<{
                 const abv = p.alcoholPercentage ?? p.abv ?? 40;
                 const wholesale = p.wholesalePriceKes ?? p.baseWholesalePrice ?? 0;
                 const retail = p.retailPriceKes ?? p.baseRetailPrice ?? 0;
-                const totalBtls = p.totalBottles ?? 0;
+                const branchMap = p.branchStockSummary ? JSON.parse(p.branchStockSummary) : {};
+                const totalBtls = selectedBranchObj 
+                  ? (branchMap[selectedBranchObj.id] ?? 0)
+                  : (p.totalBottles ?? 0);
 
                 const deadDays = p.deadStockThresholdDays || thresholdSettings.defaultDeadStockDays;
                 const lastMove = p.lastStockMovementDate ? new Date(p.lastStockMovementDate) : new Date(p.createdAt || '2026-08-01');
@@ -4685,141 +4741,630 @@ export const InventoryModule: React.FC<{
         />
       )}
 
-      {/* Inventory Duplicate Check Modal */}
+      {/* Enhanced Inventory Duplicate Check & Resolver Modal */}
       {isDuplicateModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white border-2 border-[#0A006E] rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 animate-fade-in">
+          <div className="bg-white border-2 border-[#0A006E] rounded-3xl max-w-4xl w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3 shrink-0">
               <div className="flex items-center gap-3">
-                <div className={`p-3 rounded-2xl ${duplicateFindings.totalDuplicates === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                  <AlertTriangle className="w-6 h-6" />
+                <div
+                  className={`p-2.5 rounded-2xl ${
+                    duplicateFindings.totalDuplicates === 0
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-amber-100 text-amber-800'
+                  }`}
+                >
+                  <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
                 <div>
-                  <h3 className="text-base font-montserrat font-black text-[#0A006E]">
-                    Inventory Duplicate Check Results
-                  </h3>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-base sm:text-lg font-montserrat font-black text-[#0A006E]">
+                      Enhanced Duplicate Audit &amp; Deduplication
+                    </h3>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-montserrat font-black bg-[#FFDE00] text-[#0A006E]">
+                      {duplicateFindings.totalDuplicates} Groups · {duplicateFindings.allUniqueDuplicateItemIds.length} Items
+                    </span>
+                  </div>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Scanned {products.length} master SKUs for duplicate SKUs, barcodes, and product names.
+                    Scanned {products.length} master SKUs for duplicates by SKU, Barcode, or Product Name.
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsDuplicateModalOpen(false)}
-                className="p-2 hover:bg-slate-100 rounded-xl text-slate-500 cursor-pointer"
+                className="p-2 hover:bg-slate-100 rounded-xl text-slate-500 cursor-pointer transition"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {duplicateFindings.totalDuplicates === 0 ? (
-              <div className="p-6 bg-emerald-50 border-2 border-emerald-300 rounded-2xl text-center space-y-2">
-                <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto" />
-                <h4 className="text-sm font-montserrat font-black text-emerald-950">
-                  Catalog is 100% Unique & Clean!
-                </h4>
-                <p className="text-xs text-emerald-800 max-w-md mx-auto">
-                  No duplicate SKUs, duplicate EAN-13 barcodes, or duplicate product names were detected across all {products.length} catalog items.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4 text-xs">
-                <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl text-amber-900 font-medium flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
-                  <span>Found {duplicateFindings.totalDuplicates} potential duplicate group(s) requiring review.</span>
+            {/* Modal Content Scroll Area */}
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+              {duplicateFindings.totalDuplicates === 0 ? (
+                <div className="p-8 bg-emerald-50 border-2 border-emerald-300 rounded-2xl text-center space-y-3 my-6">
+                  <CheckCircle2 className="w-14 h-14 text-emerald-600 mx-auto" />
+                  <h4 className="text-base font-montserrat font-black text-emerald-950">
+                    Catalog is 100% Unique &amp; Clean!
+                  </h4>
+                  <p className="text-xs text-emerald-800 max-w-md mx-auto">
+                    No duplicate Auto-SKUs, duplicate EAN-13 barcodes, or duplicate product names exist in the catalog. All {products.length} items are unique.
+                  </p>
                 </div>
+              ) : (
+                <>
+                  {/* Explanatory Help Card */}
+                  <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl text-amber-950 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-2.5">
+                      <Sparkles className="w-4 h-4 text-amber-700 shrink-0" />
+                      <div>
+                        <span className="font-montserrat font-black text-amber-900">
+                          Smart Deduplication Engine:
+                        </span>{' '}
+                        Automatically prioritizes the record with active bottle stock as{' '}
+                        <strong className="text-emerald-800">Primary / Keep</strong> and flags empty redundant duplicates for safe removal.
+                      </div>
+                    </div>
+                    {duplicateFindings.allRedundantItemIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleSelectAllRedundant}
+                        className="px-3 py-1.5 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] border border-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-xs transition shrink-0"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-[#0A006E]" />
+                        ⚡ Auto-Select All Redundant ({duplicateFindings.allRedundantItemIds.length})
+                      </button>
+                    )}
+                  </div>
 
-                {duplicateFindings.duplicateSkus.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="font-montserrat font-bold text-[#0A006E]">Duplicate SKUs ({duplicateFindings.duplicateSkus.length})</h4>
-                    <div className="space-y-2 max-h-40 overflow-y-auto">
-                      {duplicateFindings.duplicateSkus.map((group, idx) => (
-                        <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                          <div className="flex items-center justify-between">
-                            <div className="font-mono font-bold text-red-600">SKU: {group.sku}</div>
-                          </div>
-                          <div className="space-y-1">
-                            {group.items.map((item) => (
-                              <label key={item.id} className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-1 rounded">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedForDeletion.has(item.id)}
-                                  onChange={() => toggleItemSelection(item.id)}
-                                  className="rounded border-slate-300 text-rose-600 focus:ring-rose-500"
-                                />
-                                <span className="text-[11px] text-slate-700">{item.name}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
+                  {/* Tabs & Search Filter */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
+                    {/* Filter Tabs */}
+                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl overflow-x-auto">
+                      {(
+                        [
+                          { id: 'ALL', label: `All Groups (${duplicateFindings.totalDuplicates})` },
+                          { id: 'SKU', label: `SKUs (${duplicateFindings.duplicateSkus.length})` },
+                          { id: 'BARCODE', label: `Barcodes (${duplicateFindings.duplicateBarcodes.length})` },
+                          { id: 'NAME', label: `Names (${duplicateFindings.duplicateNames.length})` },
+                        ] as const
+                      ).map((tab) => (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setDuplicateTab(tab.id)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-montserrat font-bold whitespace-nowrap cursor-pointer transition ${
+                            duplicateTab === tab.id
+                              ? 'bg-[#0A006E] text-[#FFDE00] shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          {tab.label}
+                        </button>
                       ))}
                     </div>
-                  </div>
-                )}
 
-                {duplicateFindings.duplicateBarcodes.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="font-montserrat font-bold text-[#0A006E]">Duplicate Barcodes ({duplicateFindings.duplicateBarcodes.length})</h4>
-                    <div className="space-y-2 max-h-40 overflow-y-auto">
-                      {duplicateFindings.duplicateBarcodes.map((group, idx) => (
-                        <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                          <div className="flex items-center justify-between">
-                            <div className="font-mono font-bold text-red-600">Barcode: {group.barcode}</div>
-                          </div>
-                          <div className="space-y-1">
-                            {group.items.map((item) => (
-                              <label key={item.id} className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-1 rounded">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedForDeletion.has(item.id)}
-                                  onChange={() => toggleItemSelection(item.id)}
-                                  className="rounded border-slate-300 text-rose-600 focus:ring-rose-500"
-                                />
-                                <span className="text-[11px] text-slate-700">{item.name}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
+                    {/* Search inside duplicates */}
+                    <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={duplicateSearch}
+                        onChange={(e) => setDuplicateSearch(e.target.value)}
+                        placeholder="Search duplicate SKUs, names..."
+                        className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-montserrat focus:outline-hidden focus:border-[#0A006E]"
+                      />
                     </div>
                   </div>
-                )}
 
-                {duplicateFindings.duplicateNames.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="font-montserrat font-bold text-[#0A006E]">Duplicate Product Names ({duplicateFindings.duplicateNames.length})</h4>
-                    <div className="space-y-2 max-h-40 overflow-y-auto">
-                      {duplicateFindings.duplicateNames.map((group, idx) => (
-                        <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                          <div className="font-bold text-[#0A006E]">Name: {group.name}</div>
-                          <div className="text-[11px] text-slate-600">
-                            Shared by {group.items.length} items (SKUs: {group.items.map(i => i.sku).join(', ')}).
-                          </div>
-                        </div>
-                      ))}
+                  {/* Multi-Select Toolbar */}
+                  <div className="flex items-center justify-between gap-2 flex-wrap bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={handleSelectAllRedundant}
+                        className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-[#0A006E] rounded-lg font-montserrat font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition"
+                        title="Selects only redundant duplicate items while keeping 1 master record per group"
+                      >
+                        <CheckCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        Select Redundant Duplicates ({duplicateFindings.allRedundantItemIds.length})
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleSelectAllDuplicateItems}
+                        className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-800 rounded-lg font-montserrat font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition"
+                        title="Select all items in duplicate findings"
+                      >
+                        <CheckSquare className="w-3.5 h-3.5 text-[#0A006E]" />
+                        Select All ({duplicateFindings.allUniqueDuplicateItemIds.length})
+                      </button>
+
+                      {selectedForDeletion.size > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleDeselectAll}
+                          className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-600 rounded-lg font-montserrat font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition"
+                        >
+                          <Square className="w-3.5 h-3.5 text-slate-400" />
+                          Deselect All
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="text-[11px] font-montserrat font-black text-rose-700">
+                      {selectedForDeletion.size} item(s) marked for deletion
                     </div>
                   </div>
+
+                  {/* Duplicate Groups Render */}
+                  <div className="space-y-4">
+                    {/* 1. DUPLICATE SKUS */}
+                    {(duplicateTab === 'ALL' || duplicateTab === 'SKU') &&
+                      duplicateFindings.duplicateSkus
+                        .filter((g) => {
+                          if (!duplicateSearch.trim()) return true;
+                          const q = duplicateSearch.toLowerCase().trim();
+                          return (
+                            g.key.toLowerCase().includes(q) ||
+                            g.items.some(
+                              (it) =>
+                                it.name.toLowerCase().includes(q) ||
+                                (it.barcode && it.barcode.includes(q))
+                            )
+                          );
+                        })
+                        .map((group, gIdx) => (
+                          <div
+                            key={`sku-${gIdx}-${group.key}`}
+                            className="bg-white border-2 border-indigo-200 rounded-2xl overflow-hidden shadow-2xs"
+                          >
+                            <div className="p-3 bg-indigo-50/70 border-b border-indigo-100 flex items-center justify-between gap-3 flex-wrap">
+                              <div className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 bg-indigo-600 text-white rounded-md text-[10px] font-montserrat font-black uppercase tracking-wider">
+                                  Duplicate SKU
+                                </span>
+                                <span className="font-mono-tabular font-black text-sm text-indigo-950">
+                                  {group.key}
+                                </span>
+                                <span className="px-2 py-0.5 bg-white text-indigo-900 border border-indigo-200 rounded-full text-[10px] font-bold">
+                                  {group.items.length} items
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectGroupRedundant(group.items)}
+                                  className="px-2.5 py-1 bg-white hover:bg-indigo-100 border border-indigo-200 text-indigo-900 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
+                                >
+                                  <CheckCheck className="w-3 h-3 text-emerald-600" />
+                                  Select Duplicates ({group.items.length - 1})
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleGroupAll(group.items)}
+                                  className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold cursor-pointer transition"
+                                >
+                                  Toggle All ({group.items.length})
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="divide-y divide-slate-100 p-2 space-y-1">
+                              {group.items.map((item, idx) => {
+                                const isSelected = selectedForDeletion.has(item.id);
+                                const isMaster = idx === 0;
+                                const stockCount = item.totalBottles ?? 0;
+                                return (
+                                  <div
+                                    key={item.id}
+                                    className={`p-2.5 rounded-xl flex items-center justify-between gap-3 transition ${
+                                      isSelected
+                                        ? 'bg-rose-50/80 border border-rose-300'
+                                        : isMaster
+                                        ? 'bg-emerald-50/40 border border-emerald-200/60'
+                                        : 'hover:bg-slate-50 border border-transparent'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={() => toggleItemSelection(item.id)}
+                                        className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 accent-rose-600 cursor-pointer shrink-0"
+                                      />
+                                      <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
+                                        <ProductImage
+                                          product={{
+                                            ...item,
+                                            category: item.category === 'LPS' ? 'LPS' : 'IPS',
+                                          }}
+                                          size="xs"
+                                        />
+                                      </div>
+                                      <div className="min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="font-montserrat font-bold text-xs text-slate-900 truncate">
+                                            {item.name}
+                                          </span>
+                                          {isMaster ? (
+                                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-full font-montserrat font-black text-[9px] flex items-center gap-1 shrink-0">
+                                              <Check className="w-2.5 h-2.5 text-emerald-700 stroke-[3]" />
+                                              Primary / Keep ({stockCount} btls)
+                                            </span>
+                                          ) : (
+                                            <span className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-full font-montserrat font-black text-[9px] flex items-center gap-1 shrink-0">
+                                              <AlertTriangle className="w-2.5 h-2.5 text-amber-700" />
+                                              Duplicate Copy
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[11px] text-slate-500 flex-wrap mt-0.5">
+                                          <span>Class: {item.category} ({item.subCategory || 'General'})</span>
+                                          <span>·</span>
+                                          <span>Barcode: {item.barcode || 'None'}</span>
+                                          <span>·</span>
+                                          <span className="font-mono-tabular">
+                                            Stock:{' '}
+                                            <strong
+                                              className={
+                                                stockCount > 0 ? 'text-emerald-700' : 'text-slate-400'
+                                              }
+                                            >
+                                              {stockCount} btls
+                                            </strong>
+                                          </span>
+                                          <span>·</span>
+                                          <span className="font-mono-tabular">
+                                            Wholesale: {formatKes(item.wholesalePriceKes ?? item.baseWholesalePrice ?? 0)}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteSingleDuplicate(item.id, item.name)}
+                                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition"
+                                        title={`Delete ${item.name}`}
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+
+                    {/* 2. DUPLICATE BARCODES */}
+                    {(duplicateTab === 'ALL' || duplicateTab === 'BARCODE') &&
+                      duplicateFindings.duplicateBarcodes
+                        .filter((g) => {
+                          if (!duplicateSearch.trim()) return true;
+                          const q = duplicateSearch.toLowerCase().trim();
+                          return (
+                            g.key.toLowerCase().includes(q) ||
+                            g.items.some(
+                              (it) =>
+                                it.name.toLowerCase().includes(q) ||
+                                it.sku.toLowerCase().includes(q)
+                            )
+                          );
+                        })
+                        .map((group, gIdx) => (
+                          <div
+                            key={`barcode-${gIdx}-${group.key}`}
+                            className="bg-white border-2 border-cyan-200 rounded-2xl overflow-hidden shadow-2xs"
+                          >
+                            <div className="p-3 bg-cyan-50/70 border-b border-cyan-100 flex items-center justify-between gap-3 flex-wrap">
+                              <div className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 bg-cyan-700 text-white rounded-md text-[10px] font-montserrat font-black uppercase tracking-wider">
+                                  Duplicate Barcode
+                                </span>
+                                <span className="font-mono-tabular font-black text-sm text-cyan-950">
+                                  {group.key}
+                                </span>
+                                <span className="px-2 py-0.5 bg-white text-cyan-900 border border-cyan-200 rounded-full text-[10px] font-bold">
+                                  {group.items.length} items
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectGroupRedundant(group.items)}
+                                  className="px-2.5 py-1 bg-white hover:bg-cyan-100 border border-cyan-200 text-cyan-900 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
+                                >
+                                  <CheckCheck className="w-3 h-3 text-emerald-600" />
+                                  Select Duplicates ({group.items.length - 1})
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleGroupAll(group.items)}
+                                  className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold cursor-pointer transition"
+                                >
+                                  Toggle All ({group.items.length})
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="divide-y divide-slate-100 p-2 space-y-1">
+                              {group.items.map((item, idx) => {
+                                const isSelected = selectedForDeletion.has(item.id);
+                                const isMaster = idx === 0;
+                                const stockCount = item.totalBottles ?? 0;
+                                return (
+                                  <div
+                                    key={item.id}
+                                    className={`p-2.5 rounded-xl flex items-center justify-between gap-3 transition ${
+                                      isSelected
+                                        ? 'bg-rose-50/80 border border-rose-300'
+                                        : isMaster
+                                        ? 'bg-emerald-50/40 border border-emerald-200/60'
+                                        : 'hover:bg-slate-50 border border-transparent'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={() => toggleItemSelection(item.id)}
+                                        className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 accent-rose-600 cursor-pointer shrink-0"
+                                      />
+                                      <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
+                                        <ProductImage
+                                          product={{
+                                            ...item,
+                                            category: item.category === 'LPS' ? 'LPS' : 'IPS',
+                                          }}
+                                          size="xs"
+                                        />
+                                      </div>
+                                      <div className="min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="font-montserrat font-bold text-xs text-slate-900 truncate">
+                                            {item.name}
+                                          </span>
+                                          {isMaster ? (
+                                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-full font-montserrat font-black text-[9px] flex items-center gap-1 shrink-0">
+                                              <Check className="w-2.5 h-2.5 text-emerald-700 stroke-[3]" />
+                                              Primary / Keep ({stockCount} btls)
+                                            </span>
+                                          ) : (
+                                            <span className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-full font-montserrat font-black text-[9px] flex items-center gap-1 shrink-0">
+                                              <AlertTriangle className="w-2.5 h-2.5 text-amber-700" />
+                                              Duplicate Copy
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[11px] text-slate-500 flex-wrap mt-0.5">
+                                          <span className="font-mono-tabular">SKU: {item.sku}</span>
+                                          <span>·</span>
+                                          <span className="font-mono-tabular">
+                                            Stock:{' '}
+                                            <strong
+                                              className={
+                                                stockCount > 0 ? 'text-emerald-700' : 'text-slate-400'
+                                              }
+                                            >
+                                              {stockCount} btls
+                                            </strong>
+                                          </span>
+                                          <span>·</span>
+                                          <span className="font-mono-tabular">
+                                            Wholesale: {formatKes(item.wholesalePriceKes ?? item.baseWholesalePrice ?? 0)}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteSingleDuplicate(item.id, item.name)}
+                                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition"
+                                        title={`Delete ${item.name}`}
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+
+                    {/* 3. DUPLICATE PRODUCT NAMES */}
+                    {(duplicateTab === 'ALL' || duplicateTab === 'NAME') &&
+                      duplicateFindings.duplicateNames
+                        .filter((g) => {
+                          if (!duplicateSearch.trim()) return true;
+                          const q = duplicateSearch.toLowerCase().trim();
+                          return (
+                            g.key.toLowerCase().includes(q) ||
+                            g.items.some(
+                              (it) =>
+                                it.sku.toLowerCase().includes(q) ||
+                                (it.barcode && it.barcode.includes(q))
+                            )
+                          );
+                        })
+                        .map((group, gIdx) => (
+                          <div
+                            key={`name-${gIdx}-${group.key}`}
+                            className="bg-white border-2 border-amber-200 rounded-2xl overflow-hidden shadow-2xs"
+                          >
+                            <div className="p-3 bg-amber-50/70 border-b border-amber-100 flex items-center justify-between gap-3 flex-wrap">
+                              <div className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 bg-amber-600 text-white rounded-md text-[10px] font-montserrat font-black uppercase tracking-wider">
+                                  Duplicate Name
+                                </span>
+                                <span className="font-montserrat font-black text-sm text-amber-950 capitalize">
+                                  {group.key}
+                                </span>
+                                <span className="px-2 py-0.5 bg-white text-amber-900 border border-amber-200 rounded-full text-[10px] font-bold">
+                                  {group.items.length} items
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectGroupRedundant(group.items)}
+                                  className="px-2.5 py-1 bg-white hover:bg-amber-100 border border-amber-200 text-amber-900 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
+                                >
+                                  <CheckCheck className="w-3 h-3 text-emerald-600" />
+                                  Select Duplicates ({group.items.length - 1})
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleGroupAll(group.items)}
+                                  className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold cursor-pointer transition"
+                                >
+                                  Toggle All ({group.items.length})
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="divide-y divide-slate-100 p-2 space-y-1">
+                              {group.items.map((item, idx) => {
+                                const isSelected = selectedForDeletion.has(item.id);
+                                const isMaster = idx === 0;
+                                const stockCount = item.totalBottles ?? 0;
+                                return (
+                                  <div
+                                    key={item.id}
+                                    className={`p-2.5 rounded-xl flex items-center justify-between gap-3 transition ${
+                                      isSelected
+                                        ? 'bg-rose-50/80 border border-rose-300'
+                                        : isMaster
+                                        ? 'bg-emerald-50/40 border border-emerald-200/60'
+                                        : 'hover:bg-slate-50 border border-transparent'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={() => toggleItemSelection(item.id)}
+                                        className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 accent-rose-600 cursor-pointer shrink-0"
+                                      />
+                                      <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
+                                        <ProductImage
+                                          product={{
+                                            ...item,
+                                            category: item.category === 'LPS' ? 'LPS' : 'IPS',
+                                          }}
+                                          size="xs"
+                                        />
+                                      </div>
+                                      <div className="min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="font-montserrat font-bold text-xs text-slate-900 truncate">
+                                            {item.name}
+                                          </span>
+                                          {isMaster ? (
+                                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-full font-montserrat font-black text-[9px] flex items-center gap-1 shrink-0">
+                                              <Check className="w-2.5 h-2.5 text-emerald-700 stroke-[3]" />
+                                              Primary / Keep ({stockCount} btls)
+                                            </span>
+                                          ) : (
+                                            <span className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-full font-montserrat font-black text-[9px] flex items-center gap-1 shrink-0">
+                                              <AlertTriangle className="w-2.5 h-2.5 text-amber-700" />
+                                              Duplicate Copy
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[11px] text-slate-500 flex-wrap mt-0.5">
+                                          <span className="font-mono-tabular">SKU: {item.sku}</span>
+                                          <span>·</span>
+                                          <span>Barcode: {item.barcode || 'None'}</span>
+                                          <span>·</span>
+                                          <span className="font-mono-tabular">
+                                            Stock:{' '}
+                                            <strong
+                                              className={
+                                                stockCount > 0 ? 'text-emerald-700' : 'text-slate-400'
+                                              }
+                                            >
+                                              {stockCount} btls
+                                            </strong>
+                                          </span>
+                                          <span>·</span>
+                                          <span className="font-mono-tabular">
+                                            Wholesale: {formatKes(item.wholesalePriceKes ?? item.baseWholesalePrice ?? 0)}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteSingleDuplicate(item.id, item.name)}
+                                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition"
+                                        title={`Delete ${item.name}`}
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Modal Sticky Footer Bar */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-200 gap-3 shrink-0 flex-wrap">
+              <div className="text-xs font-montserrat font-medium text-slate-600">
+                {selectedForDeletion.size > 0 ? (
+                  <span className="text-rose-700 font-bold">
+                    ⚠️ {selectedForDeletion.size} of {duplicateFindings.allUniqueDuplicateItemIds.length} item(s) selected for deletion
+                  </span>
+                ) : (
+                  <span>Select items above or use "Auto-Select All Redundant"</span>
                 )}
               </div>
-            )}
 
-            <div className="flex justify-end pt-3 border-t border-slate-200 gap-3">
-              {selectedForDeletion.size > 0 && (
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={handleClearSelectedDuplicates}
-                  className="px-5 py-2.5 bg-rose-600 text-white rounded-xl font-montserrat font-black text-xs cursor-pointer shadow-md hover:bg-rose-700"
+                  onClick={() => setIsDuplicateModalOpen(false)}
+                  disabled={isDeletingDuplicates}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-montserrat font-bold text-xs cursor-pointer transition disabled:opacity-50"
                 >
-                  Delete {selectedForDeletion.size} Selected
+                  Close
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setIsDuplicateModalOpen(false)}
-                className="px-5 py-2.5 bg-[#0A006E] text-[#FFDE00] rounded-xl font-montserrat font-black text-xs cursor-pointer shadow-md"
-              >
-                Close Results
-              </button>
+
+                {selectedForDeletion.size > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearSelectedDuplicates}
+                    disabled={isDeletingDuplicates}
+                    className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-montserrat font-black text-xs cursor-pointer shadow-md transition flex items-center gap-2 disabled:opacity-60"
+                  >
+                    {isDeletingDuplicates ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        Deleting {deleteProgress?.current || 0} of {deleteProgress?.total || selectedForDeletion.size}...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-4 h-4 text-white" />
+                        Delete {selectedForDeletion.size} Selected Duplicate{selectedForDeletion.size > 1 ? 's' : ''}
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
