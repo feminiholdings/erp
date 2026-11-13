@@ -1171,141 +1171,660 @@ export function exportReportToPDF(
   doc.save(`${filename}.pdf`);
 }
 
+export interface NormalizedDocumentLineItem {
+  sku: string;
+  name: string;
+  unitMode: 'bottle' | 'case';
+  bottlesPerCase: number;
+  quantityUnits: number;
+  totalBottles: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
+export function normalizeDocumentLineItems(itemsSummary: string): NormalizedDocumentLineItem[] {
+  let rawItems: Record<string, unknown>[] = [];
+  try {
+    const parsed = JSON.parse(itemsSummary);
+    if (Array.isArray(parsed)) rawItems = parsed;
+  } catch {
+    rawItems = [];
+  }
+
+  return rawItems.map((raw) => {
+    const sku = String(raw.sku || raw.productSku || '—');
+    const name = String(raw.name || raw.productName || raw.description || 'Line Item');
+    const unitMode: 'bottle' | 'case' = raw.unitMode === 'case' ? 'case' : 'bottle';
+    const bottlesPerCase = Number(raw.bottlesPerCase || raw.packSize || 0);
+    const quantityUnits = Number(raw.quantityUnits ?? raw.quantity ?? raw.qty ?? 0);
+    const computedBottles =
+      unitMode === 'case' && bottlesPerCase > 0 ? quantityUnits * bottlesPerCase : quantityUnits;
+    const totalBottles = Number(raw.totalBottles ?? raw.bottles ?? computedBottles);
+    const unitPrice = Number(raw.unitPrice ?? raw.price ?? 0);
+    const lineTotal = Number(raw.lineTotal ?? raw.total ?? quantityUnits * unitPrice);
+
+    return {
+      sku,
+      name,
+      unitMode,
+      bottlesPerCase,
+      quantityUnits,
+      totalBottles,
+      unitPrice,
+      lineTotal,
+    };
+  });
+}
+
+function createVaairoWatermarkDataUrl(): string | null {
+  if (typeof document === 'undefined') return null;
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 460;
+    canvas.height = 190;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    ctx.save();
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate((12 * Math.PI) / 180);
+    ctx.globalAlpha = 0.11;
+
+    // Rounded outer border matching preview watermark stamp
+    const w = 360;
+    const h = 112;
+    const x = -w / 2;
+    const y = -h / 2;
+    const r = 22;
+
+    ctx.strokeStyle = '#0A006E';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+    ctx.stroke();
+
+    // Ribbon Award Emblem on left
+    ctx.strokeStyle = '#0A006E';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(x + 62, y + 46, 22, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + 48, y + 64);
+    ctx.lineTo(x + 44, y + 92);
+    ctx.lineTo(x + 62, y + 81);
+    ctx.lineTo(x + 80, y + 92);
+    ctx.lineTo(x + 76, y + 64);
+    ctx.stroke();
+
+    // Right-aligned stamp text
+    ctx.fillStyle = '#0A006E';
+    ctx.font = '900 24px Helvetica, Arial, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('VAAIRO BONDED', x + w - 26, y + 50);
+    ctx.fillStyle = '#334155';
+    ctx.font = '700 18px Helvetica, Arial, sans-serif';
+    ctx.fillText('VERIFIED & AUDITED', x + w - 26, y + 78);
+
+    ctx.restore();
+    return canvas.toDataURL('image/png');
+  } catch {
+    return null;
+  }
+}
+
+function drawShieldBadge(doc: jsPDF, cx: number, cy: number, size: number, rgb: [number, number, number]): void {
+  doc.setDrawColor(rgb[0], rgb[1], rgb[2]);
+  doc.setLineWidth(0.9);
+  const halfW = size * 0.44;
+  const topY = cy - size * 0.5;
+  const midY = cy + size * 0.05;
+  const botY = cy + size * 0.5;
+  doc.lines(
+    [
+      [halfW, size * 0.16],
+      [0, midY - (topY + size * 0.16)],
+      [-halfW, botY - midY],
+      [-halfW, midY - botY],
+      [0, topY + size * 0.16 - midY],
+    ],
+    cx,
+    topY,
+    [1, 1],
+    'S',
+    true
+  );
+  // Check tick inside shield
+  doc.lines(
+    [
+      [size * 0.14, size * 0.14],
+      [size * 0.24, -size * 0.28],
+    ],
+    cx - size * 0.18,
+    cy - size * 0.02,
+    [1, 1],
+    'S'
+  );
+}
+
 // Export specific Commercial Document (Receipt, Invoice, Quote, Packing List, Delivery Note, Credit Note) to PDF
+// Matching the exact white-letterhead DocumentPrintModal preview layout 1:1
 export function exportCommercialDocumentPDF(tx: TransactionDoc): void {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
-
-  // Header
-  doc.setFillColor(10, 0, 110);
-  doc.rect(0, 0, pageWidth, 88, 'F');
-  doc.setFillColor(255, 222, 0);
-  doc.rect(0, 88, pageWidth, 5, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(18);
-  doc.setFont('helvetica', 'bold');
-  doc.text('VAAIRO LIQUOR DISTRIBUTION & IMPORTERS ERP', 40, 38);
-
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  const facilityLabel = tx.supplierFacilityType ? ` [${tx.supplierFacilityType.toUpperCase()}]` : '';
-  doc.text(`Issuing Facility: ${tx.branchName}${facilityLabel} (${tx.regionName})`, 40, 56);
-  doc.text(`Channel: ${tx.channel} · Issued By: ${tx.createdBy} (${tx.createdByRole})`, 40, 72);
-
-  // Document Type Title
-  doc.setTextColor(10, 0, 110);
-  doc.setFontSize(20);
-  doc.setFont('helvetica', 'bold');
-  const titleSuffix = tx.orderCategory === 'WAREHOUSE_PURCHASE' ? ' (WAREHOUSE PURCHASE)' : '';
-  doc.text(`${tx.docType.toUpperCase()}${titleSuffix}`, 40, 125);
-
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(51, 65, 85);
-  doc.text(`Document No: ${tx.docNumber}`, 40, 145);
-  doc.text(`Date & Time: ${new Date(tx.createdAt).toLocaleString()}`, 40, 160);
-  doc.text(`Status: ${tx.status}${tx.validUntil ? ` · Valid Until: ${tx.validUntil}` : ''}`, 40, 175);
-
-  doc.text(`${tx.buyerBranchName ? 'Purchasing Branch' : 'Customer / Consignee'}: ${tx.customerName}`, 310, 145);
-  doc.text(`License / KRA PIN: ${tx.customerKraPin || tx.customerLicenseNo || 'Commercial Verified 21+'}`, 310, 160);
-  doc.text(`Payment / Terms: ${tx.paymentMethod}`, 310, 175);
-
-  if (tx.linkedTransferNo) {
-    doc.setTextColor(10, 0, 110);
-    doc.text(`Linked Transfer / Purchase Batch: ${tx.linkedTransferNo}`, 40, 191);
-  } else if (tx.relatedInvoiceNo) {
-    doc.setTextColor(180, 83, 9);
-    doc.text(`Ref Document: ${tx.relatedInvoiceNo}${tx.creditReason ? ` | Reason: ${tx.creditReason}` : ''}`, 40, 191);
-  } else if (tx.notes) {
-    doc.setTextColor(71, 85, 105);
-    doc.text(`Notes: ${tx.notes.slice(0, 90)}`, 40, 191);
-  }
-
-  let items: LineItem[] = [];
-  try {
-    items = JSON.parse(tx.itemsSummary);
-  } catch {
-    items = [];
-  }
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const marginX = 34;
+  const contentWidth = pageWidth - marginX * 2;
 
   const isLogisticsOnly = tx.docType === 'Packing List' || tx.docType === 'Delivery Note';
+  const items = normalizeDocumentLineItems(tx.itemsSummary);
+
+  // Subtle Watermark Stamp placed cleanly behind header/top-right
+  const watermarkPng = createVaairoWatermarkDataUrl();
+  if (watermarkPng) {
+    doc.addImage(watermarkPng, 'PNG', pageWidth - marginX - 220, 74, 198, 82);
+  }
+
+  // ---- 1. LETTERHEAD (Matches DocumentPrintModal white letterhead) ----
+  let leftY = 44;
+  const leftMaxWidth = 310;
+
+  // Emerald status dot + VAAIRO BEVERAGES & MERCHANTS LTD
+  doc.setFillColor(52, 209, 134); // #34D186
+  doc.circle(marginX + 3.5, leftY - 3, 3.2, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(10, 0, 110); // #0A006E
+  const merchantLabel = 'VAAIRO BEVERAGES & MERCHANTS LTD';
+  doc.text(merchantLabel, marginX + 12, leftY);
+
+  let badgeX = marginX + 12 + doc.getTextWidth(merchantLabel) + 6;
+  if (tx.supplierFacilityType) {
+    const fText = tx.supplierFacilityType.replace('_', ' ').toUpperCase();
+    doc.setFontSize(6.5);
+    const bw = doc.getTextWidth(fText) + 10;
+    doc.setFillColor(219, 234, 254); // blue-100
+    doc.roundedRect(badgeX, leftY - 8.5, bw, 11, 2.5, 2.5, 'F');
+    doc.setTextColor(30, 58, 138); // blue-900
+    doc.text(fText, badgeX + 5, leftY - 1);
+    badgeX += bw + 4;
+  }
+  if (tx.orderCategory === 'WAREHOUSE_PURCHASE') {
+    const wpText = 'WAREHOUSE -> BRANCH PURCHASE';
+    doc.setFontSize(6.5);
+    const bw = doc.getTextWidth(wpText) + 10;
+    if (badgeX + bw < marginX + leftMaxWidth) {
+      doc.setFillColor(255, 222, 0); // #FFDE00
+      doc.roundedRect(badgeX, leftY - 8.5, bw, 11, 2.5, 2.5, 'F');
+      doc.setTextColor(10, 0, 110);
+      doc.text(wpText, badgeX + 5, leftY - 1);
+    }
+  }
+
+  // Document Type Title (Bold Italic #0A006E)
+  leftY += 23;
+  doc.setFont('helvetica', 'bolditalic');
+  doc.setFontSize(22);
+  doc.setTextColor(10, 0, 110);
+  doc.text(tx.docType.toUpperCase(), marginX, leftY);
+
+  // Issuing Facility Line
+  leftY += 15;
+  doc.setFontSize(8.5);
+  const facilityLine = `Issuing Facility: ${tx.branchName} (${tx.regionName})`;
+  const facilityLines = doc.splitTextToSize(facilityLine, leftMaxWidth) as string[];
+  facilityLines.forEach((line, idx) => {
+    if (idx === 0 && line.startsWith('Issuing Facility: ')) {
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(71, 85, 105);
+      doc.text('Issuing Facility: ', marginX, leftY);
+      const prefixW = doc.getTextWidth('Issuing Facility: ');
+      const rest = line.slice('Issuing Facility: '.length);
+      const branchPart = tx.branchName;
+      if (rest.startsWith(branchPart)) {
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(15, 23, 42);
+        doc.text(branchPart, marginX + prefixW, leftY);
+        const branchW = doc.getTextWidth(branchPart);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(71, 85, 105);
+        doc.text(rest.slice(branchPart.length), marginX + prefixW + branchW, leftY);
+      } else {
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(15, 23, 42);
+        doc.text(rest, marginX + prefixW, leftY);
+      }
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(71, 85, 105);
+      doc.text(line, marginX, leftY);
+    }
+    leftY += 11;
+  });
+
+  // Channel & Issued By Line
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  const channelText = `Channel: ${tx.channel} · Issued By: ${tx.createdBy} (${tx.createdByRole})`;
+  const channelLines = doc.splitTextToSize(channelText, leftMaxWidth) as string[];
+  channelLines.forEach((line) => {
+    doc.text(line, marginX, leftY);
+    leftY += 10.5;
+  });
+
+  // Right Metadata Box (#F8FAFC card with #E2E8F0 border)
+  const metaBoxW = 196;
+  const metaBoxX = pageWidth - marginX - metaBoxW;
+  const metaBoxY = 34;
+  const issuedStr = `Issued: ${new Date(tx.createdAt).toLocaleString()}`;
+  const statusStr = `Status: ${tx.status} · ${tx.paymentMethod}`;
+  const statusLines = doc.splitTextToSize(statusStr, metaBoxW - 34) as string[];
+  const metaBoxH =
+    18 + // top pad + docNumber
+    14 + // issued
+    (tx.validUntil ? 12 : 0) +
+    statusLines.length * 10.5 +
+    12; // bottom pad
+
+  doc.setFillColor(248, 250, 252); // bg-slate-50
+  doc.setDrawColor(226, 232, 240); // border-slate-200
+  doc.setLineWidth(0.9);
+  doc.roundedRect(metaBoxX, metaBoxY, metaBoxW, metaBoxH, 7, 7, 'FD');
+
+  const metaRightX = metaBoxX + metaBoxW - 11;
+  let metaCursorY = metaBoxY + 18;
+  doc.setFont('courier', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(10, 0, 110);
+  doc.text(tx.docNumber, metaRightX, metaCursorY, { align: 'right' });
+
+  metaCursorY += 13;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.8);
+  doc.setTextColor(71, 85, 105);
+  doc.text(issuedStr, metaRightX, metaCursorY, { align: 'right' });
+
+  if (tx.validUntil) {
+    metaCursorY += 11.5;
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(146, 64, 14);
+    doc.text(`Valid Until: ${tx.validUntil}`, metaRightX, metaCursorY, { align: 'right' });
+  }
+
+  metaCursorY += 12.5;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.8);
+  doc.setTextColor(4, 120, 87); // emerald-700
+  const firstStatusWidth = doc.getTextWidth(statusLines[0] || '');
+  drawShieldBadge(doc, metaRightX - firstStatusWidth - 8, metaCursorY - 2.5, 7.5, [4, 120, 87]);
+  statusLines.forEach((line) => {
+    doc.text(line, metaRightX, metaCursorY, { align: 'right' });
+    metaCursorY += 10.5;
+  });
+
+  // Letterhead bottom divider border
+  const headerBottomY = Math.max(leftY + 6, metaBoxY + metaBoxH + 14);
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(1.4);
+  doc.line(marginX, headerBottomY, pageWidth - marginX, headerBottomY);
+
+  // ---- 2. CONSIGNEE & REGULATORY INFO CARD (#F8FAFC rounded card) ----
+  const infoBoxY = headerBottomY + 14;
+  const colPad = 14;
+  const colGap = 18;
+  const colW = (contentWidth - colPad * 2 - colGap) / 2;
+  const leftColX = marginX + colPad;
+  const rightColX = leftColX + colW + colGap;
+
+  // Measure left column content height
+  const customerHeading = tx.buyerBranchName ? 'PURCHASING / RECEIVING BRANCH' : 'CONSIGNEE / CUSTOMER DETAILS';
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  const custNameLines = doc.splitTextToSize(tx.customerName || 'Walk-In Customer', colW) as string[];
+  const kraValue = tx.customerKraPin || tx.customerLicenseNo || 'Commercial Verified 21+';
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  const kraLines = doc.splitTextToSize(`License / KRA PIN: ${kraValue}`, colW) as string[];
+
+  const extraLeftLines: string[] = [];
+  if (tx.customerPhone) extraLeftLines.push(...(doc.splitTextToSize(`Tel: ${tx.customerPhone}`, colW) as string[]));
+  if (tx.customerEmail) extraLeftLines.push(...(doc.splitTextToSize(`Email: ${tx.customerEmail}`, colW) as string[]));
+  if (tx.deliveryAddress) extraLeftLines.push(...(doc.splitTextToSize(`Delivery Address: ${tx.deliveryAddress}`, colW) as string[]));
+
+  const leftColHeight =
+    12 +
+    custNameLines.length * 12 +
+    4 +
+    kraLines.length * 10.5 +
+    (extraLeftLines.length > 0 ? 4 + extraLeftLines.length * 10 : 0);
+
+  // Measure right column content height
+  const regCopy =
+    'All IPS/LPS spirits & alcoholic beverages carry verified KRA Digital Excise & Import Duty Stamps. Bonded under Kenya Revenue Authority rules.';
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  const regLines = doc.splitTextToSize(regCopy, colW) as string[];
+  const linkedLines = tx.linkedTransferNo
+    ? (doc.splitTextToSize(`Linked Purchase / Transfer Batch: ${tx.linkedTransferNo}`, colW) as string[])
+    : [];
+  const refLines = tx.relatedInvoiceNo
+    ? (doc.splitTextToSize(
+        `Ref Document: ${tx.relatedInvoiceNo}${tx.creditReason ? ` · Reason: ${tx.creditReason}` : ''}`,
+        colW
+      ) as string[])
+    : [];
+  const noteLines = tx.notes ? (doc.splitTextToSize(`Notes: ${tx.notes}`, colW) as string[]) : [];
+
+  const rightColHeight =
+    12 +
+    regLines.length * 11 +
+    (linkedLines.length ? 4 + linkedLines.length * 10.5 : 0) +
+    (refLines.length ? 4 + refLines.length * 10.5 : 0) +
+    (noteLines.length ? 4 + noteLines.length * 10.5 : 0);
+
+  const infoBoxH = Math.max(leftColHeight, rightColHeight) + 24;
+
+  doc.setFillColor(248, 250, 252); // #F8FAFC
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.9);
+  doc.roundedRect(marginX, infoBoxY, contentWidth, infoBoxH, 7, 7, 'FD');
+
+  // Draw left column text
+  let ly = infoBoxY + 17;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.2);
+  doc.setTextColor(10, 0, 110);
+  doc.text(customerHeading, leftColX, ly);
+
+  ly += 13;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(15, 23, 42);
+  custNameLines.forEach((l) => {
+    doc.text(l, leftColX, ly);
+    ly += 12;
+  });
+
+  ly += 2;
+  doc.setFontSize(8);
+  kraLines.forEach((l, idx) => {
+    if (idx === 0 && l.startsWith('License / KRA PIN: ')) {
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(71, 85, 105);
+      doc.text('License / KRA PIN: ', leftColX, ly);
+      const pw = doc.getTextWidth('License / KRA PIN: ');
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text(l.slice('License / KRA PIN: '.length), leftColX + pw, ly);
+    } else {
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text(l, leftColX, ly);
+    }
+    ly += 10.5;
+  });
+
+  if (extraLeftLines.length > 0) {
+    ly += 2;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(71, 85, 105);
+    extraLeftLines.forEach((l) => {
+      doc.text(l, leftColX, ly);
+      ly += 10;
+    });
+  }
+
+  // Draw right column text
+  let ry = infoBoxY + 17;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.2);
+  doc.setTextColor(30, 158, 96); // #1E9E60
+  doc.text('REGULATORY, EXCISE & TRACEABILITY METADATA', rightColX, ry);
+
+  ry += 13;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(51, 65, 85);
+  regLines.forEach((l) => {
+    doc.text(l, rightColX, ry);
+    ry += 11;
+  });
+
+  if (linkedLines.length > 0) {
+    ry += 2;
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(10, 0, 110);
+    linkedLines.forEach((l) => {
+      doc.text(l, rightColX, ry);
+      ry += 10.5;
+    });
+  }
+  if (refLines.length > 0) {
+    ry += 2;
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(146, 64, 14);
+    refLines.forEach((l) => {
+      doc.text(l, rightColX, ry);
+      ry += 10.5;
+    });
+  }
+  if (noteLines.length > 0) {
+    ry += 2;
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(71, 85, 105);
+    noteLines.forEach((l) => {
+      doc.text(l, rightColX, ry);
+      ry += 10.5;
+    });
+  }
+
+  // ---- 3. LINE ITEMS TABLE (Matches #0A006E Header + #FFDE00 Gold Text) ----
+  const tableStartY = infoBoxY + infoBoxH + 16;
 
   const tableHeaders = isLogisticsOnly
-    ? ['SKU', 'Product Description', 'Pack Mode', 'Qty Units', 'Total Bottles', 'Verification']
-    : ['SKU', 'Product Description', 'Mode', 'Qty', 'Total Btls', 'Unit Price (KES)', 'Line Total (KES)'];
+    ? ['SKU', 'Product Description', 'Pack Mode', 'Qty', 'Total Btls', 'Excise Stamp Verification']
+    : ['SKU', 'Product Description', 'Pack Mode', 'Qty', 'Total Btls', 'Unit Price (KES)', 'Line Total (KES)'];
 
-  const tableRows = items.map((item) =>
-    isLogisticsOnly
+  const tableRows = items.map((item) => {
+    const packLabel =
+      item.bottlesPerCase > 0 ? `${item.unitMode} (${item.bottlesPerCase}/cs)` : item.unitMode;
+    return isLogisticsOnly
       ? [
           item.sku,
           item.name,
-          `${item.unitMode} (${item.bottlesPerCase}/cs)`,
+          packLabel,
           String(item.quantityUnits),
           String(item.totalBottles),
-          'SEALED / EXCISE OK',
+          'VERIFIED SEALED',
         ]
       : [
           item.sku,
           item.name,
-          item.unitMode,
+          packLabel,
           String(item.quantityUnits),
           String(item.totalBottles),
-          Math.round(item.unitPrice).toLocaleString(),
-          Math.round(item.lineTotal).toLocaleString(),
-        ]
-  );
-
-  autoTable(doc, {
-    startY: 208,
-    head: [tableHeaders],
-    body: tableRows,
-    theme: 'grid',
-    headStyles: {
-      fillColor: [10, 0, 110],
-      textColor: [255, 222, 0],
-      fontSize: 9,
-      fontStyle: 'bold',
-    },
-    bodyStyles: {
-      fontSize: 9,
-      textColor: [15, 23, 42],
-    },
-    alternateRowStyles: {
-      fillColor: [240, 242, 240],
-    },
-    margin: { left: 40, right: 40 },
+          formatKes(item.unitPrice),
+          formatKes(item.lineTotal),
+        ];
   });
 
-  const finalY = (doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY || 360;
+  autoTable(doc, {
+    startY: tableStartY,
+    head: [tableHeaders],
+    body: tableRows,
+    theme: 'plain',
+    styles: {
+      fontSize: 8.3,
+      cellPadding: { top: 8, right: 8, bottom: 8, left: 8 },
+      textColor: [15, 23, 42],
+      lineColor: [226, 232, 240],
+      lineWidth: 0.5,
+      valign: 'middle',
+    },
+    headStyles: {
+      fillColor: [10, 0, 110], // #0A006E
+      textColor: [255, 222, 0], // #FFDE00
+      fontSize: 8.3,
+      fontStyle: 'bold',
+      cellPadding: { top: 9, right: 8, bottom: 9, left: 8 },
+    },
+    bodyStyles: {
+      fillColor: [255, 255, 255],
+    },
+    columnStyles: isLogisticsOnly
+      ? {
+          0: { fontStyle: 'bold', textColor: [10, 0, 110], cellWidth: 68 },
+          1: { fontStyle: 'bold', textColor: [15, 23, 42] },
+          2: { textColor: [71, 85, 105], cellWidth: 74 },
+          3: { halign: 'right', fontStyle: 'bold', cellWidth: 42 },
+          4: { halign: 'right', fontStyle: 'bold', textColor: [30, 158, 96], cellWidth: 56 },
+          5: { halign: 'right', fontStyle: 'bold', textColor: [30, 158, 96], cellWidth: 120 },
+        }
+      : {
+          0: { fontStyle: 'bold', textColor: [10, 0, 110], cellWidth: 62 },
+          1: { fontStyle: 'bold', textColor: [15, 23, 42] },
+          2: { textColor: [71, 85, 105], cellWidth: 66 },
+          3: { halign: 'right', fontStyle: 'bold', cellWidth: 36 },
+          4: { halign: 'right', fontStyle: 'bold', textColor: [30, 158, 96], cellWidth: 52 },
+          5: { halign: 'right', textColor: [51, 65, 85], cellWidth: 78 },
+          6: { halign: 'right', fontStyle: 'bold', textColor: [10, 0, 110], cellWidth: 82 },
+        },
+    didParseCell: (data) => {
+      if (data.section === 'head' && data.column.index >= 3) {
+        data.cell.styles.halign = 'right';
+      }
+    },
+    didDrawCell: (data) => {
+      // Draw crisp green checkmark next to "VERIFIED SEALED"
+      if (isLogisticsOnly && data.section === 'body' && data.column.index === 5) {
+        const text = String(data.cell.raw || '');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.3);
+        const textW = doc.getTextWidth(text);
+        const tickX = data.cell.x + data.cell.width - 8 - textW - 10;
+        const tickY = data.cell.y + data.cell.height / 2;
+        doc.setDrawColor(30, 158, 96);
+        doc.setLineWidth(1.2);
+        doc.lines(
+          [
+            [2.4, 2.4],
+            [4.5, -5.2],
+          ],
+          tickX,
+          tickY,
+          [1, 1],
+          'S'
+        );
+      }
+    },
+    margin: { left: marginX, right: marginX },
+  });
 
-  if (!isLogisticsOnly) {
-    doc.setFontSize(10);
-    doc.setTextColor(15, 23, 42);
-    doc.text(`Subtotal: KES ${Math.round(tx.subtotal).toLocaleString()}`, pageWidth - 200, finalY + 28);
-    doc.text(`Excise & Regional Tax: KES ${Math.round(tx.exciseAndTax).toLocaleString()}`, pageWidth - 200, finalY + 44);
-    doc.setFontSize(13);
-    doc.setFont('helvetica', 'bold');
-    doc.text(
-      `${tx.docType === 'Credit Note' ? 'Total Credit Issued' : 'Grand Total'}: KES ${Math.round(tx.totalAmount).toLocaleString()}`,
-      pageWidth - 200,
-      finalY + 64
-    );
-  } else {
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(15, 23, 42);
-    doc.text('Dispatched Under Excise Bond · Receiver Signature: ___________________________', 40, finalY + 40);
+  let finalY = (doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY || tableStartY + 80;
+
+  // Ensure footer section fits cleanly on current page
+  if (finalY + 115 > pageHeight - 36) {
+    doc.addPage();
+    finalY = 40;
   }
 
-  doc.setFontSize(8.5);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(100, 116, 139);
-  doc.text(
-    'Regulatory Notice: Alcohol sale strictly prohibited to persons under 21. Excise stamps verified at dispatch.',
-    40,
-    finalY + 95
-  );
+  // ---- 4. BOTTOM SIGN-OFF OR FINANCIAL TOTALS CARD ----
+  if (isLogisticsOnly) {
+    const signTopY = finalY + 18;
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(1);
+    doc.line(marginX, signTopY, pageWidth - marginX, signTopY);
+
+    const signCol1X = marginX;
+    const signCol2X = marginX + contentWidth / 2 + 12;
+    const labelY = signTopY + 20;
+    const lineY = labelY + 26;
+    const subY = lineY + 12;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.8);
+    doc.setTextColor(15, 23, 42);
+    doc.text(`${tx.branchName} Dispatch Officer`, signCol1X, labelY);
+    doc.text('Logistics Driver / Consignee Receiver', signCol2X, labelY);
+
+    doc.setDrawColor(148, 163, 184);
+    doc.setLineWidth(1.4);
+    doc.line(signCol1X, lineY, signCol1X + 180, lineY);
+    doc.line(signCol2X, lineY, signCol2X + 180, lineY);
+
+    doc.setFont('courier', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Signature & Excise Seal Check', signCol1X, subY);
+    doc.text('Received in Good Bonded Condition', signCol2X, subY);
+  } else {
+    const footerY = finalY + 18;
+
+    // Left Compliance Box (bg-slate-50 rounded card)
+    const noticeW = 266;
+    const noticeText = `Prices reflect regional geo-location tariff rules (${tx.regionName}). Sale of alcohol to persons under 21 is strictly prohibited by Kenyan law.`;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    const noticeLines = doc.splitTextToSize(noticeText, noticeW - 36) as string[];
+    const noticeH = Math.max(54, 20 + noticeLines.length * 10.5);
+
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.9);
+    doc.roundedRect(marginX, footerY + 14, noticeW, noticeH, 7, 7, 'FD');
+
+    drawShieldBadge(doc, marginX + 16, footerY + 28, 9, [10, 0, 110]);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(71, 85, 105);
+    let ny = footerY + 28;
+    noticeLines.forEach((l) => {
+      doc.text(l, marginX + 26, ny);
+      ny += 10.5;
+    });
+
+    // Right Emerald Totals Card (#F0FDF4 bg, #34D186 1.5pt border)
+    const totalsW = 216;
+    const totalsX = pageWidth - marginX - totalsW;
+    const totalsH = 82;
+
+    doc.setFillColor(240, 253, 244); // #F0FDF4
+    doc.setDrawColor(52, 209, 134); // #34D186
+    doc.setLineWidth(1.5);
+    doc.roundedRect(totalsX, footerY, totalsW, totalsH, 7, 7, 'FD');
+
+    const padInner = 14;
+    doc.setFont('courier', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(51, 65, 85);
+    doc.text('Subtotal:', totalsX + padInner, footerY + 20);
+    doc.text(formatKes(tx.subtotal), totalsX + totalsW - padInner, footerY + 20, { align: 'right' });
+
+    doc.text('Excise & Regional VAT:', totalsX + padInner, footerY + 35);
+    doc.text(formatKes(tx.exciseAndTax), totalsX + totalsW - padInner, footerY + 35, { align: 'right' });
+
+    doc.setDrawColor(134, 239, 172); // emerald-300
+    doc.setLineWidth(0.9);
+    doc.line(totalsX + padInner, footerY + 45, totalsX + totalsW - padInner, footerY + 45);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(10, 0, 110);
+    doc.text(tx.docType === 'Credit Note' ? 'Total Credit:' : 'Grand Total:', totalsX + padInner, footerY + 64);
+    doc.text(formatKes(tx.totalAmount), totalsX + totalsW - padInner, footerY + 64, { align: 'right' });
+  }
 
   doc.save(`${tx.docType.replace(/\s+/g, '_')}_${tx.docNumber}.pdf`);
 }
