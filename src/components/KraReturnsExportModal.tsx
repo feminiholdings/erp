@@ -282,158 +282,179 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
 
   return (
     <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-      {/* Top Action & Period Bar */}
-      <div className="bg-[#0A006E] text-white p-4 sm:p-5 border-b border-slate-800">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-xs text-[#FFDE00] font-montserrat font-bold tracking-wide uppercase">
-              <FileSpreadsheet className="w-4 h-4 shrink-0" />
-              <span>Kenya Revenue Authority (iTax) Return Spreadsheets</span>
-            </div>
-            <h3 className="text-lg sm:text-xl font-montserrat font-black text-white">
-              Download KRA Upload Workbooks (.xlsx) &amp; iTax Schedules (.csv)
-            </h3>
-            <p className="text-xs text-slate-300">
-              Populated directly from live ERP invoices, POS receipts, credit notes, customs entries, and payroll records.
-            </p>
+      {/* Clean Architectural Header & Primary Export Bar */}
+      <div className="px-5 py-4 sm:px-6 sm:py-5 border-b border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="space-y-1 min-w-0">
+          <div className="flex items-center gap-2 text-xs font-montserrat font-bold text-[#0A006E]">
+            <FileSpreadsheet className="w-4 h-4 shrink-0" />
+            <span>Kenya Revenue Authority (iTax)</span>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => setShowConfigSettings((v) => !v)}
-              className="px-3.5 py-2.5 bg-white/10 hover:bg-white/20 border border-white/25 text-white rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 transition"
-            >
-              <Settings className="w-3.5 h-3.5 text-[#FFDE00]" />
-              <span>PIN &amp; eTIMS Setup</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleDownloadCsv(activeSchedule)}
-              className="px-3.5 py-2.5 bg-white hover:bg-slate-100 text-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 transition"
-            >
-              <Download className="w-3.5 h-3.5 text-[#0A006E]" />
-              <span>Download Current Sheet (.csv)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleDownloadWorkbook}
-              className="px-4 py-2.5 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 shadow-sm transition"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-[#0A006E]" />
-              <span>Download KRA Workbook (.xlsx)</span>
-            </button>
+          <h3 className="text-lg sm:text-xl font-montserrat font-black text-slate-900 tracking-tight text-balance">
+            iTax Return Spreadsheets &amp; Filing Schedules
+          </h3>
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-slate-500 pt-0.5">
+            <span>
+              Taxpayer PIN:{' '}
+              <strong
+                className={`font-mono-tabular ${
+                  companyPinValid ? 'text-emerald-700' : 'text-amber-700'
+                }`}
+              >
+                {config.companyKraPin || 'Unset'}
+              </strong>
+            </span>
+            <span aria-hidden="true" className="text-slate-300">
+              ·
+            </span>
+            <span>
+              eTIMS CU:{' '}
+              <strong className="font-mono-tabular text-slate-800">
+                {config.etimsControlUnitSerial || 'Unset'}
+              </strong>
+            </span>
+            <span aria-hidden="true" className="text-slate-300">
+              ·
+            </span>
+            <span>
+              Period:{' '}
+              <strong className="font-mono-tabular text-slate-800">
+                {dataset.periodStartKra} – {dataset.periodEndKra}
+              </strong>
+            </span>
           </div>
         </div>
 
-        {/* Period & Branch Filter Row */}
-        <div className="mt-4 pt-4 border-t border-white/15 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="inline-flex bg-white/10 p-1 rounded-xl border border-white/15">
-              {(
-                [
-                  { id: 'MONTH', label: 'Monthly Filing' },
-                  { id: 'CUSTOM_RANGE', label: 'Date Range' },
-                  { id: 'ALL_TIME', label: 'All Recorded' },
-                ] as { id: KraPeriodFilterMode; label: string }[]
-              ).map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => setPeriodMode(m.id)}
-                  className={`px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs cursor-pointer whitespace-nowrap transition ${
-                    periodMode === m.id
-                      ? 'bg-[#FFDE00] text-[#0A006E]'
-                      : 'text-slate-200 hover:text-white'
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowConfigSettings((v) => !v)}
+            className={`px-3.5 py-2 border rounded-lg text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 transition ${
+              showConfigSettings
+                ? 'bg-slate-100 border-slate-400 text-slate-900'
+                : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
+            }`}
+          >
+            <Settings className="w-3.5 h-3.5 text-slate-600" />
+            <span>PIN &amp; eTIMS Setup</span>
+          </button>
 
-            {periodMode === 'MONTH' && (
-              <div className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl border border-white/20">
-                <Calendar className="w-3.5 h-3.5 text-[#FFDE00]" />
-                <span className="text-slate-300 font-semibold">Return Month:</span>
-                <input
-                  type="month"
-                  value={selectedMonthYm}
-                  onChange={(e) => setSelectedMonthYm(e.target.value)}
-                  className="bg-transparent text-white font-mono-tabular font-bold focus:outline-none cursor-pointer"
-                />
-              </div>
-            )}
+          <button
+            type="button"
+            onClick={() => handleDownloadCsv(activeSchedule)}
+            className="px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 rounded-lg text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 transition"
+          >
+            <Download className="w-3.5 h-3.5 text-slate-700" />
+            <span>Current Sheet (.csv)</span>
+          </button>
 
-            {periodMode === 'CUSTOM_RANGE' && (
-              <div className="flex flex-wrap items-center gap-2 bg-white/10 px-3 py-1.5 rounded-xl border border-white/20">
-                <input
-                  type="date"
-                  value={customStartDate}
-                  onChange={(e) => setCustomStartDate(e.target.value)}
-                  className="bg-transparent text-white font-mono-tabular font-bold focus:outline-none"
-                />
-                <span className="text-slate-300">to</span>
-                <input
-                  type="date"
-                  value={customEndDate}
-                  onChange={(e) => setCustomEndDate(e.target.value)}
-                  className="bg-transparent text-white font-mono-tabular font-bold focus:outline-none"
-                />
-              </div>
-            )}
-
-            <div className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl border border-white/20">
-              <Building2 className="w-3.5 h-3.5 text-[#FFDE00]" />
-              <select
-                value={branchFilterId}
-                onChange={(e) => setBranchFilterId(e.target.value)}
-                className="bg-transparent text-white font-semibold focus:outline-none cursor-pointer"
-              >
-                <option value="ALL" className="text-slate-900">
-                  All Branches ({branches.length})
-                </option>
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id} className="text-slate-900">
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4 text-slate-200 font-mono-tabular">
-            <span>
-              Taxpayer PIN:{' '}
-              <strong className={companyPinValid ? 'text-[#34D186]' : 'text-amber-300'}>
-                {config.companyKraPin || 'UNSET'}
-              </strong>
-            </span>
-            <span>
-              Period: <strong className="text-white">{dataset.periodStartKra} – {dataset.periodEndKra}</strong>
-            </span>
-          </div>
+          <button
+            type="button"
+            onClick={handleDownloadWorkbook}
+            className="px-4 py-2 bg-[#0A006E] hover:bg-[#160bb0] text-[#FFDE00] rounded-lg text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 transition"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-[#FFDE00]" />
+            <span>Download KRA Workbook (.xlsx)</span>
+          </button>
         </div>
       </div>
 
-      {/* Collapsible Taxpayer KRA PIN, CU Serial & VAT Rules Configuration */}
+      {/* Crisp Light Filing Period & Branch Filter Bar */}
+      <div className="bg-slate-50/75 border-b border-slate-200 px-5 py-3 sm:px-6 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="inline-flex bg-slate-200/75 p-0.5 rounded-lg">
+            {(
+              [
+                { id: 'MONTH', label: 'Monthly Filing' },
+                { id: 'CUSTOM_RANGE', label: 'Date Range' },
+                { id: 'ALL_TIME', label: 'All Recorded' },
+              ] as { id: KraPeriodFilterMode; label: string }[]
+            ).map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setPeriodMode(m.id)}
+                className={`px-3 py-1.5 rounded-md font-montserrat text-xs cursor-pointer whitespace-nowrap shrink-0 transition ${
+                  periodMode === m.id
+                    ? 'bg-white text-slate-900 font-bold shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 font-semibold'
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
+          {periodMode === 'MONTH' && (
+            <label className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+              <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+              <span className="text-slate-500 font-semibold whitespace-nowrap">Month:</span>
+              <input
+                type="month"
+                value={selectedMonthYm}
+                onChange={(e) => setSelectedMonthYm(e.target.value)}
+                className="bg-transparent text-slate-900 font-mono-tabular font-bold focus:outline-none cursor-pointer"
+              />
+            </label>
+          )}
+
+          {periodMode === 'CUSTOM_RANGE' && (
+            <div className="flex flex-wrap items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+              <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="bg-transparent text-slate-900 font-mono-tabular font-bold focus:outline-none"
+              />
+              <span className="text-slate-400">to</span>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="bg-transparent text-slate-900 font-mono-tabular font-bold focus:outline-none"
+              />
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+            <Building2 className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            <select
+              value={branchFilterId}
+              onChange={(e) => setBranchFilterId(e.target.value)}
+              className="bg-transparent text-slate-900 font-semibold focus:outline-none cursor-pointer"
+            >
+              <option value="ALL">All Branches ({branches.length})</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <span className="text-[11px] text-slate-500 hidden xl:inline">
+          Live from ERP invoices, POS receipts, credit notes, customs &amp; payroll
+        </span>
+      </div>
+
+      {/* Collapsible Taxpayer KRA PIN, CU Serial & VAT Rules Drawer */}
       {showConfigSettings && (
-        <div className="bg-slate-50 border-b border-slate-200 p-4 sm:p-5 space-y-4 text-xs">
-          <div className="flex items-center justify-between">
+        <div className="bg-slate-50 border-b border-slate-200 px-5 py-4 sm:px-6 space-y-4 text-xs">
+          <div className="flex items-center justify-between gap-4">
             <div>
-              <h4 className="font-montserrat font-black text-slate-900 text-sm">
-                Taxpayer KRA PIN, eTIMS Control Unit &amp; VAT Calculation Rules
+              <h4 className="font-montserrat font-bold text-slate-900 text-sm">
+                Taxpayer KRA PIN, eTIMS Control Unit &amp; VAT Rules
               </h4>
-              <p className="text-slate-600">
-                Saved automatically on this terminal and stamped onto exported KRA iTax spreadsheets.
+              <p className="text-slate-500">
+                Saved automatically and stamped onto exported iTax CSV schedules and Excel workbooks.
               </p>
             </div>
             <button
               type="button"
               onClick={() => setShowConfigSettings(false)}
-              className="text-slate-500 hover:text-slate-800 p-1 rounded-lg cursor-pointer"
+              className="text-slate-500 hover:text-slate-800 p-1.5 rounded-lg hover:bg-slate-200/70 cursor-pointer"
+              aria-label="Close settings"
             >
               <X className="w-4 h-4" />
             </button>
@@ -452,14 +473,14 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
                   handleUpdateConfig({ companyKraPin: e.target.value.toUpperCase() })
                 }
                 placeholder="P051829301A"
-                className="w-full mt-1 px-3 py-2 bg-white border border-slate-300 rounded-xl font-mono-tabular uppercase font-bold text-slate-900"
+                className="w-full mt-1 px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono-tabular uppercase font-bold text-slate-900"
               />
               <div className="mt-1 text-[11px]">
                 {companyPinValid ? (
                   <span className="text-emerald-700 font-semibold">Valid iTax PIN format</span>
                 ) : (
                   <span className="text-amber-700 font-semibold">
-                    Expected format: P051234567A (A/P + 9 digits + letter)
+                    Expected: P051234567A (A/P + 9 digits + letter)
                   </span>
                 )}
               </div>
@@ -473,7 +494,7 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
                 type="text"
                 value={config.companyLegalName}
                 onChange={(e) => handleUpdateConfig({ companyLegalName: e.target.value })}
-                className="w-full mt-1 px-3 py-2 bg-white border border-slate-300 rounded-xl font-semibold text-slate-900"
+                className="w-full mt-1 px-3 py-2 bg-white border border-slate-300 rounded-lg font-semibold text-slate-900"
               />
             </div>
 
@@ -488,7 +509,7 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
                   handleUpdateConfig({ etimsControlUnitSerial: e.target.value.toUpperCase() })
                 }
                 placeholder="KRAMW00928172"
-                className="w-full mt-1 px-3 py-2 bg-white border border-slate-300 rounded-xl font-mono-tabular font-bold text-slate-900"
+                className="w-full mt-1 px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono-tabular font-bold text-slate-900"
               />
             </div>
 
@@ -505,12 +526,12 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
                 onChange={(e) =>
                   handleUpdateConfig({ vatRatePercent: Number(e.target.value) || 16 })
                 }
-                className="w-full mt-1 px-3 py-2 bg-white border border-slate-300 rounded-xl font-mono-tabular font-bold text-slate-900"
+                className="w-full mt-1 px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono-tabular font-bold text-slate-900"
               />
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-6 pt-2 border-t border-slate-200">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-2 border-t border-slate-200">
             <label className="inline-flex items-center gap-2 cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -520,8 +541,8 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
                 }
                 className="w-4 h-4 accent-[#0A006E] rounded cursor-pointer"
               />
-              <span className="font-semibold text-slate-800">
-                Consolidate Walk-In Retail POS Sales (No Buyer KRA PIN) into Daily Lump Sum Rows (KRA VAT3 Standard)
+              <span className="font-semibold text-slate-700">
+                Consolidate Walk-In Retail POS Sales into Daily Lump Sum Rows
               </span>
             </label>
 
@@ -534,8 +555,8 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
                 }
                 className="w-4 h-4 accent-[#0A006E] rounded cursor-pointer"
               />
-              <span className="font-semibold text-slate-800">
-                Extract {config.vatRatePercent}% VAT from Gross Amounts when Tax is Unseparated
+              <span className="font-semibold text-slate-700">
+                Extract {config.vatRatePercent}% VAT from Gross Amounts when Unseparated
               </span>
             </label>
 
@@ -546,17 +567,123 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
                 onChange={(e) => setIncludeCsvHeaders(e.target.checked)}
                 className="w-4 h-4 accent-[#0A006E] rounded cursor-pointer"
               />
-              <span className="font-semibold text-slate-800">
-                Include Column Header Row in Downloaded .csv Files
+              <span className="font-semibold text-slate-700">
+                Include Column Headers in .csv Downloads
               </span>
             </label>
           </div>
         </div>
       )}
 
-      <div className="p-4 sm:p-5 space-y-5">
+      {/* Flat Hairline-Divided 4-Metric Tax Position Strip (Zero Nested Cards) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-200 border-b border-slate-200 bg-white">
+        <button
+          type="button"
+          onClick={() => setActiveSchedule('VAT3_SALES_SEC_B')}
+          className="text-left px-5 py-4 hover:bg-slate-50/75 transition cursor-pointer"
+        >
+          <div className="text-[11px] font-montserrat font-semibold text-slate-500">
+            Output VAT · Sec B Sales ({config.vatRatePercent}%)
+          </div>
+          <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1">
+            KES {formatNum(dataset.summary.totalOutputVat)}
+          </div>
+          <div className="text-[11px] text-slate-500 font-mono-tabular mt-1">
+            Taxable Sales: KES {formatNum(dataset.summary.netTaxableSales)}
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSchedule('VAT3_PURCHASES_SEC_F')}
+          className="text-left px-5 py-4 hover:bg-slate-50/75 transition cursor-pointer"
+        >
+          <div className="text-[11px] font-montserrat font-semibold text-slate-500">
+            Input VAT · Sec F Purchases ({config.vatRatePercent}%)
+          </div>
+          <div className="text-lg sm:text-xl font-montserrat font-black text-emerald-700 font-mono-tabular mt-1">
+            KES {formatNum(dataset.summary.totalInputVat)}
+          </div>
+          <div className="text-[11px] text-slate-500 font-mono-tabular mt-1">
+            {dataset.vatPurchasesSecF.length} qualifying entries
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSchedule('VAT3_SALES_SEC_B')}
+          className="text-left px-5 py-4 hover:bg-slate-50/75 transition cursor-pointer"
+        >
+          <div className="text-[11px] font-montserrat font-semibold text-slate-500">
+            {dataset.summary.netVatPayableOrClaimable >= 0
+              ? 'Net VAT3 Payable · Due 20th'
+              : 'Net VAT3 Credit Carry-Forward'}
+          </div>
+          <div
+            className={`text-lg sm:text-xl font-montserrat font-black font-mono-tabular mt-1 ${
+              dataset.summary.netVatPayableOrClaimable >= 0
+                ? 'text-slate-900'
+                : 'text-emerald-700'
+            }`}
+          >
+            KES {formatNum(Math.abs(dataset.summary.netVatPayableOrClaimable))}
+          </div>
+          <div className="text-[11px] text-slate-500 mt-1">
+            {dataset.summary.netVatPayableOrClaimable >= 0
+              ? 'Output VAT minus Input VAT'
+              : 'Excess Input VAT credit'}
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSchedule('PAYE_P10_SEC_B')}
+          className="text-left px-5 py-4 hover:bg-slate-50/75 transition cursor-pointer"
+        >
+          <div className="text-[11px] font-montserrat font-semibold text-slate-500">
+            PAYE P10 &amp; Statutory · Due 9th
+          </div>
+          <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1">
+            KES {formatNum(dataset.summary.totalPayePayable)}
+          </div>
+          <div className="text-[11px] text-slate-500 font-mono-tabular mt-1">
+            AHL: KES {formatNum(dataset.summary.totalHousingLevyCombined)} · SHIF: KES{' '}
+            {formatNum(dataset.summary.totalShifPayable)}
+          </div>
+        </button>
+      </div>
+
+      {/* Architectural Underline Schedule Switcher */}
+      <div className="border-b border-slate-200 px-5 sm:px-6 flex items-center gap-6 overflow-x-auto bg-white">
+        {scheduleTabs.map((tab) => {
+          const isAct = activeSchedule === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveSchedule(tab.id)}
+              className={`py-3 border-b-2 text-xs font-montserrat font-bold flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 transition ${
+                isAct
+                  ? 'border-[#0A006E] text-[#0A006E]'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <span>{tab.label}</span>
+              <span
+                className={`text-[11px] font-mono-tabular ${
+                  isAct ? 'text-[#0A006E]' : 'text-slate-400'
+                }`}
+              >
+                {tab.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="p-5 sm:p-6 space-y-4">
         {downloadStatusBanner && (
-          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-3 text-xs text-emerald-900">
+          <div className="px-3.5 py-2.5 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between gap-3 text-xs text-emerald-900">
             <div className="flex items-center gap-2 font-semibold">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>{downloadStatusBanner}</span>
@@ -565,6 +692,7 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
               type="button"
               onClick={() => setDownloadStatusBanner(null)}
               className="text-emerald-700 hover:text-emerald-950 cursor-pointer"
+              aria-label="Dismiss notification"
             >
               <X className="w-4 h-4" />
             </button>
@@ -575,7 +703,7 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
         {periodMode === 'MONTH' &&
           dataset.vatSalesSecB.length === 0 &&
           totalHistoricalSalesCount > 0 && (
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-amber-950">
+            <div className="px-3.5 py-2.5 bg-amber-50 border border-amber-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-amber-950">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                 <span>
@@ -587,104 +715,12 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
               <button
                 type="button"
                 onClick={() => setPeriodMode('ALL_TIME')}
-                className="px-3 py-1.5 bg-amber-200/80 hover:bg-amber-300 text-amber-950 rounded-lg font-montserrat font-bold cursor-pointer whitespace-nowrap shrink-0"
+                className="px-3 py-1.5 bg-white hover:bg-amber-100 border border-amber-300 text-amber-950 rounded-lg font-montserrat font-bold cursor-pointer whitespace-nowrap shrink-0"
               >
                 View All Recorded Periods
               </button>
             </div>
           )}
-
-        {/* 4-Metric Tabular Summary Strip */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
-            <div className="text-[11px] font-montserrat font-bold text-slate-500 uppercase">
-              Output VAT (Sec B Sales @ {config.vatRatePercent}%)
-            </div>
-            <div className="text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1">
-              KES {formatNum(dataset.summary.totalOutputVat)}
-            </div>
-            <div className="text-[11px] text-slate-600 font-mono-tabular mt-1">
-              Taxable Sales: KES {formatNum(dataset.summary.netTaxableSales)}
-            </div>
-          </div>
-
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
-            <div className="text-[11px] font-montserrat font-bold text-slate-500 uppercase">
-              Input VAT (Sec F Purchases @ {config.vatRatePercent}%)
-            </div>
-            <div className="text-xl font-montserrat font-black text-emerald-700 font-mono-tabular mt-1">
-              KES {formatNum(dataset.summary.totalInputVat)}
-            </div>
-            <div className="text-[11px] text-slate-600 font-mono-tabular mt-1">
-              {dataset.vatPurchasesSecF.length} Qualifying Purchase Entries
-            </div>
-          </div>
-
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
-            <div className="text-[11px] font-montserrat font-bold text-slate-500 uppercase">
-              {dataset.summary.netVatPayableOrClaimable >= 0
-                ? 'Net VAT3 Payable (Due 20th)'
-                : 'Net VAT3 Credit Carry-Forward'}
-            </div>
-            <div
-              className={`text-xl font-montserrat font-black font-mono-tabular mt-1 ${
-                dataset.summary.netVatPayableOrClaimable >= 0
-                  ? 'text-slate-900'
-                  : 'text-emerald-700'
-              }`}
-            >
-              KES {formatNum(Math.abs(dataset.summary.netVatPayableOrClaimable))}
-            </div>
-            <div className="text-[11px] text-slate-600 mt-1">
-              {dataset.summary.netVatPayableOrClaimable >= 0
-                ? 'Output VAT minus Input VAT'
-                : 'Excess Input VAT credit'}
-            </div>
-          </div>
-
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
-            <div className="text-[11px] font-montserrat font-bold text-slate-500 uppercase">
-              PAYE P10 &amp; Statutory (Due 9th)
-            </div>
-            <div className="text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1">
-              KES {formatNum(dataset.summary.totalPayePayable)}
-            </div>
-            <div className="text-[11px] text-slate-600 font-mono-tabular mt-1">
-              AHL: KES {formatNum(dataset.summary.totalHousingLevyCombined)} · SHIF: KES{' '}
-              {formatNum(dataset.summary.totalShifPayable)}
-            </div>
-          </div>
-        </div>
-
-        {/* Direct KRA iTax Schedule Tabs & Quick CSV Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-            {scheduleTabs.map((tab) => {
-              const isAct = activeSchedule === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveSchedule(tab.id)}
-                  className={`px-3 py-2 rounded-xl text-xs font-montserrat font-bold flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 transition ${
-                    isAct
-                      ? 'bg-[#0A006E] text-[#FFDE00]'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                  }`}
-                >
-                  <span>{tab.label}</span>
-                  <span
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono-tabular font-bold ${
-                      isAct ? 'bg-white/15 text-white' : 'bg-white text-slate-700'
-                    }`}
-                  >
-                    {tab.count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
 
         {/* ===================================================================== */}
         {/* SCHEDULE 1: VAT3 SECTION B - GENERAL RATE SALES (16%)                 */}
@@ -693,7 +729,7 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
           <div className="space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
               <div>
-                <span className="font-montserrat font-black text-slate-900">
+                <span className="font-montserrat font-bold text-slate-900">
                   KRA VAT3 Return — Section B: General Rate Taxable Sales ({config.vatRatePercent}%)
                 </span>
                 <p className="text-slate-500">
@@ -705,7 +741,7 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
                   <button
                     type="button"
                     onClick={() => handleDownloadCsv('VAT3_CREDIT_NOTES')}
-                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                    className="px-3 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 rounded-lg font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>Credit Notes Only (.csv)</span>
@@ -714,10 +750,10 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
                 <button
                   type="button"
                   onClick={() => handleDownloadCsv('VAT3_SALES_SEC_B')}
-                  className="px-3.5 py-2 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                  className="px-3.5 py-2 bg-[#0A006E] hover:bg-[#160bb0] text-[#FFDE00] rounded-lg font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <Download className="w-3.5 h-3.5 text-[#FFDE00]" />
-                  <span>Download VAT3 Sec B Sales (.csv)</span>
+                  <span>Download VAT3 Sec B (.csv)</span>
                 </button>
               </div>
             </div>
@@ -725,7 +761,7 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
             <div className="overflow-x-auto border border-slate-200 rounded-xl">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-slate-100 text-slate-800 border-b border-slate-200 font-montserrat">
+                  <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-montserrat">
                     <th className="py-2.5 px-3 font-bold whitespace-nowrap">PIN of Purchaser</th>
                     <th className="py-2.5 px-3 font-bold">Name of Purchaser</th>
                     <th className="py-2.5 px-3 font-bold whitespace-nowrap">ETR Serial No</th>
@@ -841,7 +877,7 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowAddExpenseForm((v) => !v)}
-                  className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-300 rounded-xl font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                  className="px-3 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 rounded-lg font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Log Supplier eTIMS Bill</span>
@@ -849,10 +885,10 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
                 <button
                   type="button"
                   onClick={() => handleDownloadCsv('VAT3_PURCHASES_SEC_F')}
-                  className="px-3.5 py-2 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                  className="px-3.5 py-2 bg-[#0A006E] hover:bg-[#160bb0] text-[#FFDE00] rounded-lg font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <Download className="w-3.5 h-3.5 text-[#FFDE00]" />
-                  <span>Download VAT3 Sec F Purchases (.csv)</span>
+                  <span>Download VAT3 Sec F (.csv)</span>
                 </button>
               </div>
             </div>
@@ -1001,7 +1037,7 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
             <div className="overflow-x-auto border border-slate-200 rounded-xl">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-slate-100 text-slate-800 border-b border-slate-200 font-montserrat">
+                  <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-montserrat">
                     <th className="py-2.5 px-3 font-bold">Type</th>
                     <th className="py-2.5 px-3 font-bold whitespace-nowrap">PIN of Supplier</th>
                     <th className="py-2.5 px-3 font-bold">Name of Supplier</th>
@@ -1117,7 +1153,7 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
               <button
                 type="button"
                 onClick={() => handleDownloadCsv('PAYE_P10_SEC_B')}
-                className="px-3.5 py-2 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                className="px-3.5 py-2 bg-[#0A006E] hover:bg-[#160bb0] text-[#FFDE00] rounded-lg font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
               >
                 <Download className="w-3.5 h-3.5 text-[#FFDE00]" />
                 <span>Download PAYE P10 Sec B (.csv)</span>
@@ -1125,7 +1161,7 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
             </div>
 
             {missingStaffPinCount > 0 && (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-xs text-amber-950">
+              <div className="px-3.5 py-2.5 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2 text-xs text-amber-950">
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                 <span>
                   <strong>{missingStaffPinCount}</strong> employee(s) below do not yet have a valid 11-character KRA PIN assigned in HR &amp; Payroll. Update their KRA PIN in HR before uploading the P10 CSV to iTax.
@@ -1136,7 +1172,7 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
             <div className="overflow-x-auto border border-slate-200 rounded-xl">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-slate-100 text-slate-800 border-b border-slate-200 font-montserrat">
+                  <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-montserrat">
                     <th className="py-2.5 px-3 font-bold whitespace-nowrap">PIN of Employee</th>
                     <th className="py-2.5 px-3 font-bold">Name of Employee</th>
                     <th className="py-2.5 px-3 font-bold">Status / Type</th>
@@ -1237,7 +1273,7 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
               <button
                 type="button"
                 onClick={() => handleDownloadCsv('STATUTORY_AHL_SHIF_NSSF')}
-                className="px-3.5 py-2 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                className="px-3.5 py-2 bg-[#0A006E] hover:bg-[#160bb0] text-[#FFDE00] rounded-lg font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
               >
                 <Download className="w-3.5 h-3.5 text-[#FFDE00]" />
                 <span>Download AHL, SHIF &amp; NSSF (.csv)</span>
@@ -1247,7 +1283,7 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
             <div className="overflow-x-auto border border-slate-200 rounded-xl">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-slate-100 text-slate-800 border-b border-slate-200 font-montserrat">
+                  <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-montserrat">
                     <th className="py-2.5 px-3 font-bold whitespace-nowrap">Employee PIN</th>
                     <th className="py-2.5 px-3 font-bold">Employee Name</th>
                     <th className="py-2.5 px-3 font-bold whitespace-nowrap">NSSF No</th>
@@ -1312,16 +1348,16 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
               <button
                 type="button"
                 onClick={() => handleDownloadCsv('TURNOVER_TAX_TOT')}
-                className="px-3.5 py-2 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                className="px-3.5 py-2 bg-[#0A006E] hover:bg-[#160bb0] text-[#FFDE00] rounded-lg font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
               >
                 <Percent className="w-3.5 h-3.5 text-[#FFDE00]" />
                 <span>Download TOT Return (.csv)</span>
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 text-xs">
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                <div className="text-slate-500 font-bold uppercase text-[11px]">
+            <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-slate-200 border border-slate-200 rounded-xl bg-white text-xs">
+              <div className="p-4">
+                <div className="text-slate-500 font-semibold text-[11px]">
                   Net Taxable Turnover ({dataset.periodLabel})
                 </div>
                 <div className="text-lg font-montserrat font-black text-slate-900 font-mono-tabular mt-1">
@@ -1329,8 +1365,8 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
                 </div>
               </div>
 
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                <div className="text-slate-500 font-bold uppercase text-[11px]">
+              <div className="p-4">
+                <div className="text-slate-500 font-semibold text-[11px]">
                   Turnover Tax @ 3% Reference
                 </div>
                 <div className="text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1">
@@ -1338,8 +1374,8 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
                 </div>
               </div>
 
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                <div className="text-slate-500 font-bold uppercase text-[11px]">
+              <div className="p-4">
+                <div className="text-slate-500 font-semibold text-[11px]">
                   Excisable Beverage Dispatched
                 </div>
                 <div className="text-lg font-montserrat font-black text-emerald-700 font-mono-tabular mt-1">
@@ -1352,7 +1388,7 @@ export const KraReturnsPanel: React.FC<KraReturnsPanelProps> = ({
               <div className="overflow-x-auto border border-slate-200 rounded-xl">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="bg-slate-100 text-slate-800 border-b border-slate-200 font-montserrat">
+                    <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-montserrat">
                       <th className="py-2.5 px-3 font-bold">Purchaser PIN</th>
                       <th className="py-2.5 px-3 font-bold">Export / Duty-Free Consignee</th>
                       <th className="py-2.5 px-3 font-bold">Invoice Date</th>
@@ -1396,19 +1432,19 @@ export const KraReturnsExportModal: React.FC<KraReturnsExportModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/65 backdrop-blur-xs">
-      <div className="bg-white rounded-none sm:rounded-2xl border-0 sm:border-2 border-[#0A006E] shadow-2xl w-full max-w-6xl h-full sm:max-h-[92vh] flex flex-col overflow-hidden">
-        <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex items-center justify-between shrink-0">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs">
+      <div className="bg-white rounded-none sm:rounded-2xl border border-slate-200 shadow-2xl w-full max-w-6xl h-full sm:max-h-[92vh] flex flex-col overflow-hidden">
+        <div className="bg-white px-5 py-3.5 border-b border-slate-200 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <FileSpreadsheet className="w-4 h-4 text-[#0A006E]" />
-            <span className="text-xs font-montserrat font-black text-[#0A006E] uppercase tracking-wide">
+            <span className="text-xs font-montserrat font-bold text-slate-900">
               KRA iTax Return Spreadsheets Exporter
             </span>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="px-2.5 py-1 bg-white hover:bg-slate-200 border border-slate-300 text-slate-700 rounded-lg text-xs font-montserrat font-bold flex items-center gap-1 cursor-pointer"
+            className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-montserrat font-bold flex items-center gap-1 cursor-pointer"
           >
             <X className="w-4 h-4" />
             <span>Close</span>
