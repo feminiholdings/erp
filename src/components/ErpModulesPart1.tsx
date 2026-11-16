@@ -57,6 +57,10 @@ import {
   XCircle,
   Calendar,
   ChevronDown,
+  ChevronRight,
+  Percent,
+  Save,
+  Layers,
 } from 'lucide-react';
 import {
   StaffMember,
@@ -133,6 +137,11 @@ export const OverviewModule: React.FC<{
   onOpenKraReturns?: (defaultTab?: KraReturnScheduleType) => void;
   onTriggerToast?: (type: 'success' | 'error', title: string, message: string) => void;
   onNavigateModule?: (module: any) => void;
+  onUpdateTransaction?: (txId: string, updates: Partial<TransactionDoc>) => Promise<boolean>;
+  onCreateTransaction?: (
+    txDraft: Omit<TransactionDoc, 'id' | 'createdAt'>,
+    updatedProducts: { productId: string; newTotal: number; newBranchStockJson: string }[]
+  ) => Promise<TransactionDoc | null>;
 }> = ({
   currentUser,
   products,
@@ -161,6 +170,8 @@ export const OverviewModule: React.FC<{
   onOpenKraReturns,
   onTriggerToast,
   onNavigateModule,
+  onUpdateTransaction,
+  onCreateTransaction,
 }) => {
   const isAccountant = currentUser.role === 'Accountant';
   const [adminOverviewView, setAdminOverviewView] = useState<'executive' | 'accounting'>('executive');
@@ -215,7 +226,11 @@ export const OverviewModule: React.FC<{
   const totalRevenue = useMemo(
     () =>
       externalVisibleTransactions
-        .filter((t) => t.docType === 'Receipt' || t.docType === 'Invoice' || t.docType === 'Online Order')
+        .filter(
+          (t) =>
+            t.status !== 'Rejected' &&
+            (t.docType === 'Receipt' || t.docType === 'Invoice' || t.docType === 'Online Order')
+        )
         .reduce((acc, t) => acc + t.totalAmount, 0),
     [externalVisibleTransactions]
   );
@@ -223,7 +238,7 @@ export const OverviewModule: React.FC<{
   const totalCredits = useMemo(
     () =>
       externalVisibleTransactions
-        .filter((t) => t.docType === 'Credit Note')
+        .filter((t) => t.docType === 'Credit Note' && t.status !== 'Rejected')
         .reduce((acc, t) => acc + t.totalAmount, 0),
     [externalVisibleTransactions]
   );
@@ -249,6 +264,7 @@ export const OverviewModule: React.FC<{
           (t) =>
             t.branchId === b.id &&
             t.orderCategory !== 'WAREHOUSE_PURCHASE' &&
+            t.status !== 'Rejected' &&
             (t.docType === 'Receipt' || t.docType === 'Invoice' || t.docType === 'Online Order')
         )
         .reduce((s, t) => s + t.totalAmount, 0);
@@ -269,7 +285,10 @@ export const OverviewModule: React.FC<{
       'Affiliate Rep': { total: 0, color: '#6366F1' },
     };
     externalVisibleTransactions.forEach((t) => {
-      if (t.docType === 'Receipt' || t.docType === 'Invoice' || t.docType === 'Online Order') {
+      if (
+        t.status !== 'Rejected' &&
+        (t.docType === 'Receipt' || t.docType === 'Invoice' || t.docType === 'Online Order')
+      ) {
         const channel = t.channel || 'Retail Counter POS';
         if (channelMap[channel]) {
           channelMap[channel].total += t.totalAmount;
@@ -295,7 +314,12 @@ export const OverviewModule: React.FC<{
     });
     let accountsReceivable = 0;
     externalVisibleTransactions.forEach((t) => {
-      if (t.docType === 'Invoice' && t.status !== 'Paid') {
+      if (
+        t.docType === 'Invoice' &&
+        t.status !== 'Paid' &&
+        t.status !== 'Credited' &&
+        t.status !== 'Rejected'
+      ) {
         accountsReceivable += t.totalAmount;
       }
     });
@@ -310,7 +334,10 @@ export const OverviewModule: React.FC<{
   const topSkusBarData = useMemo(() => {
     const skuMap: Record<string, { name: string; revenue: number }> = {};
     externalVisibleTransactions.forEach((tx) => {
-      if (tx.docType === 'Receipt' || tx.docType === 'Invoice' || tx.docType === 'Online Order') {
+      if (
+        tx.status !== 'Rejected' &&
+        (tx.docType === 'Receipt' || tx.docType === 'Invoice' || tx.docType === 'Online Order')
+      ) {
         try {
           const items = JSON.parse(tx.itemsSummary);
           if (Array.isArray(items)) {
@@ -418,6 +445,8 @@ export const OverviewModule: React.FC<{
           onPreviewDoc={onPreviewDoc}
           onOpenKraReturns={onOpenKraReturns}
           onTriggerToast={onTriggerToast}
+          onUpdateTransaction={onUpdateTransaction}
+          onCreateTransaction={onCreateTransaction}
         />
       </div>
     );
@@ -743,10 +772,10 @@ export const OverviewModule: React.FC<{
   // =========================================================================
   if (currentUser.role === 'Sales Manager') {
     const wholesaleRevenue = externalVisibleTransactions
-      .filter((t) => t.channel === 'B2B Wholesale POS')
+      .filter((t) => t.channel === 'B2B Wholesale POS' && t.status !== 'Rejected')
       .reduce((s, t) => s + t.totalAmount, 0);
     const retailRevenue = externalVisibleTransactions
-      .filter((t) => t.channel === 'Retail Counter POS')
+      .filter((t) => t.channel === 'Retail Counter POS' && t.status !== 'Rejected')
       .reduce((s, t) => s + t.totalAmount, 0);
 
     if (isMinimal && focusSection === 'sales_performance') {
@@ -970,28 +999,62 @@ export const OverviewModule: React.FC<{
           onToggleKpi={toggleKpi}
           onToggleWidget={toggleWidget}
           onReset={resetToDefault}
-          actions={
-            <>
-              {onOpenOnboardItems && (
-                <button
-                  type="button"
-                  onClick={onOpenOnboardItems}
-                  className="px-3 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
-                >
-                  <Barcode className="w-3.5 h-3.5" />
-                  Onboard Items
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => onNavigateModule?.('leave_management')}
-                className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold cursor-pointer whitespace-nowrap"
-              >
-                Leave / Off
-              </button>
-            </>
-          }
         />
+
+        {/* Prominent Gradient Primary Action Buttons: Onboard Items & Leave / Off */}
+        <div
+          className={`grid grid-cols-1 ${
+            onOpenOnboardItems ? 'sm:grid-cols-2' : ''
+          } gap-3.5`}
+        >
+          {onOpenOnboardItems && (
+            <button
+              type="button"
+              onClick={onOpenOnboardItems}
+              className="group min-h-[72px] sm:min-h-[78px] w-full px-5 py-4 rounded-2xl bg-gradient-to-r from-[#0A006E] via-[#15099C] to-[#2518CC] hover:from-[#070052] hover:to-[#2E20E0] text-white border border-[#FFDE00]/35 shadow-lg shadow-[#0A006E]/20 flex items-center justify-between gap-4 cursor-pointer transition-all hover:-translate-y-0.5 active:scale-[0.99] text-left"
+            >
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#FFDE00] to-amber-400 text-[#0A006E] flex items-center justify-center shrink-0 shadow-md group-hover:scale-105 transition-transform">
+                  <Barcode className="w-6 h-6 stroke-[2.4]" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-base sm:text-lg font-montserrat font-black tracking-tight text-white leading-tight truncate">
+                    Onboard Items
+                  </div>
+                  <div className="text-xs font-montserrat font-medium text-indigo-100/90 mt-0.5 truncate">
+                    Scan barcodes, receive stock &amp; assign depot bins
+                  </div>
+                </div>
+              </div>
+              <div className="w-9 h-9 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0 group-hover:translate-x-0.5 transition-transform">
+                <ChevronRight className="w-5 h-5 text-[#FFDE00] stroke-[2.5]" />
+              </div>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => onNavigateModule?.('leave_management')}
+            className="group min-h-[72px] sm:min-h-[78px] w-full px-5 py-4 rounded-2xl bg-gradient-to-r from-[#0C5E37] via-[#157E4C] to-[#21A165] hover:from-[#094A2B] hover:to-[#27B874] text-white border border-emerald-300/35 shadow-lg shadow-emerald-900/20 flex items-center justify-between gap-4 cursor-pointer transition-all hover:-translate-y-0.5 active:scale-[0.99] text-left"
+          >
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-white/25 to-white/10 text-white border border-white/25 flex items-center justify-center shrink-0 shadow-md group-hover:scale-105 transition-transform">
+                <Calendar className="w-6 h-6 stroke-[2.3]" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-base sm:text-lg font-montserrat font-black tracking-tight text-white leading-tight truncate">
+                  Leave / Off
+                </div>
+                <div className="text-xs font-montserrat font-medium text-emerald-50/90 mt-0.5 truncate">
+                  Request annual leave, off-days &amp; roster time off
+                </div>
+              </div>
+            </div>
+            <div className="w-9 h-9 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0 group-hover:translate-x-0.5 transition-transform">
+              <ChevronRight className="w-5 h-5 text-white stroke-[2.5]" />
+            </div>
+          </button>
+        </div>
 
         {isWidgetVisible('kpi_strip') && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -1043,42 +1106,42 @@ export const OverviewModule: React.FC<{
         )}
 
         {isWidgetVisible('quick_tiles') && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <button
               type="button"
               onClick={() => onNavigateModule?.('inventory')}
-              className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1 cursor-pointer transition"
+              className="p-4 bg-gradient-to-br from-white to-emerald-50/60 hover:to-emerald-50 border border-slate-200 hover:border-emerald-300 rounded-xl text-left space-y-1.5 cursor-pointer transition shadow-2xs"
             >
-              <Package className="w-4 h-4 text-emerald-600" />
-              <div className="text-xs font-montserrat font-bold text-slate-900">Master Inventory</div>
-              <div className="text-[11px] text-slate-500">{products.length} SKUs &amp; batches</div>
+              <Package className="w-5 h-5 text-emerald-600" />
+              <div className="text-sm font-montserrat font-bold text-slate-900">Master Inventory</div>
+              <div className="text-xs text-slate-500">{products.length} SKUs &amp; batches</div>
             </button>
             <button
               type="button"
               onClick={() => onNavigateModule?.('branches_transfers')}
-              className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1 cursor-pointer transition"
+              className="p-4 bg-gradient-to-br from-white to-amber-50/60 hover:to-amber-50 border border-slate-200 hover:border-amber-300 rounded-xl text-left space-y-1.5 cursor-pointer transition shadow-2xs"
             >
-              <ArrowRightLeft className="w-4 h-4 text-amber-600" />
-              <div className="text-xs font-montserrat font-bold text-slate-900">Stock Transfers</div>
-              <div className="text-[11px] text-slate-500">{pendingTransfersCount} pending auth</div>
+              <ArrowRightLeft className="w-5 h-5 text-amber-600" />
+              <div className="text-sm font-montserrat font-bold text-slate-900">Stock Transfers</div>
+              <div className="text-xs text-slate-500">{pendingTransfersCount} pending auth</div>
             </button>
             <button
               type="button"
               onClick={() => setFocusSection('inventory_branches')}
-              className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1 cursor-pointer transition"
+              className="p-4 bg-gradient-to-br from-white to-indigo-50/60 hover:to-indigo-50 border border-slate-200 hover:border-[#0A006E]/40 rounded-xl text-left space-y-1.5 cursor-pointer transition shadow-2xs"
             >
-              <Building2 className="w-4 h-4 text-[#0A006E]" />
-              <div className="text-xs font-montserrat font-bold text-slate-900">Branch Depots</div>
-              <div className="text-[11px] text-slate-500">{branches.length} excise bonds</div>
+              <Building2 className="w-5 h-5 text-[#0A006E]" />
+              <div className="text-sm font-montserrat font-bold text-slate-900">Branch Depots</div>
+              <div className="text-xs text-slate-500">{branches.length} excise bonds</div>
             </button>
             <button
               type="button"
               onClick={() => onNavigateModule?.('internal_inbox')}
-              className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1 cursor-pointer transition"
+              className="p-4 bg-gradient-to-br from-white to-rose-50/60 hover:to-rose-50 border border-slate-200 hover:border-rose-300 rounded-xl text-left space-y-1.5 cursor-pointer transition shadow-2xs"
             >
-              <Inbox className="w-4 h-4 text-rose-600" />
-              <div className="text-xs font-montserrat font-bold text-slate-900">Dept Inbox</div>
-              <div className="text-[11px] text-slate-500">Staff requests</div>
+              <Inbox className="w-5 h-5 text-rose-600" />
+              <div className="text-sm font-montserrat font-bold text-slate-900">Dept Inbox</div>
+              <div className="text-xs text-slate-500">Staff requests</div>
             </button>
           </div>
         )}
@@ -1461,6 +1524,7 @@ export const OverviewModule: React.FC<{
                           (t) =>
                             t.branchId === b.id &&
                             t.orderCategory !== 'WAREHOUSE_PURCHASE' &&
+                            t.status !== 'Rejected' &&
                             (t.docType === 'Receipt' || t.docType === 'Invoice' || t.docType === 'Online Order')
                         )
                         .reduce((s, t) => s + t.totalAmount, 0);
@@ -2458,6 +2522,7 @@ export const OverviewModule: React.FC<{
                       (t) =>
                         t.branchId === b.id &&
                         t.orderCategory !== 'WAREHOUSE_PURCHASE' &&
+                        t.status !== 'Rejected' &&
                         (t.docType === 'Receipt' || t.docType === 'Invoice' || t.docType === 'Online Order')
                     )
                     .reduce((s, t) => s + t.totalAmount, 0);
@@ -3317,9 +3382,9 @@ export const InventoryModule: React.FC<{
               <button
                 type="button"
                 onClick={() => setIsAddProductOpen((v) => !v)}
-                className="px-2.5 py-1.5 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                className="min-h-[42px] px-4 py-2 bg-gradient-to-r from-[#0A006E] via-[#15099C] to-[#2315C4] hover:from-[#060046] hover:to-[#2C1ED8] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-sm shadow-[#0A006E]/20 transition"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-4 h-4 stroke-[2.5]" />
                 {isAddProductOpen ? 'Close Form' : 'Add Product'}
               </button>
             )}
@@ -3327,26 +3392,26 @@ export const InventoryModule: React.FC<{
               <button
                 type="button"
                 onClick={onOpenOnboardItems}
-                className="px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-[#0A006E] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                className="min-h-[42px] px-4 py-2 bg-gradient-to-r from-[#FFDE00] via-amber-300 to-amber-400 hover:from-amber-300 hover:to-amber-500 border border-amber-400 text-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-sm shadow-amber-500/20 transition"
               >
-                <Barcode className="w-3.5 h-3.5" />
-                Onboard
+                <Barcode className="w-4 h-4 stroke-[2.4]" />
+                Onboard Items
               </button>
             )}
             {canEditProduct && (
               <button
                 type="button"
                 onClick={() => setIsCsvModalOpen(true)}
-                className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                className="min-h-[42px] px-4 py-2 bg-gradient-to-r from-[#11643C] via-[#1E9E60] to-[#28B873] hover:from-[#0C4F2F] hover:to-[#34D186] text-white rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-sm shadow-emerald-700/20 transition"
               >
-                <Upload className="w-3.5 h-3.5" />
+                <Upload className="w-4 h-4 stroke-[2.3]" />
                 CSV Import
               </button>
             )}
             <button
               type="button"
               onClick={handleRunDuplicateCheck}
-              className="px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              className="min-h-[40px] px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             >
               <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
               Duplicates
@@ -3354,7 +3419,7 @@ export const InventoryModule: React.FC<{
             <button
               type="button"
               onClick={handleExportInventoryPDF}
-              className="px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              className="min-h-[40px] px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
               title="Export PDF Report"
             >
               <Download className="w-3.5 h-3.5" />
@@ -3363,7 +3428,7 @@ export const InventoryModule: React.FC<{
             <button
               type="button"
               onClick={handleExportInventoryCSV}
-              className="px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              className="min-h-[40px] px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
               title="Export CSV"
             >
               <Download className="w-3.5 h-3.5" />
@@ -3374,7 +3439,7 @@ export const InventoryModule: React.FC<{
                 <button
                   type="button"
                   onClick={() => setShowAdminMenu((v) => !v)}
-                  className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                  className="min-h-[40px] px-3 py-2 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                 >
                   <Sliders className="w-3.5 h-3.5" />
                   Admin Tools
@@ -7392,28 +7457,49 @@ export const BranchesAndTransfersModule: React.FC<{
 };
 
 // ---------------------------------------------------------------------------
-// 4. GEO-LOCATION PRICING ENGINE MODULE (Suburb vs Lower Region Differential)
+// 4. PRICING & GEO-TARIFF COMMAND MODULE (Base Prices, Margin Analytics & Zones)
 // ---------------------------------------------------------------------------
 export const GeoPricingModule: React.FC<{
   currentUser: StaffMember;
   regions: GeoRegion[];
   products: Product[];
   onCreateRegion: (reg: Omit<GeoRegion, 'id' | 'createdAt'>) => Promise<void>;
+  onUpdateRegion?: (
+    regionId: string,
+    updates: Partial<Omit<GeoRegion, 'id' | 'createdAt'>>
+  ) => Promise<void>;
+  onUpdateProduct?: (productId: string, updates: Partial<Product>) => Promise<void>;
+  onBulkUpdateProductPrices?: (
+    items: Array<{ productId: string; updates: Partial<Product> }>,
+    summaryLabel: string
+  ) => Promise<void>;
   onUpdateProductGeoOverride: (
     productId: string,
     regionId: string,
     wholesalePrice: number,
     retailPrice: number
   ) => Promise<void>;
-}> = ({ currentUser, regions, products, onCreateRegion, onUpdateProductGeoOverride }) => {
-  const canManagePricing = currentUser.role === 'Admin' || currentUser.role === 'Sales Manager';
+}> = ({
+  currentUser,
+  regions,
+  products,
+  onCreateRegion,
+  onUpdateRegion,
+  onUpdateProduct,
+  onBulkUpdateProductPrices,
+  onUpdateProductGeoOverride,
+}) => {
+  const canManagePricing =
+    currentUser.role === 'Admin' ||
+    currentUser.role === 'Inventory Controller' ||
+    currentUser.role === 'Sales Manager';
   const isBranchManager = currentUser.role === 'Branch Manager';
-  const isInventory = currentUser.role === 'Inventory Controller';
   const isAffiliate = currentUser.role === 'Affiliate Sales Representative';
 
   const {
     schema: geoSchema,
     prefs: geoPrefs,
+    isMinimal: isGeoMinimal,
     setMode: setGeoMode,
     toggleKpi: toggleGeoKpi,
     toggleWidget: toggleGeoWidget,
@@ -7422,53 +7508,484 @@ export const GeoPricingModule: React.FC<{
     resetToDefault: resetGeoPrefs,
   } = useModulePrefs(currentUser, 'geo_pricing');
 
+  // Filter, Search & Context State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [classFilter, setClassFilter] = useState<'ALL' | 'IPS' | 'LPS'>('ALL');
+  const [subCategoryFilter, setSubCategoryFilter] = useState<string>('ALL');
+  const [healthFilter, setHealthFilter] = useState<
+    'ALL' | 'CUSTOM_OVERRIDE' | 'LOW_MARGIN' | 'MISSING_COST'
+  >('ALL');
+  const [activeZoneId, setActiveZoneId] = useState<string>('BASE');
+  const [matrixPriceMode, setMatrixPriceMode] = useState<'retail' | 'wholesale'>('retail');
+  const [chartTab, setChartTab] = useState<'categories' | 'zones'>('categories');
+  const [page, setPage] = useState<number>(1);
+  const PAGE_SIZE = 20;
+
+  // Bulk % Adjuster State
+  const [showBulkPanel, setShowBulkPanel] = useState(false);
+  const [selectedSkuIds, setSelectedSkuIds] = useState<Set<string>>(new Set());
+  const [bulkScope, setBulkScope] = useState<'filtered' | 'selected'>('filtered');
+  const [bulkTargetField, setBulkTargetField] = useState<'retail' | 'wholesale' | 'both'>('retail');
+  const [bulkPctChange, setBulkPctChange] = useState<number>(5);
+  const [bulkRounding, setBulkRounding] = useState<1 | 10 | 50>(10);
+  const [confirmBulkOpen, setConfirmBulkOpen] = useState(false);
+  const [isApplyingBulk, setIsApplyingBulk] = useState(false);
+
+  // Inline SKU Row Editor State
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [draftCost, setDraftCost] = useState<string>('');
+  const [draftWholesale, setDraftWholesale] = useState<string>('');
+  const [draftRetail, setDraftRetail] = useState<string>('');
+  const [draftZoneWholesale, setDraftZoneWholesale] = useState<string>('');
+  const [draftZoneRetail, setDraftZoneRetail] = useState<string>('');
+  const [isSavingRow, setIsSavingRow] = useState(false);
+
+  // Zone Create & Edit State
+  const [showNewZoneForm, setShowNewZoneForm] = useState(false);
   const [regionName, setRegionName] = useState('');
   const [tierType, setTierType] = useState<GeoRegion['tierType']>('Suburban Ring');
   const [wholesaleMult, setWholesaleMult] = useState<number>(1.08);
   const [retailMult, setRetailMult] = useState<number>(1.15);
   const [freightLevy, setFreightLevy] = useState<number>(450);
   const [taxRate, setTaxRate] = useState<number>(0.16);
+  const [isSavingZone, setIsSavingZone] = useState(false);
 
-  const [selectedProdId, setSelectedProdId] = useState(products[0]?.id || '');
-  const [selectedRegId, setSelectedRegId] = useState(regions[1]?.id || regions[0]?.id || '');
-  const [customWholesale, setCustomWholesale] = useState<number>(3900);
-  const [customRetail, setCustomRetail] = useState<number>(4800);
+  const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
+  const [zoneDraftName, setZoneDraftName] = useState('');
+  const [zoneDraftTier, setZoneDraftTier] = useState<GeoRegion['tierType']>('Suburban Ring');
+  const [zoneDraftWholesaleMult, setZoneDraftWholesaleMult] = useState<string>('1');
+  const [zoneDraftRetailMult, setZoneDraftRetailMult] = useState<string>('1');
+  const [zoneDraftFreight, setZoneDraftFreight] = useState<string>('0');
+  const [zoneDraftTax, setZoneDraftTax] = useState<string>('0.16');
 
+  const activeZone = useMemo(
+    () => regions.find((r) => r.id === activeZoneId),
+    [regions, activeZoneId]
+  );
+
+  // Helpers to read consistent SKU prices
+  const getCostPrice = (p: Product) =>
+    Number(p.warehouseCostKes ?? p.baseLandedCost ?? 0);
+  const getWholesalePrice = (p: Product) =>
+    Number(p.wholesalePriceKes ?? p.baseWholesalePrice ?? 0);
+  const getRetailPrice = (p: Product) =>
+    Number(p.retailPriceKes ?? p.baseRetailPrice ?? 0);
+
+  const parseOverrides = (p: Product): Record<string, { wholesale?: number; retail?: number }> => {
+    if (!p.geoPriceOverrides) return {};
+    try {
+      const parsed = JSON.parse(p.geoPriceOverrides);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  };
+
+  const getMarginPct = (sell: number, cost: number): number | null => {
+    if (sell <= 0 || cost <= 0) return null;
+    return ((sell - cost) / sell) * 100;
+  };
+
+  // Distinct subcategories for filter select
+  const subCategories = useMemo(() => {
+    const set = new Set<string>();
+    products.forEach((p) => {
+      if (p.subCategory && p.subCategory.trim()) set.add(p.subCategory.trim());
+    });
+    return Array.from(set).sort();
+  }, [products]);
+
+  // Pricing Metrics & Analytics Computations
+  const pricingMetrics = useMemo(() => {
+    let totalOverridesCount = 0;
+    let marginSum = 0;
+    let marginValidCount = 0;
+    let healthyCount = 0;
+    let standardCount = 0;
+    let tightCount = 0;
+    let missingCostCount = 0;
+
+    const categoryAgg: Record<string, { sumRetail: number; count: number }> = {};
+
+    products.forEach((p) => {
+      const cost = getCostPrice(p);
+      const retail = getRetailPrice(p);
+      const overrides = parseOverrides(p);
+      const overrideKeys = Object.keys(overrides).filter((k) => {
+        const entry = overrides[k];
+        return (entry?.retail && entry.retail > 0) || (entry?.wholesale && entry.wholesale > 0);
+      });
+      totalOverridesCount += overrideKeys.length;
+
+      const margin = getMarginPct(retail, cost);
+      if (cost <= 0) {
+        missingCostCount++;
+      } else if (margin !== null) {
+        marginSum += margin;
+        marginValidCount++;
+        if (margin >= 25) healthyCount++;
+        else if (margin >= 15) standardCount++;
+        else tightCount++;
+      }
+
+      const catLabel = p.subCategory || p.category || 'Spirits';
+      if (!categoryAgg[catLabel]) categoryAgg[catLabel] = { sumRetail: 0, count: 0 };
+      if (retail > 0) {
+        categoryAgg[catLabel].sumRetail += retail;
+        categoryAgg[catLabel].count += 1;
+      }
+    });
+
+    const avgMarginPct = marginValidCount > 0 ? marginSum / marginValidCount : 0;
+    const avgFreightLevy =
+      regions.length > 0
+        ? Math.round(
+            regions.reduce((s, r) => s + Number(r.freightLevyPerCase || 0), 0) / regions.length
+          )
+        : 0;
+
+    const categoryBarData = Object.entries(categoryAgg)
+      .filter(([, v]) => v.count > 0)
+      .map(([cat, v]) => ({
+        label: cat,
+        value: Math.round(v.sumRetail / v.count),
+        secondaryLabel: `${v.count} SKUs`,
+        color: '#0A006E',
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8);
+
+    const zoneBarData = regions.map((r, idx) => ({
+      label: r.name.split(' ')[0] || r.code,
+      value: Math.round(Number(r.retailMultiplier || 1) * 100),
+      formattedValue: `×${Number(r.retailMultiplier || 1).toFixed(2)}`,
+      secondaryLabel: `+${formatKes(r.freightLevyPerCase || 0)}/cs`,
+      color: idx === 0 ? '#0A006E' : idx % 2 === 1 ? '#34D186' : '#4F46E5',
+    }));
+
+    const marginPieData = [
+      {
+        label: 'Strong Margin (≥25%)',
+        value: healthyCount,
+        color: '#34D186',
+        sublabel: 'Healthy retail spread',
+      },
+      {
+        label: 'Standard Margin (15–25%)',
+        value: standardCount,
+        color: '#0A006E',
+        sublabel: 'Target commercial band',
+      },
+      {
+        label: 'Tight / Alert (<15%)',
+        value: tightCount,
+        color: '#F59E0B',
+        sublabel: 'Review cost or markup',
+      },
+      {
+        label: 'Missing Cost Basis',
+        value: missingCostCount,
+        color: '#94A3B8',
+        sublabel: 'Update landed cost',
+      },
+    ];
+
+    return {
+      totalOverridesCount,
+      avgMarginPct,
+      avgFreightLevy,
+      tightCount,
+      missingCostCount,
+      categoryBarData,
+      zoneBarData,
+      marginPieData,
+    };
+  }, [products, regions]);
+
+  // Filtered SKUs
+  const filteredProducts = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return products.filter((p) => {
+      if (classFilter !== 'ALL' && p.category !== classFilter) return false;
+      if (subCategoryFilter !== 'ALL' && (p.subCategory || p.category) !== subCategoryFilter) {
+        return false;
+      }
+
+      if (healthFilter === 'CUSTOM_OVERRIDE') {
+        const overrides = parseOverrides(p);
+        const hasAny =
+          activeZoneId !== 'BASE'
+            ? Boolean(overrides[activeZoneId]?.retail || overrides[activeZoneId]?.wholesale)
+            : Object.values(overrides).some((v) => (v?.retail || 0) > 0 || (v?.wholesale || 0) > 0);
+        if (!hasAny) return false;
+      } else if (healthFilter === 'LOW_MARGIN') {
+        const m = getMarginPct(getRetailPrice(p), getCostPrice(p));
+        if (m === null || m >= 15) return false;
+      } else if (healthFilter === 'MISSING_COST') {
+        if (getCostPrice(p) > 0) return false;
+      }
+
+      if (q) {
+        const haystack = `${p.sku} ${p.name} ${p.brand || ''} ${p.barcode || ''} ${
+          p.subCategory || ''
+        }`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [products, searchQuery, classFilter, subCategoryFilter, healthFilter, activeZoneId]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginatedProducts = useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE;
+    return filteredProducts.slice(start, start + PAGE_SIZE);
+  }, [filteredProducts, safePage]);
+
+  // Inline Editor Handlers
+  const startEditingProduct = (p: Product) => {
+    setEditingProductId(p.id);
+    setDraftCost(String(getCostPrice(p)));
+    setDraftWholesale(String(getWholesalePrice(p)));
+    setDraftRetail(String(getRetailPrice(p)));
+
+    if (activeZone) {
+      const overrides = parseOverrides(p);
+      const ov = overrides[activeZone.id];
+      const computedW = calculateGeoPrice(p, activeZone, 'wholesale').unitBottlePrice;
+      const computedR = calculateGeoPrice(p, activeZone, 'retail').unitBottlePrice;
+      setDraftZoneWholesale(String(ov?.wholesale && ov.wholesale > 0 ? ov.wholesale : computedW));
+      setDraftZoneRetail(String(ov?.retail && ov.retail > 0 ? ov.retail : computedR));
+    } else {
+      setDraftZoneWholesale('');
+      setDraftZoneRetail('');
+    }
+  };
+
+  const cancelEditingProduct = () => {
+    setEditingProductId(null);
+  };
+
+  const saveEditingProduct = async (p: Product) => {
+    if (!canManagePricing) return;
+    setIsSavingRow(true);
+    try {
+      const nextCost = Math.max(0, Math.round(Number(draftCost) || 0));
+      const nextWholesale = Math.max(0, Math.round(Number(draftWholesale) || 0));
+      const nextRetail = Math.max(0, Math.round(Number(draftRetail) || 0));
+
+      const baseChanged =
+        nextCost !== getCostPrice(p) ||
+        nextWholesale !== getWholesalePrice(p) ||
+        nextRetail !== getRetailPrice(p);
+
+      if (baseChanged && onUpdateProduct) {
+        await onUpdateProduct(p.id, {
+          baseLandedCost: nextCost,
+          warehouseCostKes: nextCost,
+          baseWholesalePrice: nextWholesale,
+          wholesalePriceKes: nextWholesale,
+          baseRetailPrice: nextRetail,
+          retailPriceKes: nextRetail,
+        });
+      }
+
+      if (activeZone) {
+        const nextZoneW = Math.max(0, Math.round(Number(draftZoneWholesale) || 0));
+        const nextZoneR = Math.max(0, Math.round(Number(draftZoneRetail) || 0));
+        const overrides = parseOverrides(p);
+        const existingOv = overrides[activeZone.id];
+        const autoW = calculateGeoPrice(p, activeZone, 'wholesale').unitBottlePrice;
+        const autoR = calculateGeoPrice(p, activeZone, 'retail').unitBottlePrice;
+        const wasOverridden = Boolean(existingOv?.wholesale || existingOv?.retail);
+        const matchesAuto = nextZoneW === autoW && nextZoneR === autoR;
+
+        if (wasOverridden || !matchesAuto) {
+          await onUpdateProductGeoOverride(p.id, activeZone.id, nextZoneW, nextZoneR);
+        }
+      }
+
+      setEditingProductId(null);
+    } finally {
+      setIsSavingRow(false);
+    }
+  };
+
+  const handleResetZoneOverride = async (p: Product) => {
+    if (!canManagePricing || !activeZone) return;
+    await onUpdateProductGeoOverride(p.id, activeZone.id, 0, 0);
+    if (editingProductId === p.id) {
+      setEditingProductId(null);
+    }
+  };
+
+  // Bulk Adjust Helpers
+  const roundToStep = (val: number, step: 1 | 10 | 50) => {
+    if (val <= 0) return 0;
+    return Math.max(1, Math.round(val / step) * step);
+  };
+
+  const bulkTargetProducts = useMemo(() => {
+    if (bulkScope === 'selected' && selectedSkuIds.size > 0) {
+      return products.filter((p) => selectedSkuIds.has(p.id));
+    }
+    return filteredProducts;
+  }, [bulkScope, selectedSkuIds, products, filteredProducts]);
+
+  const handleApplyBulkAdjustment = async () => {
+    if (!canManagePricing || bulkTargetProducts.length === 0) return;
+    setIsApplyingBulk(true);
+    try {
+      const multiplier = 1 + Number(bulkPctChange || 0) / 100;
+      const items = bulkTargetProducts.map((p) => {
+        const curW = getWholesalePrice(p);
+        const curR = getRetailPrice(p);
+        const updates: Partial<Product> = {};
+        if (bulkTargetField === 'wholesale' || bulkTargetField === 'both') {
+          const nextW = roundToStep(curW * multiplier, bulkRounding);
+          updates.baseWholesalePrice = nextW;
+          updates.wholesalePriceKes = nextW;
+        }
+        if (bulkTargetField === 'retail' || bulkTargetField === 'both') {
+          const nextR = roundToStep(curR * multiplier, bulkRounding);
+          updates.baseRetailPrice = nextR;
+          updates.retailPriceKes = nextR;
+        }
+        return { productId: p.id, updates };
+      });
+
+      const sign = bulkPctChange >= 0 ? '+' : '';
+      const summaryLabel = `Applied ${sign}${bulkPctChange}% to ${bulkTargetField} prices across ${items.length} SKUs (rounded to KES ${bulkRounding}).`;
+
+      if (onBulkUpdateProductPrices) {
+        await onBulkUpdateProductPrices(items, summaryLabel);
+      } else if (onUpdateProduct) {
+        for (const item of items) {
+          await onUpdateProduct(item.productId, item.updates);
+        }
+      }
+
+      setConfirmBulkOpen(false);
+      setSelectedSkuIds(new Set());
+    } finally {
+      setIsApplyingBulk(false);
+    }
+  };
+
+  // Zone Creation & Inline Update
   const handleCreateRegion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!regionName.trim() || !canManagePricing) return;
-    await onCreateRegion({
-      code: `GEO-${regionName.slice(0, 4).toUpperCase()}-0${regions.length + 1}`,
-      name: regionName.trim(),
-      tierType,
-      wholesaleMultiplier: Number(wholesaleMult),
-      retailMultiplier: Number(retailMult),
-      freightLevyPerCase: Number(freightLevy),
-      regionalTaxRate: Number(taxRate),
-      notes: 'Custom regional alcohol pricing & freight tariff rule.',
+    setIsSavingZone(true);
+    try {
+      await onCreateRegion({
+        code: `GEO-${regionName.slice(0, 4).toUpperCase()}-0${regions.length + 1}`,
+        name: regionName.trim(),
+        tierType,
+        wholesaleMultiplier: Number(wholesaleMult),
+        retailMultiplier: Number(retailMult),
+        freightLevyPerCase: Number(freightLevy),
+        regionalTaxRate: Number(taxRate),
+        notes: 'Custom regional alcohol pricing & freight tariff rule.',
+      });
+      setRegionName('');
+      setShowNewZoneForm(false);
+    } finally {
+      setIsSavingZone(false);
+    }
+  };
+
+  const startEditingZone = (r: GeoRegion) => {
+    setEditingZoneId(r.id);
+    setZoneDraftName(r.name);
+    setZoneDraftTier(r.tierType);
+    setZoneDraftWholesaleMult(String(r.wholesaleMultiplier));
+    setZoneDraftRetailMult(String(r.retailMultiplier));
+    setZoneDraftFreight(String(r.freightLevyPerCase));
+    setZoneDraftTax(String(r.regionalTaxRate));
+  };
+
+  const saveEditingZone = async (regionId: string) => {
+    if (!canManagePricing || !onUpdateRegion) return;
+    await onUpdateRegion(regionId, {
+      name: zoneDraftName.trim() || undefined,
+      tierType: zoneDraftTier,
+      wholesaleMultiplier: Number(zoneDraftWholesaleMult) || 1,
+      retailMultiplier: Number(zoneDraftRetailMult) || 1,
+      freightLevyPerCase: Number(zoneDraftFreight) || 0,
+      regionalTaxRate: Number(zoneDraftTax) || 0.16,
     });
-    setRegionName('');
+    setEditingZoneId(null);
   };
 
-  const handleApplyOverride = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedProdId || !selectedRegId || !canManagePricing) return;
-    await onUpdateProductGeoOverride(
-      selectedProdId,
-      selectedRegId,
-      Number(customWholesale),
-      Number(customRetail)
-    );
+  // Export Pricing CSV
+  const handleExportPricingCsv = () => {
+    const headers = [
+      'SKU',
+      'Product Name',
+      'Class',
+      'Category',
+      'Volume (ml)',
+      'Pack Size',
+      'Landed Cost (KES)',
+      'Base Wholesale (KES)',
+      'Base Retail (KES)',
+      'Retail Margin (%)',
+      ...regions.map((r) => `${r.name} (${matrixPriceMode}) KES/Btl`),
+    ];
+    const rows = filteredProducts.map((p) => {
+      const cost = getCostPrice(p);
+      const w = getWholesalePrice(p);
+      const r = getRetailPrice(p);
+      const margin = getMarginPct(r, cost);
+      return [
+        p.sku,
+        p.name,
+        p.category,
+        p.subCategory || p.category,
+        p.volumeMl,
+        p.packSize || p.bottlesPerCase || 12,
+        cost,
+        w,
+        r,
+        margin !== null ? margin.toFixed(1) : 'N/A',
+        ...regions.map((reg) => calculateGeoPrice(p, reg, matrixPriceMode).unitBottlePrice),
+      ];
+    });
+    exportToCSV(`Vaairo_Pricing_Schedule_${new Date().toISOString().slice(0, 10)}`, headers, rows);
   };
 
-  const suburbanZonesCount = regions.filter((r) => r.tierType === 'Suburban Ring').length;
-  const avgFreightLevy =
-    regions.length > 0
-      ? Math.round(regions.reduce((s, r) => s + Number(r.freightLevyPerCase || 0), 0) / regions.length)
-      : 0;
+  const toggleSelectSku = (id: string) => {
+    setSelectedSkuIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectPageSkus = () => {
+    const allPageSelected =
+      paginatedProducts.length > 0 && paginatedProducts.every((p) => selectedSkuIds.has(p.id));
+    setSelectedSkuIds((prev) => {
+      const next = new Set(prev);
+      if (allPageSelected) {
+        paginatedProducts.forEach((p) => next.delete(p.id));
+      } else {
+        paginatedProducts.forEach((p) => next.add(p.id));
+      }
+      return next;
+    });
+  };
+
+  // Draft live margin helper when row is being edited
+  const draftRetailNum = Number(draftRetail) || 0;
+  const draftCostNum = Number(draftCost) || 0;
+  const draftLiveMargin = getMarginPct(draftRetailNum, draftCostNum);
 
   return (
     <div className="space-y-4 pb-8">
+      {/* Unified Per-User Customizable Header Bar */}
       <MinimalDashboardBar
         currentUser={currentUser}
         schema={geoSchema}
@@ -7477,132 +7994,266 @@ export const GeoPricingModule: React.FC<{
         onToggleKpi={toggleGeoKpi}
         onToggleWidget={toggleGeoWidget}
         onReset={resetGeoPrefs}
+        actions={
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {canManagePricing && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowBulkPanel((prev) => !prev);
+                    setConfirmBulkOpen(false);
+                  }}
+                  className={`px-2.5 py-1.5 min-h-[34px] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap border transition ${
+                    showBulkPanel
+                      ? 'bg-[#FFDE00] text-[#0A006E] border-[#0A006E]'
+                      : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
+                  }`}
+                >
+                  <Percent className="w-3.5 h-3.5" />
+                  <span>Bulk % Adjust</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowNewZoneForm((prev) => !prev)}
+                  className={`px-2.5 py-1.5 min-h-[34px] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap transition ${
+                    showNewZoneForm
+                      ? 'bg-slate-800 text-white'
+                      : 'bg-[#0A006E] hover:bg-[#14009c] text-[#FFDE00]'
+                  }`}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{showNewZoneForm ? 'Close Zone Form' : 'New Zone'}</span>
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={handleExportPricingCsv}
+              className="px-2.5 py-1.5 min-h-[34px] rounded-lg bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-[11px] font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap transition"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Export CSV</span>
+            </button>
+          </div>
+        }
       />
 
-      {/* Role Boundary Callout Banner */}
+      {/* Role Scope Notice (Read-only roles only) */}
       {isBranchManager && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-center justify-between gap-3 text-amber-950">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3 text-amber-950">
           <div className="flex items-center gap-2.5">
             <Building2 className="w-4 h-4 text-amber-700 shrink-0" />
-            <div>
-              <div className="text-xs font-montserrat font-bold text-amber-900">
-                Branch Manager Scope · {currentUser.branchName}
-              </div>
-              <p className="text-[11px] text-amber-800">
-                Viewing regional multipliers and approved retail price tables for your territory.
-              </p>
+            <div className="text-xs">
+              <span className="font-montserrat font-bold text-amber-900">
+                Branch Manager View · {currentUser.branchName}
+              </span>
+              <span className="text-amber-800 ml-2">
+                Viewing regional multipliers and approved retail prices for your territory.
+              </span>
             </div>
           </div>
-          <span className="px-2 py-0.5 rounded bg-amber-200/70 text-amber-900 text-[10px] font-bold shrink-0">
-            View / Approved Edits
-          </span>
-        </div>
-      )}
-
-      {isInventory && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 flex items-center justify-between gap-3 text-emerald-950">
-          <div className="flex items-center gap-2.5">
-            <Package className="w-4 h-4 text-emerald-700 shrink-0" />
-            <div>
-              <div className="text-xs font-montserrat font-bold text-emerald-900">
-                Inventory Controller Scope · Cost &amp; Stock Valuation Mode
-              </div>
-              <p className="text-[11px] text-emerald-800">
-                Landed costs and case pack sizes monitored here; retail multipliers governed by Sales Management.
-              </p>
-            </div>
-          </div>
-          <span className="px-2 py-0.5 rounded bg-emerald-200/70 text-emerald-900 text-[10px] font-bold shrink-0">
-            Cost / Stock Scope
+          <span className="text-[11px] font-montserrat font-semibold text-amber-900 shrink-0">
+            Territory View
           </span>
         </div>
       )}
 
       {isAffiliate && (
-        <div className="bg-purple-50 border border-purple-200 rounded-xl p-3.5 flex items-center justify-between gap-3 text-purple-950">
+        <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3 text-slate-800">
           <div className="flex items-center gap-2.5">
-            <Tag className="w-4 h-4 text-purple-700 shrink-0" />
-            <div>
-              <div className="text-xs font-montserrat font-bold text-purple-900">
-                Affiliate Sales Representative Scope · Approved Price Catalogue
-              </div>
-              <p className="text-[11px] text-purple-800">
-                Standard approved prices for your {currentUser.agreedCommissionPct || 8}% commission tier.
-              </p>
+            <Tag className="w-4 h-4 text-[#0A006E] shrink-0" />
+            <div className="text-xs">
+              <span className="font-montserrat font-bold text-[#0A006E]">
+                Affiliate Sales Catalogue · {currentUser.agreedCommissionPct || 8}% Commission Tier
+              </span>
+              <span className="text-slate-600 ml-2">Approved wholesale and retail reference prices.</span>
             </div>
           </div>
-          <span className="px-2 py-0.5 rounded bg-purple-200/70 text-purple-900 text-[10px] font-bold shrink-0">
-            Approved Prices Only
-          </span>
         </div>
       )}
 
+      {/* 1. PRICING KPI STRIP */}
       {isGeoWidgetVisible('kpi_strip') && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {isGeoKpiVisible('zones') && (
             <div className="bg-white border border-slate-200 rounded-xl p-3.5">
-              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Pricing Zones</div>
-              <div className="text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
-                {regions.length} Active
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">
+                Active Pricing Zones
+              </div>
+              <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                {regions.length} Zones
+              </div>
+              <div className="text-[11px] text-slate-500 mt-0.5 truncate">
+                {regions.filter((r) => r.tierType === 'Suburban Ring').length} Suburban ·{' '}
+                {regions.filter((r) => r.tierType === 'Metro Core').length} Metro
               </div>
             </div>
           )}
-          {isGeoKpiVisible('suburban') && (
+
+          {isGeoKpiVisible('avg_margin') && (
             <div className="bg-white border border-slate-200 rounded-xl p-3.5">
-              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Suburban Ring Zones</div>
-              <div className="text-lg font-montserrat font-black text-indigo-700 font-mono-tabular mt-0.5">
-                {suburbanZonesCount} Zones
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">
+                Avg Retail Margin
+              </div>
+              <div
+                className={`text-lg sm:text-xl font-montserrat font-black font-mono-tabular mt-0.5 ${
+                  pricingMetrics.avgMarginPct >= 20
+                    ? 'text-emerald-700'
+                    : pricingMetrics.avgMarginPct >= 12
+                    ? 'text-[#0A006E]'
+                    : 'text-amber-700'
+                }`}
+              >
+                {pricingMetrics.avgMarginPct.toFixed(1)}%
+              </div>
+              <div className="text-[11px] text-slate-500 mt-0.5 truncate">
+                {pricingMetrics.tightCount > 0
+                  ? `${pricingMetrics.tightCount} SKUs under 15%`
+                  : 'All priced SKUs healthy'}
               </div>
             </div>
           )}
+
           {isGeoKpiVisible('catalog_skus') && (
             <div className="bg-white border border-slate-200 rounded-xl p-3.5">
-              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Priced Catalog SKUs</div>
-              <div className="text-lg font-montserrat font-black text-emerald-700 font-mono-tabular mt-0.5">
-                {products.length} SKUs
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">
+                Priced Catalog SKUs
+              </div>
+              <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                {products.length.toLocaleString()}
+              </div>
+              <div className="text-[11px] text-slate-500 mt-0.5 truncate">
+                {pricingMetrics.totalOverridesCount} regional overrides set
               </div>
             </div>
           )}
+
           {isGeoKpiVisible('avg_freight') && (
             <div className="bg-white border border-slate-200 rounded-xl p-3.5">
-              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Avg Freight / Case</div>
-              <div className="text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
-                {formatKes(avgFreightLevy)}
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500">
+                Avg Freight / Case
+              </div>
+              <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+                {formatKes(pricingMetrics.avgFreightLevy)}
+              </div>
+              <div className="text-[11px] text-slate-500 mt-0.5 truncate">
+                Across {regions.length} delivery tariffs
               </div>
             </div>
           )}
         </div>
       )}
 
-      {canManagePricing && isGeoWidgetVisible('zone_forms') && (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Create Geo Zone */}
+      {/* 2. VISUAL PRICING ANALYTICS (BAR GRAPH & PIE CHART) */}
+      {isGeoWidgetVisible('analytics_charts') && (
+        <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-100 pb-3">
+            <div>
+              <h2 className="text-sm font-montserrat font-bold text-[#0A006E] flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-[#0A006E]" />
+                Pricing &amp; Margin Analytics
+              </h2>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Category average bottle pricing, zone multipliers, and SKU gross margin distribution.
+              </p>
+            </div>
+            <div className="inline-flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setChartTab('categories')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-montserrat font-bold cursor-pointer whitespace-nowrap transition ${
+                  chartTab === 'categories'
+                    ? 'bg-[#0A006E] text-[#FFDE00]'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Category Prices
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartTab('zones')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-montserrat font-bold cursor-pointer whitespace-nowrap transition ${
+                  chartTab === 'zones'
+                    ? 'bg-[#0A006E] text-[#FFDE00]'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Zone Multipliers
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {chartTab === 'categories' ? (
+              <BarGraph
+                title="Avg Retail Price by Liquor Category"
+                subtitle="Mean base retail bottle price (KES) across leading categories"
+                data={pricingMetrics.categoryBarData}
+                mode="compare"
+                valueFormatter={formatKes}
+                activeColor="#0A006E"
+              />
+            ) : (
+              <BarGraph
+                title="Regional Retail Multiplier Index"
+                subtitle="Percentage retail price index (100 = 1.00× base tariff) per geo-zone"
+                data={pricingMetrics.zoneBarData}
+                mode="compare"
+                valueFormatter={(v) => `${(v / 100).toFixed(2)}× (${Math.round(v)}%)`}
+                activeColor="#34D186"
+              />
+            )}
+
+            <PieChart
+              title="Catalog Margin Health Breakdown"
+              subtitle="Distribution of catalog SKUs by retail gross margin against landed cost"
+              data={pricingMetrics.marginPieData}
+              valueFormatter={(v) => `${Math.round(v).toLocaleString()} SKUs`}
+              centerMetricLabel="Catalog SKUs"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* 3. ADD NEW GEO-ZONE DRAWER FORM (On Demand or in Full Mode) */}
+      {canManagePricing && showNewZoneForm && (
         <form
           onSubmit={handleCreateRegion}
-          className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-4"
+          className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 space-y-4"
         >
-          <h3 className="text-sm font-montserrat font-black text-[#0A006E] flex items-center gap-2 border-b border-slate-200 pb-3">
-            <MapPin className="w-4 h-4 text-[#0A006E]" />
-            Add New Geo-Location Pricing Zone
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h3 className="text-sm font-montserrat font-bold text-[#0A006E] flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-[#0A006E]" />
+              Add New Geo-Location Pricing Zone
+            </h3>
+            <button
+              type="button"
+              onClick={() => setShowNewZoneForm(false)}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+              aria-label="Close New Zone Form"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
             <div>
-              <label className="font-montserrat font-bold text-slate-700">Geo-Zone Name *</label>
+              <label className="font-montserrat font-semibold text-slate-700">Geo-Zone Name *</label>
               <input
                 required
                 type="text"
                 value={regionName}
                 onChange={(e) => setRegionName(e.target.value)}
-                placeholder="e.g. Nyali & Coastal Resort Suburb Belt"
-                className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl"
+                placeholder="e.g. Nyali & Coastal Suburb Belt"
+                className="w-full mt-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-[#0A006E]"
               />
             </div>
             <div>
-              <label className="font-montserrat font-bold text-slate-700">Regional Classification</label>
+              <label className="font-montserrat font-semibold text-slate-700">Zone Classification</label>
               <select
                 value={tierType}
                 onChange={(e) => setTierType(e.target.value as GeoRegion['tierType'])}
-                className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold"
+                className="w-full mt-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-medium focus:outline-none focus:border-[#0A006E]"
               >
                 <option value="Metro Core">Metro Core</option>
                 <option value="Suburban Ring">Suburban Ring</option>
@@ -7610,164 +8261,1101 @@ export const GeoPricingModule: React.FC<{
                 <option value="Duty-Free / Export">Duty-Free / Export</option>
               </select>
             </div>
-            <div>
-              <label className="font-montserrat font-bold text-slate-700">Wholesale & Retail Multiplier</label>
-              <div className="grid grid-cols-2 gap-2 mt-1">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="font-montserrat font-semibold text-slate-700">Wholesale ×</label>
                 <input
                   type="number"
                   step="0.01"
+                  min="0.5"
                   value={wholesaleMult}
                   onChange={(e) => setWholesaleMult(Number(e.target.value))}
-                  className="px-2.5 py-2 bg-white border border-slate-200 rounded-xl font-mono-tabular"
+                  className="w-full mt-1 px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg font-mono-tabular"
                 />
+              </div>
+              <div>
+                <label className="font-montserrat font-semibold text-slate-700">Retail ×</label>
                 <input
                   type="number"
                   step="0.01"
+                  min="0.5"
                   value={retailMult}
                   onChange={(e) => setRetailMult(Number(e.target.value))}
-                  className="px-2.5 py-2 bg-white border border-slate-200 rounded-xl font-mono-tabular"
+                  className="w-full mt-1 px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg font-mono-tabular"
                 />
               </div>
             </div>
-            <div>
-              <label className="font-montserrat font-bold text-slate-700">Freight/Case (KES) & Tax Rate</label>
-              <div className="grid grid-cols-2 gap-2 mt-1">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="font-montserrat font-semibold text-slate-700">Freight / Case (KES)</label>
                 <input
                   type="number"
+                  min="0"
                   value={freightLevy}
                   onChange={(e) => setFreightLevy(Number(e.target.value))}
-                  className="px-2.5 py-2 bg-white border border-slate-200 rounded-xl font-mono-tabular"
+                  className="w-full mt-1 px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg font-mono-tabular"
                 />
+              </div>
+              <div>
+                <label className="font-montserrat font-semibold text-slate-700">Tax Rate</label>
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
                   value={taxRate}
                   onChange={(e) => setTaxRate(Number(e.target.value))}
-                  className="px-2.5 py-2 bg-white border border-slate-200 rounded-xl font-mono-tabular"
+                  className="w-full mt-1 px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg font-mono-tabular"
                 />
               </div>
             </div>
-          </div>
-          <button
-            type="submit"
-            className="px-4 py-2.5 bg-[#0A006E] text-[#FFDE00] font-montserrat font-black text-xs rounded-xl cursor-pointer"
-          >
-            Save Geo-Pricing Zone
-          </button>
-        </form>
-
-        {/* Set Explicit SKU Regional Price Override */}
-        <form
-          onSubmit={handleApplyOverride}
-          className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-4"
-        >
-          <h3 className="text-sm font-montserrat font-black text-[#0A006E] flex items-center gap-2 border-b border-slate-200 pb-3">
-            <RefreshCw className="w-4 h-4 text-[#0A006E]" />
-            Set Exact SKU Price Override for Suburb / Lower Region
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-            <div>
-              <label className="font-montserrat font-bold text-slate-700">Select Liquor SKU</label>
-              <select
-                value={selectedProdId}
-                onChange={(e) => setSelectedProdId(e.target.value)}
-                className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold"
+            <div className="flex items-end">
+              <button
+                type="submit"
+                disabled={isSavingZone}
+                className="w-full sm:w-auto px-4 py-2 bg-[#0A006E] hover:bg-[#14009c] text-[#FFDE00] font-montserrat font-bold text-xs rounded-lg cursor-pointer flex items-center justify-center gap-1.5 transition"
               >
-                {products.slice(0, 120).map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.sku} · {p.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="font-montserrat font-bold text-slate-700">Target Geo-Location Zone</label>
-              <select
-                value={selectedRegId}
-                onChange={(e) => setSelectedRegId(e.target.value)}
-                className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold"
-              >
-                {regions.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name} ({r.tierType})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="font-montserrat font-bold text-slate-700">Regional Wholesale (KES / Btl)</label>
-              <input
-                type="number"
-                value={customWholesale}
-                onChange={(e) => setCustomWholesale(Number(e.target.value))}
-                className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-mono-tabular"
-              />
-            </div>
-            <div>
-              <label className="font-montserrat font-bold text-slate-700">Regional Retail (KES / Btl)</label>
-              <input
-                type="number"
-                value={customRetail}
-                onChange={(e) => setCustomRetail(Number(e.target.value))}
-                className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-mono-tabular"
-              />
+                {isSavingZone ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                <span>Save Pricing Zone</span>
+              </button>
             </div>
           </div>
-          <button
-            type="submit"
-            className="px-4 py-2.5 bg-[#FFDE00] border-2 border-[#0A006E] text-[#0A006E] font-montserrat font-black text-xs rounded-xl cursor-pointer"
-          >
-            Apply Regional SKU Tariff Override
-          </button>
         </form>
-      </div>
       )}
 
-      {/* Live Comparison Table across Regions */}
-      {isGeoWidgetVisible('zone_directory') && (
-      <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-3">
-        <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
-          Live Geo-Location Price Comparison Across Suburbs, Metro &amp; Lower Regions (Top 30 SKUs)
-        </h3>
-        <div className="overflow-x-auto bg-white border border-slate-200 rounded-xl">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
-                <th className="py-2.5 px-3 font-black">Auto SKU &amp; Brand</th>
-                <th className="py-2.5 px-3 font-black text-right">Base Retail</th>
-                {regions.map((r) => (
-                  <th key={r.id} className="py-2.5 px-3 font-black text-right">
-                    {r.name.split(' ')[0]} ({r.tierType.split(' ')[0]}) Btl / Case
-                  </th>
+      {/* 4. INTERACTIVE SKU PRICE EDITOR & BULK ADJUSTMENT STUDIO */}
+      {isGeoWidgetVisible('quick_price_studio') && (
+        <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 space-y-4">
+          {/* Header & Role Capability Note */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div>
+              <h2 className="text-sm font-montserrat font-bold text-[#0A006E] flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-[#0A006E]" />
+                SKU Price &amp; Geo-Override Studio
+              </h2>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                {canManagePricing
+                  ? 'Click Edit on any bottle to update Landed Cost, Wholesale, Retail, or zone-specific tariff overrides inline.'
+                  : 'Browse live base and regional prices across all catalog SKUs.'}
+              </p>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-slate-500 font-mono-tabular">
+              <span>{filteredProducts.length.toLocaleString()} matching SKUs</span>
+              {selectedSkuIds.size > 0 && (
+                <span className="font-bold text-[#0A006E]">
+                  · {selectedSkuIds.size} selected
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Bulk % Price Adjustment Bar */}
+          {canManagePricing && showBulkPanel && (
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs font-montserrat font-bold text-[#0A006E] flex items-center gap-1.5">
+                  <Percent className="w-3.5 h-3.5" />
+                  <span>Batch Percentage Price Adjuster</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowBulkPanel(false);
+                    setConfirmBulkOpen(false);
+                  }}
+                  className="text-xs text-slate-400 hover:text-slate-700 cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 text-xs">
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-600">Apply Scope</label>
+                  <select
+                    value={bulkScope}
+                    onChange={(e) => {
+                      setBulkScope(e.target.value as 'filtered' | 'selected');
+                      setConfirmBulkOpen(false);
+                    }}
+                    className="w-full mt-1 px-2.5 py-2 bg-white border border-slate-200 rounded-lg font-medium"
+                  >
+                    <option value="filtered">
+                      All Filtered SKUs ({filteredProducts.length})
+                    </option>
+                    <option value="selected" disabled={selectedSkuIds.size === 0}>
+                      Checked Rows Only ({selectedSkuIds.size})
+                    </option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-600">Price Tier</label>
+                  <select
+                    value={bulkTargetField}
+                    onChange={(e) => {
+                      setBulkTargetField(e.target.value as 'retail' | 'wholesale' | 'both');
+                      setConfirmBulkOpen(false);
+                    }}
+                    className="w-full mt-1 px-2.5 py-2 bg-white border border-slate-200 rounded-lg font-medium"
+                  >
+                    <option value="retail">Base Retail Price</option>
+                    <option value="wholesale">Base Wholesale Price</option>
+                    <option value="both">Both Wholesale &amp; Retail</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-600">
+                    % Change (e.g. 5 or -3)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={bulkPctChange}
+                    onChange={(e) => {
+                      setBulkPctChange(Number(e.target.value));
+                      setConfirmBulkOpen(false);
+                    }}
+                    className="w-full mt-1 px-2.5 py-2 bg-white border border-slate-200 rounded-lg font-mono-tabular"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-600">KES Rounding</label>
+                  <select
+                    value={bulkRounding}
+                    onChange={(e) => setBulkRounding(Number(e.target.value) as 1 | 10 | 50)}
+                    className="w-full mt-1 px-2.5 py-2 bg-white border border-slate-200 rounded-lg font-medium"
+                  >
+                    <option value={10}>Nearest KES 10</option>
+                    <option value={50}>Nearest KES 50</option>
+                    <option value={1}>Exact KES 1</option>
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  {!confirmBulkOpen ? (
+                    <button
+                      type="button"
+                      disabled={bulkTargetProducts.length === 0 || bulkPctChange === 0}
+                      onClick={() => setConfirmBulkOpen(true)}
+                      className="w-full px-3 py-2 bg-[#0A006E] hover:bg-[#14009c] disabled:opacity-40 text-[#FFDE00] font-montserrat font-bold rounded-lg cursor-pointer whitespace-nowrap transition"
+                    >
+                      Preview &amp; Apply ({bulkTargetProducts.length})
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-1.5 w-full">
+                      <button
+                        type="button"
+                        disabled={isApplyingBulk}
+                        onClick={handleApplyBulkAdjustment}
+                        className="flex-1 px-2.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-montserrat font-bold rounded-lg cursor-pointer flex items-center justify-center gap-1"
+                      >
+                        {isApplyingBulk ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Check className="w-3.5 h-3.5" />
+                        )}
+                        <span>Confirm</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmBulkOpen(false)}
+                        className="px-2.5 py-2 bg-white border border-slate-200 text-slate-700 font-bold rounded-lg cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {confirmBulkOpen && bulkTargetProducts[0] && (
+                <div className="text-[11px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2">
+                  Confirm {bulkPctChange >= 0 ? `+${bulkPctChange}%` : `${bulkPctChange}%`} update on{' '}
+                  <strong>{bulkTargetProducts.length} SKUs</strong> ({bulkTargetField}). Example:{' '}
+                  <span className="font-semibold">{bulkTargetProducts[0].name}</span> Retail{' '}
+                  <span className="font-mono-tabular">
+                    {formatKes(getRetailPrice(bulkTargetProducts[0]))}
+                  </span>{' '}
+                  →{' '}
+                  <span className="font-mono-tabular font-bold text-[#0A006E]">
+                    {formatKes(
+                      roundToStep(
+                        getRetailPrice(bulkTargetProducts[0]) * (1 + bulkPctChange / 100),
+                        bulkRounding
+                      )
+                    )}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Search & Filters Toolbar */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5 text-xs">
+            <div className="lg:col-span-4 relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setPage(1);
+                }}
+                placeholder="Search SKU, bottle brand, or barcode..."
+                className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-[#0A006E]"
+              />
+            </div>
+
+            <div className="lg:col-span-2 inline-flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+              {(['ALL', 'IPS', 'LPS'] as const).map((cls) => (
+                <button
+                  key={cls}
+                  type="button"
+                  onClick={() => {
+                    setClassFilter(cls);
+                    setPage(1);
+                  }}
+                  className={`flex-1 py-1.5 rounded-md font-montserrat font-bold text-[11px] cursor-pointer transition ${
+                    classFilter === cls
+                      ? 'bg-[#0A006E] text-[#FFDE00]'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {cls === 'ALL' ? 'All' : cls}
+                </button>
+              ))}
+            </div>
+
+            <div className="lg:col-span-2">
+              <select
+                value={subCategoryFilter}
+                onChange={(e) => {
+                  setSubCategoryFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg font-medium"
+              >
+                <option value="ALL">All Categories</option>
+                {subCategories.map((sub) => (
+                  <option key={sub} value={sub}>
+                    {sub}
+                  </option>
                 ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {products.slice(0, 30).map((p) => (
-                <tr key={p.id} className="hover:bg-slate-50">
-                  <td className="py-2.5 px-3">
-                    <span className="font-mono-tabular font-bold text-[#0A006E]">{p.sku}</span> ·{' '}
-                    <span className="font-montserrat font-bold text-slate-900">{p.name}</span>
-                  </td>
-                  <td className="py-2.5 px-3 text-right font-mono-tabular">
-                    {formatKes(p.retailPriceKes ?? p.baseRetailPrice ?? 0)}
-                  </td>
+              </select>
+            </div>
+
+            <div className="lg:col-span-2">
+              <select
+                value={healthFilter}
+                onChange={(e) => {
+                  setHealthFilter(e.target.value as any);
+                  setPage(1);
+                }}
+                className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg font-medium"
+              >
+                <option value="ALL">All Margin Tiers</option>
+                <option value="CUSTOM_OVERRIDE">Has Zone Override</option>
+                <option value="LOW_MARGIN">Low Margin (&lt;15%)</option>
+                <option value="MISSING_COST">Missing Cost Basis</option>
+              </select>
+            </div>
+
+            <div className="lg:col-span-2">
+              <select
+                value={activeZoneId}
+                onChange={(e) => {
+                  setActiveZoneId(e.target.value);
+                  setEditingProductId(null);
+                }}
+                className="w-full px-2.5 py-2 bg-slate-50 border border-[#0A006E]/30 text-[#0A006E] rounded-lg font-montserrat font-bold"
+              >
+                <option value="BASE">Zone: Base National</option>
+                {regions.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    Zone: {r.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Empty State */}
+          {filteredProducts.length === 0 ? (
+            <div className="py-12 text-center space-y-2 border border-dashed border-slate-200 rounded-xl">
+              <Package className="w-8 h-8 text-slate-300 mx-auto" />
+              <div className="text-sm font-montserrat font-bold text-slate-700">
+                No matching products found
+              </div>
+              <p className="text-xs text-slate-500">
+                Adjust your search query or clear category and margin filters.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setClassFilter('ALL');
+                  setSubCategoryFilter('ALL');
+                  setHealthFilter('ALL');
+                  setPage(1);
+                }}
+                className="mt-2 px-3 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-xs font-montserrat font-bold cursor-pointer"
+              >
+                Reset Filters
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Desktop High-Density Inline Pricing Table */}
+              <div className="hidden md:block overflow-x-auto border border-slate-200 rounded-xl">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
+                      {canManagePricing && (
+                        <th className="py-2.5 px-3 w-9">
+                          <input
+                            type="checkbox"
+                            checked={
+                              paginatedProducts.length > 0 &&
+                              paginatedProducts.every((p) => selectedSkuIds.has(p.id))
+                            }
+                            onChange={toggleSelectPageSkus}
+                            aria-label="Select page SKUs"
+                            className="rounded cursor-pointer"
+                          />
+                        </th>
+                      )}
+                      <th className="py-2.5 px-3 font-bold">SKU &amp; Product</th>
+                      <th className="py-2.5 px-3 font-bold text-right">Landed Cost</th>
+                      <th className="py-2.5 px-3 font-bold text-right">Wholesale</th>
+                      <th className="py-2.5 px-3 font-bold text-right">Base Retail</th>
+                      <th className="py-2.5 px-3 font-bold text-right">Retail Margin</th>
+                      {activeZone && (
+                        <th className="py-2.5 px-3 font-bold text-right">
+                          {activeZone.name.split(' ')[0]} Tariff (W / R)
+                        </th>
+                      )}
+                      {canManagePricing && (
+                        <th className="py-2.5 px-3 font-bold text-right w-40">Actions</th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 bg-white">
+                    {paginatedProducts.map((p) => {
+                      const isEditing = editingProductId === p.id;
+                      const cost = getCostPrice(p);
+                      const wholesale = getWholesalePrice(p);
+                      const retail = getRetailPrice(p);
+                      const margin = isEditing ? draftLiveMargin : getMarginPct(retail, cost);
+                      const overrides = parseOverrides(p);
+                      const zoneOv = activeZone ? overrides[activeZone.id] : undefined;
+                      const hasZoneOv = Boolean(
+                        zoneOv && ((zoneOv.wholesale || 0) > 0 || (zoneOv.retail || 0) > 0)
+                      );
+                      const zoneW = activeZone
+                        ? calculateGeoPrice(p, activeZone, 'wholesale').unitBottlePrice
+                        : wholesale;
+                      const zoneR = activeZone
+                        ? calculateGeoPrice(p, activeZone, 'retail').unitBottlePrice
+                        : retail;
+
+                      return (
+                        <tr
+                          key={p.id}
+                          className={`transition-colors ${
+                            isEditing ? 'bg-indigo-50/40' : 'hover:bg-slate-50'
+                          }`}
+                        >
+                          {canManagePricing && (
+                            <td className="py-2.5 px-3">
+                              <input
+                                type="checkbox"
+                                checked={selectedSkuIds.has(p.id)}
+                                onChange={() => toggleSelectSku(p.id)}
+                                aria-label={`Select ${p.name}`}
+                                className="rounded cursor-pointer"
+                              />
+                            </td>
+                          )}
+                          <td className="py-2.5 px-3 min-w-[220px]">
+                            <div className="font-montserrat font-bold text-slate-900 line-clamp-1">
+                              {p.name}
+                            </div>
+                            <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                              <span className="font-mono-tabular font-semibold text-[#0A006E]">
+                                {p.sku}
+                              </span>
+                              <span aria-hidden="true">·</span>
+                              <span>{p.category}</span>
+                              {p.subCategory && (
+                                <>
+                                  <span aria-hidden="true">·</span>
+                                  <span>{p.subCategory}</span>
+                                </>
+                              )}
+                              <span aria-hidden="true">·</span>
+                              <span className="font-mono-tabular">{p.volumeMl}ml</span>
+                            </div>
+                          </td>
+
+                          {/* Landed Cost */}
+                          <td className="py-2.5 px-3 text-right font-mono-tabular whitespace-nowrap">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                min="0"
+                                value={draftCost}
+                                onChange={(e) => setDraftCost(e.target.value)}
+                                className="w-24 px-2 py-1 text-right bg-white border border-[#0A006E]/40 rounded-md font-mono-tabular text-xs font-bold"
+                                aria-label="Landed Cost"
+                              />
+                            ) : cost > 0 ? (
+                              <span className="text-slate-700">{formatKes(cost)}</span>
+                            ) : (
+                              <span className="text-slate-400">Not set</span>
+                            )}
+                          </td>
+
+                          {/* Base Wholesale */}
+                          <td className="py-2.5 px-3 text-right font-mono-tabular whitespace-nowrap">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                min="0"
+                                value={draftWholesale}
+                                onChange={(e) => setDraftWholesale(e.target.value)}
+                                className="w-24 px-2 py-1 text-right bg-white border border-[#0A006E]/40 rounded-md font-mono-tabular text-xs font-bold"
+                                aria-label="Wholesale Price"
+                              />
+                            ) : (
+                              <span className="font-semibold text-slate-800">
+                                {formatKes(wholesale)}
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Base Retail */}
+                          <td className="py-2.5 px-3 text-right font-mono-tabular whitespace-nowrap">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                min="0"
+                                value={draftRetail}
+                                onChange={(e) => setDraftRetail(e.target.value)}
+                                className="w-24 px-2 py-1 text-right bg-white border border-[#0A006E] rounded-md font-mono-tabular text-xs font-black text-[#0A006E]"
+                                aria-label="Retail Price"
+                              />
+                            ) : (
+                              <span className="font-black text-[#0A006E]">
+                                {formatKes(retail)}
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Margin % */}
+                          <td className="py-2.5 px-3 text-right font-mono-tabular whitespace-nowrap">
+                            {margin === null ? (
+                              <span className="text-slate-400">—</span>
+                            ) : (
+                              <span
+                                className={`font-bold ${
+                                  margin >= 25
+                                    ? 'text-emerald-700'
+                                    : margin >= 15
+                                    ? 'text-slate-800'
+                                    : margin >= 0
+                                    ? 'text-amber-700'
+                                    : 'text-rose-700'
+                                }`}
+                              >
+                                {margin >= 0 ? '+' : ''}
+                                {margin.toFixed(1)}%
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Selected Zone Price / Override */}
+                          {activeZone && (
+                            <td className="py-2.5 px-3 text-right font-mono-tabular whitespace-nowrap">
+                              {isEditing ? (
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={draftZoneWholesale}
+                                    onChange={(e) => setDraftZoneWholesale(e.target.value)}
+                                    title="Zone Wholesale Override"
+                                    className="w-20 px-1.5 py-1 text-right bg-white border border-slate-300 rounded-md font-mono-tabular text-xs"
+                                  />
+                                  <span className="text-slate-400">/</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={draftZoneRetail}
+                                    onChange={(e) => setDraftZoneRetail(e.target.value)}
+                                    title="Zone Retail Override"
+                                    className="w-20 px-1.5 py-1 text-right bg-white border border-[#0A006E] rounded-md font-mono-tabular text-xs font-bold"
+                                  />
+                                </div>
+                              ) : (
+                                <div>
+                                  <div className="font-bold text-[#0A006E]">
+                                    {formatKes(zoneW)} / {formatKes(zoneR)}
+                                  </div>
+                                  <div className="text-[10px] text-slate-500">
+                                    {hasZoneOv ? 'Custom override' : `×${activeZone.retailMultiplier.toFixed(2)} rule`}
+                                  </div>
+                                </div>
+                              )}
+                            </td>
+                          )}
+
+                          {/* Actions */}
+                          {canManagePricing && (
+                            <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                              {isEditing ? (
+                                <div className="inline-flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    disabled={isSavingRow}
+                                    onClick={() => saveEditingProduct(p)}
+                                    className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md font-montserrat font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+                                  >
+                                    {isSavingRow ? (
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                    ) : (
+                                      <Save className="w-3 h-3" />
+                                    )}
+                                    <span>Save</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={cancelEditingProduct}
+                                    className="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md font-montserrat font-bold text-[11px] cursor-pointer"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="inline-flex items-center gap-1.5">
+                                  {activeZone && hasZoneOv && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleResetZoneOverride(p)}
+                                      title="Reset custom zone override back to multiplier"
+                                      className="p-1.5 text-slate-500 hover:text-rose-700 hover:bg-rose-50 rounded-md cursor-pointer"
+                                    >
+                                      <RotateCcw className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => startEditingProduct(p)}
+                                    className="px-3 py-1.5 bg-[#0A006E] hover:bg-[#14009c] text-[#FFDE00] rounded-md font-montserrat font-bold text-[11px] inline-flex items-center gap-1 cursor-pointer transition"
+                                  >
+                                    <Edit3 className="w-3 h-3" />
+                                    <span>Edit Price</span>
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Friendly Pricing Cards */}
+              <div className="md:hidden space-y-2.5">
+                {paginatedProducts.map((p) => {
+                  const isEditing = editingProductId === p.id;
+                  const cost = getCostPrice(p);
+                  const wholesale = getWholesalePrice(p);
+                  const retail = getRetailPrice(p);
+                  const margin = isEditing ? draftLiveMargin : getMarginPct(retail, cost);
+                  const overrides = parseOverrides(p);
+                  const zoneOv = activeZone ? overrides[activeZone.id] : undefined;
+                  const hasZoneOv = Boolean(
+                    zoneOv && ((zoneOv.wholesale || 0) > 0 || (zoneOv.retail || 0) > 0)
+                  );
+                  const zoneW = activeZone
+                    ? calculateGeoPrice(p, activeZone, 'wholesale').unitBottlePrice
+                    : wholesale;
+                  const zoneR = activeZone
+                    ? calculateGeoPrice(p, activeZone, 'retail').unitBottlePrice
+                    : retail;
+
+                  return (
+                    <div
+                      key={p.id}
+                      className={`border rounded-xl p-3.5 space-y-2.5 ${
+                        isEditing ? 'border-[#0A006E] bg-indigo-50/30' : 'border-slate-200 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-xs font-montserrat font-bold text-slate-900">
+                            {p.name}
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5">
+                            <span className="font-mono-tabular font-semibold text-[#0A006E]">
+                              {p.sku}
+                            </span>{' '}
+                            · {p.subCategory || p.category} · {p.volumeMl}ml
+                          </div>
+                        </div>
+                        {canManagePricing && (
+                          <input
+                            type="checkbox"
+                            checked={selectedSkuIds.has(p.id)}
+                            onChange={() => toggleSelectSku(p.id)}
+                            aria-label={`Select ${p.name}`}
+                            className="mt-1 rounded cursor-pointer"
+                          />
+                        )}
+                      </div>
+
+                      {isEditing ? (
+                        <div className="space-y-2.5 pt-1 border-t border-slate-200 text-xs">
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <label className="text-[10px] font-semibold text-slate-600">
+                                Cost (KES)
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={draftCost}
+                                onChange={(e) => setDraftCost(e.target.value)}
+                                className="w-full mt-0.5 px-2 py-1.5 bg-white border border-slate-300 rounded-lg font-mono-tabular"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-semibold text-slate-600">
+                                Wholesale
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={draftWholesale}
+                                onChange={(e) => setDraftWholesale(e.target.value)}
+                                className="w-full mt-0.5 px-2 py-1.5 bg-white border border-slate-300 rounded-lg font-mono-tabular"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-semibold text-[#0A006E]">
+                                Retail (KES)
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={draftRetail}
+                                onChange={(e) => setDraftRetail(e.target.value)}
+                                className="w-full mt-0.5 px-2 py-1.5 bg-white border border-[#0A006E] rounded-lg font-mono-tabular font-bold"
+                              />
+                            </div>
+                          </div>
+
+                          {activeZone && (
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-[10px] font-semibold text-slate-600">
+                                  {activeZone.name.split(' ')[0]} Wholesale
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={draftZoneWholesale}
+                                  onChange={(e) => setDraftZoneWholesale(e.target.value)}
+                                  className="w-full mt-0.5 px-2 py-1.5 bg-white border border-slate-300 rounded-lg font-mono-tabular"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-semibold text-[#0A006E]">
+                                  {activeZone.name.split(' ')[0]} Retail
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={draftZoneRetail}
+                                  onChange={(e) => setDraftZoneRetail(e.target.value)}
+                                  className="w-full mt-0.5 px-2 py-1.5 bg-white border border-[#0A006E] rounded-lg font-mono-tabular font-bold"
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between gap-2 pt-1">
+                            <span className="text-[11px] font-mono-tabular font-bold text-slate-600">
+                              Live Margin:{' '}
+                              {margin !== null ? `${margin >= 0 ? '+' : ''}${margin.toFixed(1)}%` : '—'}
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={cancelEditingProduct}
+                                className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isSavingRow}
+                                onClick={() => saveEditingProduct(p)}
+                                className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
+                              >
+                                {isSavingRow ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Save className="w-3.5 h-3.5" />
+                                )}
+                                <span>Save</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
+                          <div className="grid grid-cols-3 gap-3 font-mono-tabular">
+                            <div>
+                              <div className="text-[10px] text-slate-400">Cost</div>
+                              <div className="font-semibold text-slate-700">
+                                {cost > 0 ? formatKes(cost) : '—'}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] text-slate-400">Wholesale</div>
+                              <div className="font-semibold text-slate-800">{formatKes(wholesale)}</div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] text-slate-400">Retail</div>
+                              <div className="font-black text-[#0A006E]">{formatKes(retail)}</div>
+                            </div>
+                          </div>
+                          {canManagePricing && (
+                            <button
+                              type="button"
+                              onClick={() => startEditingProduct(p)}
+                              className="px-3 py-2 min-h-[38px] bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold shrink-0 cursor-pointer"
+                            >
+                              Edit
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {!isEditing && activeZone && (
+                        <div className="text-[11px] text-slate-600 bg-slate-50 rounded-lg px-2.5 py-1.5 flex items-center justify-between">
+                          <span>
+                            {activeZone.name}:{' '}
+                            <strong className="font-mono-tabular text-[#0A006E]">
+                              W {formatKes(zoneW)} / R {formatKes(zoneR)}
+                            </strong>
+                          </span>
+                          {hasZoneOv && canManagePricing && (
+                            <button
+                              type="button"
+                              onClick={() => handleResetZoneOverride(p)}
+                              className="text-[11px] font-bold text-rose-700 underline cursor-pointer"
+                            >
+                              Reset Override
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Pagination Footer */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs text-slate-600">
+                <div className="font-mono-tabular">
+                  Showing {(safePage - 1) * PAGE_SIZE + 1}–
+                  {Math.min(safePage * PAGE_SIZE, filteredProducts.length)} of{' '}
+                  {filteredProducts.length.toLocaleString()} SKUs
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={safePage <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg font-montserrat font-bold disabled:opacity-40 cursor-pointer"
+                  >
+                    Previous
+                  </button>
+                  <span className="px-2.5 font-mono-tabular font-bold text-[#0A006E]">
+                    {safePage} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={safePage >= totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg font-montserrat font-bold disabled:opacity-40 cursor-pointer"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* 5. REGIONAL ZONES & MULTIPLIERS MANAGER */}
+      {isGeoWidgetVisible('zone_manager') && (!isGeoMinimal || regions.length > 0) && (
+        <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 space-y-3">
+          <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="text-sm font-montserrat font-bold text-[#0A006E] flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-[#0A006E]" />
+                Regional Pricing Zones &amp; Multipliers
+              </h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Multiplier rules and per-case freight levies applied automatically when no SKU override is set.
+              </p>
+            </div>
+            {canManagePricing && !showNewZoneForm && (
+              <button
+                type="button"
+                onClick={() => setShowNewZoneForm(true)}
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-[#0A006E] rounded-lg text-[11px] font-montserrat font-bold cursor-pointer whitespace-nowrap"
+              >
+                + Add Zone
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {regions.map((r) => {
+              const isZoneEdit = editingZoneId === r.id;
+              return (
+                <div
+                  key={r.id}
+                  className="border border-slate-200 rounded-xl p-3.5 bg-slate-50/50 space-y-2.5 text-xs"
+                >
+                  {isZoneEdit ? (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={zoneDraftName}
+                        onChange={(e) => setZoneDraftName(e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-bold"
+                      />
+                      <select
+                        value={zoneDraftTier}
+                        onChange={(e) => setZoneDraftTier(e.target.value as GeoRegion['tierType'])}
+                        className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg"
+                      >
+                        <option value="Metro Core">Metro Core</option>
+                        <option value="Suburban Ring">Suburban Ring</option>
+                        <option value="Upcountry / Lower Region">Upcountry / Lower Region</option>
+                        <option value="Duty-Free / Export">Duty-Free / Export</option>
+                      </select>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <div>
+                          <label className="text-[10px] text-slate-500">Whl ×</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={zoneDraftWholesaleMult}
+                            onChange={(e) => setZoneDraftWholesaleMult(e.target.value)}
+                            className="w-full px-2 py-1 bg-white border border-slate-300 rounded font-mono-tabular"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-500">Ret ×</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={zoneDraftRetailMult}
+                            onChange={(e) => setZoneDraftRetailMult(e.target.value)}
+                            className="w-full px-2 py-1 bg-white border border-slate-300 rounded font-mono-tabular"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-500">Freight</label>
+                          <input
+                            type="number"
+                            value={zoneDraftFreight}
+                            onChange={(e) => setZoneDraftFreight(e.target.value)}
+                            className="w-full px-2 py-1 bg-white border border-slate-300 rounded font-mono-tabular"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-end gap-1.5 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setEditingZoneId(null)}
+                          className="px-2.5 py-1 bg-white border border-slate-200 rounded-md font-bold cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => saveEditingZone(r.id)}
+                          className="px-2.5 py-1 bg-emerald-600 text-white rounded-md font-bold cursor-pointer"
+                        >
+                          Save Zone
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="font-montserrat font-bold text-[#0A006E] truncate">
+                            {r.name}
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5">
+                            {r.code} · {r.tierType}
+                          </div>
+                        </div>
+                        {canManagePricing && onUpdateRegion && (
+                          <button
+                            type="button"
+                            onClick={() => startEditingZone(r)}
+                            className="p-1.5 text-slate-500 hover:text-[#0A006E] hover:bg-white rounded-lg cursor-pointer shrink-0"
+                            title="Edit zone multipliers"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-200/70 font-mono-tabular">
+                        <div>
+                          <div className="text-[10px] text-slate-400">Wholesale</div>
+                          <div className="font-bold text-slate-800">
+                            ×{Number(r.wholesaleMultiplier).toFixed(2)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-slate-400">Retail</div>
+                          <div className="font-bold text-[#0A006E]">
+                            ×{Number(r.retailMultiplier).toFixed(2)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-slate-400">Freight/cs</div>
+                          <div className="font-bold text-slate-800">
+                            {formatKes(r.freightLevyPerCase)}
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 6. MULTI-ZONE LIVE PRICE COMPARISON MATRIX */}
+      {isGeoWidgetVisible('zone_directory') && (
+        <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="text-sm font-montserrat font-bold text-[#0A006E]">
+                Multi-Zone Tariff Comparison Matrix
+              </h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Live calculated bottle and case rates across all active geo-zones for current page SKUs.
+              </p>
+            </div>
+            <div className="inline-flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setMatrixPriceMode('retail')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-montserrat font-bold cursor-pointer transition ${
+                  matrixPriceMode === 'retail'
+                    ? 'bg-[#0A006E] text-[#FFDE00]'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Retail Rates
+              </button>
+              <button
+                type="button"
+                onClick={() => setMatrixPriceMode('wholesale')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-montserrat font-bold cursor-pointer transition ${
+                  matrixPriceMode === 'wholesale'
+                    ? 'bg-[#0A006E] text-[#FFDE00]'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Wholesale Rates
+              </button>
+            </div>
+          </div>
+
+          <div className="hidden md:block overflow-x-auto border border-slate-200 rounded-xl">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
+                  <th className="py-2.5 px-3 font-bold">SKU &amp; Brand</th>
+                  <th className="py-2.5 px-3 font-bold text-right">
+                    Base {matrixPriceMode === 'retail' ? 'Retail' : 'Wholesale'}
+                  </th>
+                  {regions.map((r) => (
+                    <th key={r.id} className="py-2.5 px-3 font-bold text-right">
+                      {r.name.split(' ')[0]} · Btl / Case
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {paginatedProducts.map((p) => (
+                  <tr key={p.id} className="hover:bg-slate-50">
+                    <td className="py-2.5 px-3">
+                      <span className="font-mono-tabular font-bold text-[#0A006E]">{p.sku}</span>{' '}
+                      <span className="text-slate-400">·</span>{' '}
+                      <span className="font-montserrat font-semibold text-slate-900">{p.name}</span>
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono-tabular font-semibold">
+                      {formatKes(
+                        matrixPriceMode === 'retail' ? getRetailPrice(p) : getWholesalePrice(p)
+                      )}
+                    </td>
+                    {regions.map((r) => {
+                      const calc = calculateGeoPrice(p, r, matrixPriceMode);
+                      return (
+                        <td key={r.id} className="py-2.5 px-3 text-right font-mono-tabular">
+                          <strong className="text-[#0A006E]">{formatKes(calc.unitBottlePrice)}</strong>{' '}
+                          <span className="text-slate-500">({formatKes(calc.casePrice)}/cs)</span>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile Multi-Zone Summary */}
+          <div className="md:hidden space-y-2.5">
+            {paginatedProducts.slice(0, 6).map((p) => (
+              <div key={p.id} className="border border-slate-200 rounded-xl p-3 space-y-2 text-xs">
+                <div className="font-montserrat font-bold text-slate-900">
+                  {p.name}{' '}
+                  <span className="font-mono-tabular text-[#0A006E] font-semibold">({p.sku})</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
                   {regions.map((r) => {
-                    const calc = calculateGeoPrice(p, r, 'retail');
+                    const calc = calculateGeoPrice(p, r, matrixPriceMode);
                     return (
-                      <td key={r.id} className="py-2.5 px-3 text-right font-mono-tabular">
-                        <strong className="text-[#0A006E]">{formatKes(calc.unitBottlePrice)}</strong>{' '}
-                        <span className="text-slate-500">({formatKes(calc.casePrice)}/cs)</span>
-                      </td>
+                      <div key={r.id} className="bg-slate-50 rounded-lg px-2.5 py-1.5">
+                        <div className="text-[10px] text-slate-500 truncate">{r.name}</div>
+                        <div className="font-mono-tabular font-bold text-[#0A006E]">
+                          {formatKes(calc.unitBottlePrice)} / btl
+                        </div>
+                      </div>
                     );
                   })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
       )}
     </div>
   );
 };
+
