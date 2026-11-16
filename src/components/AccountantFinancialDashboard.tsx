@@ -2,16 +2,13 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   DollarSign,
   TrendingUp,
-  TrendingDown,
   BarChart3,
   Package,
   PackageX,
   AlertTriangle,
   Download,
   ShieldAlert,
-  Building,
   CreditCard,
-  Sparkles,
   FileSpreadsheet,
   Plus,
   CheckCircle2,
@@ -21,6 +18,10 @@ import {
   Search,
   X,
   Filter,
+  FileCheck2,
+  Printer,
+  Clock,
+  XCircle,
 } from 'lucide-react';
 import {
   Product,
@@ -38,8 +39,10 @@ import {
   ExpenseCategory,
   ExpensePaymentMethod,
   ExpenseStatus,
+  ChequeStatus,
+  ChequeDetails,
 } from '../types';
-import { formatKes, exportReportToPDF, exportToCSV } from '../erpUtils';
+import { formatKes, exportReportToPDF, exportToCSV, calculateGeoPrice } from '../erpUtils';
 import { BarGraph, PieChart as AnalyticsPieChart } from './common/AnalyticsCharts';
 import { KraReturnsPanel } from './KraReturnsExportModal';
 import { KraReturnScheduleType } from '../utils/kraReturnsExport';
@@ -66,10 +69,22 @@ interface AccountantFinancialDashboardProps {
   onPreviewDoc?: (doc: TransactionDoc) => void;
   onOpenKraReturns?: (defaultTab?: KraReturnScheduleType) => void;
   onTriggerToast?: (type: 'success' | 'error', title: string, message: string) => void;
+  onUpdateTransaction?: (txId: string, updates: Partial<TransactionDoc>) => Promise<boolean>;
+  onCreateTransaction?: (
+    txDraft: Omit<TransactionDoc, 'id' | 'createdAt'>,
+    updatedProducts: { productId: string; newTotal: number; newBranchStockJson: string }[]
+  ) => Promise<TransactionDoc | null>;
 }
 
 type DateFilter = 'ALL' | 'YEAR' | 'MONTH' | 'WEEK' | 'TODAY';
-type ActiveFinanceTab = 'summary' | 'expenses' | 'sales' | 'stock' | 'deadstock_damages' | 'tax_credit';
+type ActiveFinanceTab =
+  | 'summary'
+  | 'cheques'
+  | 'expenses'
+  | 'sales'
+  | 'stock'
+  | 'deadstock_damages'
+  | 'tax_credit';
 
 const EXPENSE_CATEGORIES: ExpenseCategory[] = [
   'Rent & Warehouse Lease',
@@ -145,6 +160,8 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
   onPreviewDoc,
   onOpenKraReturns,
   onTriggerToast,
+  onUpdateTransaction,
+  onCreateTransaction,
 }) => {
   const [dateFilter, setDateFilter] = useState<DateFilter>(() => {
     if (typeof window !== 'undefined') {
@@ -157,7 +174,10 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
   const [activeTab, setActiveTab] = useState<ActiveFinanceTab>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('erp_accountant_tab') as ActiveFinanceTab | null;
-      if (saved && ['summary', 'expenses', 'sales', 'stock', 'deadstock_damages', 'tax_credit'].includes(saved)) {
+      if (
+        saved &&
+        ['summary', 'cheques', 'expenses', 'sales', 'stock', 'deadstock_damages', 'tax_credit'].includes(saved)
+      ) {
         return saved;
       }
     }
@@ -207,6 +227,42 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
   const [expenseSearch, setExpenseSearch] = useState('');
   const [expenseCategoryFilter, setExpenseCategoryFilter] = useState<string>('ALL');
   const [pendingDeleteExpenseId, setPendingDeleteExpenseId] = useState<string | null>(null);
+
+  // Client Cheque & Purchase Order Management State
+  const [chequeStatusFilter, setChequeStatusFilter] = useState<'ALL' | ChequeStatus>('ALL');
+  const [chequeSearch, setChequeSearch] = useState('');
+  const [rejectingChequeTxId, setRejectingChequeTxId] = useState<string | null>(null);
+  const [inlineRejectionReason, setInlineRejectionReason] = useState('');
+  const [updatingChequeId, setUpdatingChequeId] = useState<string | null>(null);
+
+  // New Client Purchase Order (Cheque) Modal State
+  const [isChequePoModalOpen, setIsChequePoModalOpen] = useState(false);
+  const [poBranchId, setPoBranchId] = useState<string>(() => branches[0]?.id || currentUser.branchId || '');
+  const [poSelectedPartyKey, setPoSelectedPartyKey] = useState('');
+  const [poCustomerName, setPoCustomerName] = useState('');
+  const [poCustomerPhone, setPoCustomerPhone] = useState('');
+  const [poCustomerKraPin, setPoCustomerKraPin] = useState('');
+  const [poProdId, setPoProdId] = useState(() => products[0]?.id || '');
+  const [poUnitMode, setPoUnitMode] = useState<'Bottle' | 'Case'>('Case');
+  const [poQty, setPoQty] = useState<number>(1);
+  const [poCustomPrice, setPoCustomPrice] = useState<number>(0);
+  const [poLineItems, setPoLineItems] = useState<LineItem[]>([]);
+  const [poTaxMode, setPoTaxMode] = useState<'EXCLUSIVE_16' | 'INCLUSIVE_16' | 'EXEMPT_0'>('EXCLUSIVE_16');
+  const [poChequeNumber, setPoChequeNumber] = useState('');
+  const [poDrawerBank, setPoDrawerBank] = useState('');
+  const [poBranchName, setPoBranchName] = useState('');
+  const [poDrawerName, setPoDrawerName] = useState('');
+  const [poChequeDate, setPoChequeDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [poMaturityDate, setPoMaturityDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 3);
+    return d.toISOString().slice(0, 10);
+  });
+  const [poInitialStatus, setPoInitialStatus] = useState<ChequeStatus>('Processing');
+  const [poRejectionReason, setPoRejectionReason] = useState('');
+  const [poNotes, setPoNotes] = useState('');
+  const [poModalError, setPoModalError] = useState<string | null>(null);
+  const [isSavingPo, setIsSavingPo] = useState(false);
 
   const {
     schema: dashSchema,
@@ -292,6 +348,7 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
     const now = new Date();
 
     filteredTransactions.forEach((tx) => {
+      if (tx.status === 'Rejected') return;
       const txTotal = Number(tx.totalAmount || 0);
       if (tx.orderCategory === 'WAREHOUSE_PURCHASE') {
         if (tx.docType === 'Invoice' || tx.docType === 'Receipt') {
@@ -301,7 +358,15 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
         return;
       }
 
-      if (tx.docType === 'Receipt' || tx.docType === 'Invoice' || tx.docType === 'Online Order') {
+      const isClearedPaidChequePo =
+        tx.docType === 'Purchase Order' && tx.status === 'Paid';
+
+      if (
+        tx.docType === 'Receipt' ||
+        tx.docType === 'Invoice' ||
+        tx.docType === 'Online Order' ||
+        isClearedPaidChequePo
+      ) {
         grossSales += txTotal;
         completedOrdersCount++;
 
@@ -320,20 +385,25 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
         paymentTotals[method].total += txTotal;
 
         const lowerMethod = method.toLowerCase();
+        const isUnsettledOrUnmatured =
+          tx.status === 'Issued' ||
+          tx.status === 'Processing' ||
+          tx.status === 'Pending Verification';
         if (
-          tx.status === 'Paid' ||
-          tx.status === 'Fulfilled' ||
-          lowerMethod.includes('cash') ||
-          lowerMethod.includes('pesa') ||
-          lowerMethod.includes('bank') ||
-          lowerMethod.includes('card')
+          !isUnsettledOrUnmatured &&
+          (tx.status === 'Paid' ||
+            tx.status === 'Fulfilled' ||
+            lowerMethod.includes('cash') ||
+            lowerMethod.includes('pesa') ||
+            lowerMethod.includes('bank') ||
+            lowerMethod.includes('card'))
         ) {
-          if (!lowerMethod.includes('credit') && tx.status !== 'Issued') {
+          if (!lowerMethod.includes('credit') && (!lowerMethod.includes('cheque') || tx.status === 'Paid')) {
             liquidCollectedTotal += txTotal;
           }
         }
 
-        // Only unsettled, non-credited invoices count as Accounts Receivable
+        // Only unsettled, non-credited, non-rejected invoices count as Accounts Receivable
         if (tx.docType === 'Invoice' && tx.status !== 'Paid' && tx.status !== 'Credited') {
           accountsReceivable += txTotal;
           const txAgeDays = (now.getTime() - new Date(tx.createdAt).getTime()) / (1000 * 60 * 60 * 24);
@@ -412,6 +482,412 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
       internalWarehousePurchasesCount,
     };
   }, [filteredTransactions, products]);
+
+  // CHEQUE & CLIENT PURCHASE ORDER METRICS & HANDLERS
+  const chequeStats = useMemo(() => {
+    const allChequeDocs = filteredTransactions.filter(
+      (tx) =>
+        tx.paymentMethod === 'Cheque' ||
+        Boolean(tx.chequeDetails) ||
+        tx.docType === 'Purchase Order'
+    );
+    const getStatus = (tx: TransactionDoc): ChequeStatus =>
+      tx.status === 'Paid' || tx.status === 'Rejected' || tx.status === 'Processing'
+        ? tx.status
+        : tx.chequeDetails?.status || 'Processing';
+
+    const processingDocs = allChequeDocs.filter((tx) => getStatus(tx) === 'Processing');
+    const paidDocs = allChequeDocs.filter((tx) => getStatus(tx) === 'Paid');
+    const rejectedDocs = allChequeDocs.filter((tx) => getStatus(tx) === 'Rejected');
+
+    const processingTotal = processingDocs.reduce((s, t) => s + Number(t.totalAmount || 0), 0);
+    const paidTotal = paidDocs.reduce((s, t) => s + Number(t.totalAmount || 0), 0);
+    const rejectedTotal = rejectedDocs.reduce((s, t) => s + Number(t.totalAmount || 0), 0);
+
+    const q = chequeSearch.trim().toLowerCase();
+    const visibleList = allChequeDocs.filter((tx) => {
+      if (chequeStatusFilter !== 'ALL' && getStatus(tx) !== chequeStatusFilter) return false;
+      if (!q) return true;
+      return (
+        tx.docNumber.toLowerCase().includes(q) ||
+        tx.customerName.toLowerCase().includes(q) ||
+        (tx.chequeDetails?.chequeNumber || '').toLowerCase().includes(q) ||
+        (tx.chequeDetails?.drawerBank || '').toLowerCase().includes(q) ||
+        (tx.chequeDetails?.drawerName || '').toLowerCase().includes(q)
+      );
+    });
+
+    return {
+      allChequeDocs,
+      processingDocs,
+      paidDocs,
+      rejectedDocs,
+      processingTotal,
+      paidTotal,
+      rejectedTotal,
+      visibleList,
+    };
+  }, [filteredTransactions, chequeStatusFilter, chequeSearch]);
+
+  const poSelectedBranchObj = useMemo(
+    () => branches.find((b) => b.id === poBranchId) || branches[0],
+    [branches, poBranchId]
+  );
+
+  const poSelectedRegionObj = useMemo(
+    () =>
+      regions.find(
+        (r) => r.id === poSelectedBranchObj?.regionId || r.name === poSelectedBranchObj?.regionName
+      ) || regions[0],
+    [regions, poSelectedBranchObj]
+  );
+
+  const poSelectedProdObj = useMemo(
+    () => products.find((p) => p.id === poProdId) || products[0],
+    [products, poProdId]
+  );
+
+  const poDefaultUnitPrice = useMemo(() => {
+    if (!poSelectedProdObj) return 0;
+    const baseBtl = poSelectedRegionObj
+      ? Math.round(calculateGeoPrice(poSelectedProdObj, poSelectedRegionObj, 'wholesale').unitBottlePrice)
+      : Math.round(poSelectedProdObj.wholesalePriceKes || poSelectedProdObj.baseWholesalePrice || 0);
+    const packSize = poSelectedProdObj.packSize || poSelectedProdObj.bottlesPerCase || 12;
+    return poUnitMode === 'Case' ? baseBtl * packSize : baseBtl;
+  }, [poSelectedProdObj, poSelectedRegionObj, poUnitMode]);
+
+  const poActiveUnitPrice = poCustomPrice > 0 ? poCustomPrice : poDefaultUnitPrice;
+
+  const poFinancials = useMemo(() => {
+    const rawSum = poLineItems.reduce((s, li) => s + li.lineTotal, 0);
+    if (poTaxMode === 'EXEMPT_0') return { subtotal: rawSum, tax: 0, total: rawSum };
+    if (poTaxMode === 'INCLUSIVE_16') {
+      const subtotal = Math.round(rawSum / 1.16);
+      return { subtotal, tax: rawSum - subtotal, total: rawSum };
+    }
+    const tax = Math.round(rawSum * 0.16);
+    return { subtotal: rawSum, tax, total: rawSum + tax };
+  }, [poLineItems, poTaxMode]);
+
+  const handleAddPoLineItem = () => {
+    const prod = poSelectedProdObj;
+    if (!prod) return;
+    const packSize = prod.packSize || prod.bottlesPerCase || 12;
+    const qtyUnits = Math.max(1, Number(poQty) || 1);
+    const totalBottles = poUnitMode === 'Case' ? qtyUnits * packSize : qtyUnits;
+    const unitPrice = Math.max(0, Math.round(poActiveUnitPrice));
+    const lineTotal = Math.round(qtyUnits * unitPrice);
+
+    setPoLineItems((prev) => {
+      const idx = prev.findIndex((i) => i.productId === prod.id && i.unitMode === poUnitMode);
+      if (idx >= 0) {
+        const updated = [...prev];
+        const newUnits = updated[idx].quantityUnits + qtyUnits;
+        updated[idx] = {
+          ...updated[idx],
+          quantityUnits: newUnits,
+          totalBottles: poUnitMode === 'Case' ? newUnits * packSize : newUnits,
+          unitPrice,
+          lineTotal: Math.round(newUnits * unitPrice),
+        };
+        return updated;
+      }
+      return [
+        ...prev,
+        {
+          productId: prod.id,
+          sku: prod.sku,
+          name: prod.name,
+          unitMode: poUnitMode,
+          bottlesPerCase: packSize,
+          quantityUnits: qtyUnits,
+          totalBottles,
+          unitPrice,
+          lineTotal,
+        },
+      ];
+    });
+    setPoQty(1);
+    setPoCustomPrice(0);
+    setPoModalError(null);
+  };
+
+  const handleSelectPoParty = (key: string) => {
+    setPoSelectedPartyKey(key);
+    if (!key) return;
+    const [kind, id] = key.split(':');
+    if (kind === 'cust') {
+      const c = externalCustomers.find((x) => x.id === id);
+      if (c) {
+        setPoCustomerName(c.companyName ? `${c.companyName} (${c.name})` : c.name);
+        setPoCustomerPhone(c.phone || '');
+        setPoCustomerKraPin(c.kraPin || c.liquorLicenseNo || '');
+        if (!poDrawerName) setPoDrawerName(c.companyName || c.name);
+      }
+    } else if (kind === 'partner') {
+      const p = partners.find((x) => x.id === id);
+      if (p) {
+        setPoCustomerName(p.companyName);
+        setPoCustomerPhone(p.phone || '');
+        setPoCustomerKraPin(p.taxPin || p.liquorLicenseNo || '');
+        if (!poDrawerName) setPoDrawerName(p.companyName);
+      }
+    }
+  };
+
+  const handleUpdateChequeStatus = async (
+    tx: TransactionDoc,
+    nextStatus: ChequeStatus,
+    rejectionReason?: string
+  ) => {
+    if (!onUpdateTransaction) {
+      onTriggerToast?.('error', 'Action Unavailable', 'Transaction update handler is not wired.');
+      return;
+    }
+    setUpdatingChequeId(tx.id);
+    try {
+      const nextChequeDetails: ChequeDetails = {
+        chequeNumber: tx.chequeDetails?.chequeNumber || 'PENDING-REF',
+        drawerBank: tx.chequeDetails?.drawerBank || 'Client Bank',
+        ...(tx.chequeDetails?.branchName ? { branchName: tx.chequeDetails.branchName } : {}),
+        drawerName: tx.chequeDetails?.drawerName || tx.customerName,
+        chequeDate: tx.chequeDetails?.chequeDate || (tx.createdAt || new Date().toISOString()).slice(0, 10),
+        maturityDate: tx.chequeDetails?.maturityDate || (tx.createdAt || new Date().toISOString()).slice(0, 10),
+        amountKes: tx.chequeDetails?.amountKes ?? tx.totalAmount,
+        status: nextStatus,
+        ...(nextStatus === 'Rejected' && rejectionReason?.trim()
+          ? { rejectionReason: rejectionReason.trim() }
+          : {}),
+        updatedBy: currentUser.name,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const ok = await onUpdateTransaction(tx.id, {
+        status: nextStatus,
+        chequeDetails: nextChequeDetails,
+      });
+
+      // Keep linked Receipts and parent POs/Invoices in sync
+      const linkedDocs = transactions.filter(
+        (other) =>
+          other.id !== tx.id &&
+          (other.relatedInvoiceNo === tx.docNumber ||
+            (tx.relatedInvoiceNo && other.docNumber === tx.relatedInvoiceNo))
+      );
+      for (const linked of linkedDocs) {
+        await onUpdateTransaction(linked.id, {
+          status: nextStatus,
+          chequeDetails: nextChequeDetails,
+        }).catch(() => {});
+      }
+
+      if (ok) {
+        onTriggerToast?.(
+          'success',
+          `Cheque Marked ${nextStatus}`,
+          `${tx.docNumber} (${tx.customerName}) updated to ${
+            nextStatus === 'Processing' ? 'Processing (Not Matured)' : nextStatus
+          }.`
+        );
+      }
+      setRejectingChequeTxId(null);
+      setInlineRejectionReason('');
+    } finally {
+      setUpdatingChequeId(null);
+    }
+  };
+
+  const handleIssueOrPrintChequeReceipt = async (tx: TransactionDoc) => {
+    const liveStatus: ChequeStatus =
+      tx.status === 'Paid' || tx.status === 'Rejected' || tx.status === 'Processing'
+        ? tx.status
+        : tx.chequeDetails?.status || 'Processing';
+
+    if (tx.docType === 'Receipt') {
+      onPreviewDoc?.(tx);
+      return;
+    }
+
+    const existingReceipt = transactions.find(
+      (r) => r.docType === 'Receipt' && r.relatedInvoiceNo === tx.docNumber
+    );
+
+    const syncedChequeDetails: ChequeDetails | undefined = tx.chequeDetails
+      ? { ...tx.chequeDetails, status: liveStatus }
+      : undefined;
+
+    if (existingReceipt) {
+      if (
+        onUpdateTransaction &&
+        (existingReceipt.status !== liveStatus ||
+          existingReceipt.chequeDetails?.status !== liveStatus)
+      ) {
+        await onUpdateTransaction(existingReceipt.id, {
+          status: liveStatus,
+          ...(syncedChequeDetails ? { chequeDetails: syncedChequeDetails } : {}),
+        });
+      }
+      onPreviewDoc?.({
+        ...existingReceipt,
+        status: liveStatus,
+        ...(syncedChequeDetails ? { chequeDetails: syncedChequeDetails } : {}),
+      });
+      return;
+    }
+
+    const rcpNumber = `RCP-${Date.now().toString().slice(-6)}`;
+    if (onCreateTransaction) {
+      const createdReceipt = await onCreateTransaction(
+        {
+          docNumber: rcpNumber,
+          docType: 'Receipt',
+          channel: tx.channel || 'B2B Wholesale POS',
+          orderCategory: tx.orderCategory || 'FACILITY_DOCUMENT',
+          branchId: tx.branchId,
+          branchName: tx.branchName,
+          regionId: tx.regionId,
+          regionName: tx.regionName,
+          ...(tx.customerId ? { customerId: tx.customerId } : {}),
+          customerName: tx.customerName,
+          ...(tx.customerPhone ? { customerPhone: tx.customerPhone } : {}),
+          ...(tx.customerEmail ? { customerEmail: tx.customerEmail } : {}),
+          ...(tx.customerKraPin ? { customerKraPin: tx.customerKraPin } : {}),
+          customerLicenseNo: tx.customerLicenseNo || 'Commercial Verified 21+',
+          itemsSummary: tx.itemsSummary,
+          subtotal: tx.subtotal,
+          exciseAndTax: tx.exciseAndTax,
+          totalAmount: tx.totalAmount,
+          paymentMethod: 'Cheque',
+          status: liveStatus,
+          ...(syncedChequeDetails ? { chequeDetails: syncedChequeDetails } : {}),
+          relatedInvoiceNo: tx.docNumber,
+          notes: `Client cheque receipt generated from ${tx.docType} ${tx.docNumber} (${
+            liveStatus === 'Processing' ? 'Not Matured' : liveStatus
+          })`,
+          createdBy: currentUser.name,
+          createdByRole: currentUser.role,
+        },
+        []
+      );
+      if (createdReceipt) {
+        onPreviewDoc?.(createdReceipt);
+        return;
+      }
+    }
+
+    onPreviewDoc?.({
+      ...tx,
+      docType: 'Receipt',
+      docNumber: rcpNumber,
+      status: liveStatus,
+      relatedInvoiceNo: tx.docNumber,
+      ...(syncedChequeDetails ? { chequeDetails: syncedChequeDetails } : {}),
+    });
+  };
+
+  const handleSaveClientChequePo = async (andPrintReceipt: boolean) => {
+    if (!onCreateTransaction) {
+      setPoModalError('Transaction creation handler is not available.');
+      return;
+    }
+    if (!poSelectedBranchObj || !poSelectedRegionObj) {
+      setPoModalError('Please select a valid branch.');
+      return;
+    }
+    if (!poCustomerName.trim()) {
+      setPoModalError('Please enter or select the client name.');
+      return;
+    }
+    if (poLineItems.length === 0) {
+      setPoModalError('Please add at least one product line item.');
+      return;
+    }
+    if (!poChequeNumber.trim() || !poDrawerBank.trim()) {
+      setPoModalError('Please enter both Cheque Number and Drawer Bank.');
+      return;
+    }
+
+    setPoModalError(null);
+    setIsSavingPo(true);
+
+    try {
+      const poNumber = `PO-${Date.now().toString().slice(-6)}`;
+      const chequeDetailsObj: ChequeDetails = {
+        chequeNumber: poChequeNumber.trim(),
+        drawerBank: poDrawerBank.trim(),
+        ...(poBranchName.trim() ? { branchName: poBranchName.trim() } : {}),
+        drawerName: poDrawerName.trim() || poCustomerName.trim(),
+        chequeDate: poChequeDate || new Date().toISOString().slice(0, 10),
+        maturityDate: poMaturityDate || poChequeDate || new Date().toISOString().slice(0, 10),
+        amountKes: poFinancials.total,
+        status: poInitialStatus,
+        ...(poInitialStatus === 'Rejected' && poRejectionReason.trim()
+          ? { rejectionReason: poRejectionReason.trim() }
+          : {}),
+        updatedBy: currentUser.name,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const createdPo = await onCreateTransaction(
+        {
+          docNumber: poNumber,
+          docType: 'Purchase Order',
+          channel: 'B2B Wholesale POS',
+          orderCategory: 'FACILITY_DOCUMENT',
+          branchId: poSelectedBranchObj.id,
+          branchName: poSelectedBranchObj.name,
+          regionId: poSelectedRegionObj.id,
+          regionName: poSelectedRegionObj.name,
+          customerName: poCustomerName.trim(),
+          ...(poCustomerPhone.trim() ? { customerPhone: poCustomerPhone.trim() } : {}),
+          ...(poCustomerKraPin.trim() ? { customerKraPin: poCustomerKraPin.trim().toUpperCase() } : {}),
+          customerLicenseNo: poCustomerKraPin.trim().toUpperCase() || 'Commercial Verified 21+',
+          itemsSummary: JSON.stringify(poLineItems),
+          subtotal: poFinancials.subtotal,
+          exciseAndTax: poFinancials.tax,
+          totalAmount: poFinancials.total,
+          paymentMethod: 'Cheque',
+          status: poInitialStatus,
+          chequeDetails: chequeDetailsObj,
+          ...(poNotes.trim() ? { notes: poNotes.trim() } : {}),
+          createdBy: currentUser.name,
+          createdByRole: currentUser.role,
+        },
+        []
+      );
+
+      if (createdPo) {
+        onTriggerToast?.(
+          'success',
+          `Purchase Order ${poNumber} Saved`,
+          `Cheque #${chequeDetailsObj.chequeNumber} recorded as ${
+            poInitialStatus === 'Processing' ? 'Processing (Not Matured)' : poInitialStatus
+          }.`
+        );
+        if (andPrintReceipt) {
+          await handleIssueOrPrintChequeReceipt(createdPo);
+        } else {
+          onPreviewDoc?.(createdPo);
+        }
+      }
+
+      setIsChequePoModalOpen(false);
+      setPoLineItems([]);
+      setPoSelectedPartyKey('');
+      setPoCustomerName('');
+      setPoCustomerPhone('');
+      setPoCustomerKraPin('');
+      setPoChequeNumber('');
+      setPoDrawerBank('');
+      setPoBranchName('');
+      setPoDrawerName('');
+      setPoInitialStatus('Processing');
+      setPoRejectionReason('');
+      setPoNotes('');
+    } finally {
+      setIsSavingPo(false);
+    }
+  };
 
   // LIVE DATA FROM STOCK CALCULATIONS (Respects selectedBranchFilter & handles unallocated stock cleanly)
   const stockMetrics = useMemo(() => {
@@ -915,11 +1391,6 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
     );
   };
 
-  const safeDivPct = (part: number, whole: number): number => {
-    if (!whole || whole <= 0) return 0;
-    return Math.max(0, Math.min(100, (part / whole) * 100));
-  };
-
   return (
     <div className="space-y-4">
       {/* Unified Minimal Customizable Accountant Header */}
@@ -931,9 +1402,17 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
         onToggleKpi={toggleKpi}
         onToggleWidget={toggleWidget}
         onReset={resetToDefault}
-        subtitle={`${selectedBranchObj ? selectedBranchObj.name : 'All Branches'} · ${filteredExpenses.length} Vouchers · Period: ${dateFilter}`}
+        subtitle={`${selectedBranchObj ? selectedBranchObj.name : 'All Branches'} · Period: ${dateFilter}`}
         actions={
           <>
+            <button
+              type="button"
+              onClick={() => setIsChequePoModalOpen(true)}
+              className="px-2.5 py-1.5 bg-[#FFDE00] text-[#0A006E] rounded-lg text-[11px] font-montserrat font-black flex items-center gap-1 cursor-pointer whitespace-nowrap border border-[#0A006E]/20"
+            >
+              <FileCheck2 className="w-3.5 h-3.5" />
+              + Cheque PO
+            </button>
             <button
               type="button"
               onClick={() => setIsExpenseModalOpen(true)}
@@ -976,9 +1455,9 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
         }
       />
 
-      {/* Streamlined Branch & Period Filter Strip */}
+      {/* Slim Period & Branch Filter Row */}
       <div className="bg-white border border-slate-200 rounded-xl px-3 py-2 flex flex-wrap items-center justify-between gap-2">
-        <div className="bg-slate-100 p-0.5 rounded-lg border border-slate-200 flex items-center text-xs">
+        <div className="bg-slate-100 p-0.5 rounded-lg border border-slate-200 flex items-center text-xs overflow-x-auto">
           {(['ALL', 'YEAR', 'MONTH', 'WEEK', 'TODAY'] as DateFilter[]).map((period) => (
             <button
               key={period}
@@ -1021,22 +1500,22 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
         </div>
       </div>
 
-      {/* TOP LIVE FINANCIAL KPI STRIP */}
+      {/* CLEAN 4-CARD FINANCIAL KPI ROW */}
       {isWidgetVisible('kpi_strip') && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
-          {isKpiVisible('gross_sales') && (
-            <div className="bg-white border border-slate-200 hover:border-[#0A006E] rounded-xl p-3.5 transition">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
-                  Gross Sales
-                </span>
-                <DollarSign className="w-3.5 h-3.5 text-[#0A006E] shrink-0" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3">
+          {isKpiVisible('net_revenue') && (
+            <div
+              onClick={() => setActiveTab('sales')}
+              className="bg-white border border-slate-200 hover:border-[#0A006E] rounded-xl p-3.5 transition cursor-pointer"
+            >
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
+                Net Revenue
               </div>
-              <div className="text-base sm:text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1 truncate">
-                {formatKes(salesMetrics.grossSales)}
+              <div className="text-base sm:text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5 truncate">
+                {formatKes(salesMetrics.netCommercialSales)}
               </div>
-              <div className="text-[10px] text-slate-500 mt-0.5 truncate">
-                {salesMetrics.completedOrdersCount} orders · AOV {formatKes(salesMetrics.aov)}
+              <div className="text-[11px] text-slate-500 mt-0.5 truncate">
+                {salesMetrics.completedOrdersCount} orders
               </div>
             </div>
           )}
@@ -1044,84 +1523,75 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
           {isKpiVisible('expenses') && (
             <div
               onClick={() => setActiveTab('expenses')}
-              className="bg-white border border-slate-200 hover:border-rose-500 rounded-xl p-3.5 transition cursor-pointer"
+              className="bg-white border border-slate-200 hover:border-rose-400 rounded-xl p-3.5 transition cursor-pointer"
             >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-montserrat font-semibold text-rose-700 truncate">
-                  Expenses
-                </span>
-                <Wallet className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
+                Total Expenses
               </div>
-              <div className="text-base sm:text-lg font-montserrat font-black text-rose-700 font-mono-tabular mt-1 truncate">
-                {formatKes(expenseMetrics.totalRecorded)}
+              <div className="text-base sm:text-lg font-montserrat font-black text-rose-700 font-mono-tabular mt-0.5 truncate">
+                {formatKes(financialSummary.totalExpenses)}
               </div>
-              <div className="text-[10px] text-slate-500 mt-0.5 truncate">
-                {filteredExpenses.length} vouchers · Tap to manage
+              <div className="text-[11px] text-slate-500 mt-0.5 truncate">
+                {filteredExpenses.length} expense vouchers
+              </div>
+            </div>
+          )}
+
+          {isKpiVisible('net_profit') && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
+                {financialSummary.netProfit < 0 ? 'Net Deficit' : 'Net Profit'}
+              </div>
+              <div
+                className={`text-base sm:text-lg font-montserrat font-black font-mono-tabular mt-0.5 truncate ${
+                  financialSummary.netProfit < 0 ? 'text-rose-700' : 'text-emerald-700'
+                }`}
+              >
+                {formatKes(financialSummary.netProfit)}
+              </div>
+              <div className="text-[11px] text-slate-500 mt-0.5 truncate">
+                {financialSummary.netProfitMargin.toFixed(1)}% net margin
+              </div>
+            </div>
+          )}
+
+          {isKpiVisible('pending_ar') && (
+            <div
+              onClick={() => setActiveTab('cheques')}
+              className="bg-white border border-slate-200 hover:border-amber-400 rounded-xl p-3.5 transition cursor-pointer"
+            >
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
+                Pending Cheques &amp; A/R
+              </div>
+              <div className="text-base sm:text-lg font-montserrat font-black text-amber-800 font-mono-tabular mt-0.5 truncate">
+                {formatKes(chequeStats.processingTotal + salesMetrics.accountsReceivable)}
+              </div>
+              <div className="text-[11px] text-slate-500 mt-0.5 truncate">
+                {chequeStats.processingDocs.length} processing cheque(s)
               </div>
             </div>
           )}
 
           {isKpiVisible('stock_asset') && (
-            <div className="bg-white border border-slate-200 hover:border-[#0A006E] rounded-xl p-3.5 transition">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
-                  Stock Valuation
-                </span>
-                <Package className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <div
+              onClick={() => setActiveTab('stock')}
+              className="bg-white border border-slate-200 hover:border-emerald-400 rounded-xl p-3.5 transition cursor-pointer"
+            >
+              <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
+                Stock Valuation
               </div>
-              <div className="text-base sm:text-lg font-montserrat font-black text-emerald-700 font-mono-tabular mt-1 truncate">
+              <div className="text-base sm:text-lg font-montserrat font-black text-emerald-700 font-mono-tabular mt-0.5 truncate">
                 {formatKes(stockMetrics.totalStockCost)}
               </div>
-              <div className="text-[10px] text-slate-500 mt-0.5 truncate">
-                {stockMetrics.totalBottlesInBond.toLocaleString()} bottles in bond
-              </div>
-            </div>
-          )}
-
-          {isKpiVisible('gross_profit') && (
-            <div className="bg-white border border-slate-200 hover:border-[#0A006E] rounded-xl p-3.5 transition">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
-                  Gross Profit
-                </span>
-                <TrendingUp className="w-3.5 h-3.5 text-[#0A006E] shrink-0" />
-              </div>
-              <div
-                className={`text-base sm:text-lg font-montserrat font-black font-mono-tabular mt-1 truncate ${
-                  salesMetrics.grossProfit < 0 ? 'text-rose-700' : 'text-[#0A006E]'
-                }`}
-              >
-                {formatKes(salesMetrics.grossProfit)}
-              </div>
-              <div className="text-[10px] text-slate-500 mt-0.5 truncate">
-                Margin:{' '}
-                <strong className={salesMetrics.grossMarginPct < 0 ? 'text-rose-600' : 'text-emerald-700'}>
-                  {salesMetrics.grossMarginPct.toFixed(1)}%
-                </strong>
-              </div>
-            </div>
-          )}
-
-          {isKpiVisible('writeoffs') && (
-            <div className="bg-white border border-slate-200 hover:border-amber-400 rounded-xl p-3.5 transition">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-montserrat font-semibold text-amber-800 truncate">
-                  Write-Offs &amp; Idle
-                </span>
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-              </div>
-              <div className="text-base sm:text-lg font-montserrat font-black text-amber-900 font-mono-tabular mt-1 truncate">
-                {formatKes(stockMetrics.totalWriteOffs + stockMetrics.totalDeadStockCapitalKes)}
-              </div>
-              <div className="text-[10px] text-slate-500 mt-0.5 truncate">
-                {stockMetrics.deadStockItems.length} idle SKUs
+              <div className="text-[11px] text-slate-500 mt-0.5 truncate">
+                {stockMetrics.totalBottlesInBond.toLocaleString()} btls in bond
               </div>
             </div>
           )}
         </div>
       )}
 
-      {/* ACCOUNTANT NAVIGATION TABS */}
+      {/* CLEAN FINANCE NAVIGATION TABS */}
       <div className="flex items-center gap-1.5 border-b border-slate-200 overflow-x-auto pb-1.5">
         <button
           type="button"
@@ -1133,7 +1603,25 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
           }`}
         >
           <BarChart3 className="w-3.5 h-3.5" />
-          P&amp;L Summary
+          Overview
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('cheques')}
+          className={`px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+            activeTab === 'cheques'
+              ? 'bg-[#0A006E] text-[#FFDE00]'
+              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          <FileCheck2 className="w-3.5 h-3.5" />
+          Cheques &amp; POs ({chequeStats.allChequeDocs.length})
+          {chequeStats.processingDocs.length > 0 && (
+            <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-[#0A006E]">
+              {chequeStats.processingDocs.length}
+            </span>
+          )}
         </button>
 
         <button
@@ -1185,7 +1673,7 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
           }`}
         >
           <PackageX className="w-3.5 h-3.5" />
-          Damages &amp; Dead Stock
+          Write-Offs
         </button>
 
         <button
@@ -1202,428 +1690,685 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
         </button>
       </div>
 
-      {/* TAB 1: EXECUTIVE P&L & BALANCE SHEET */}
+      {/* TAB 1: SIMPLIFIED ACCOUNTANT OVERVIEW */}
       {activeTab === 'summary' && (
         <div className="space-y-4">
-          {isWidgetVisible('asset_cards') && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              {/* Stat Card 1: Total Assets */}
-              <div className="bg-white border border-slate-200 hover:border-[#0A006E] rounded-xl p-4 space-y-2.5 transition">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-montserrat font-black text-slate-500 uppercase tracking-wider">
-                    Working Assets Value
-                  </span>
-                  <div className="w-8 h-8 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shadow-xs">
-                    <Building className="w-4 h-4 stroke-[2.5]" />
-                  </div>
-                </div>
-                <div className="text-2xl font-montserrat font-black text-[#0A006E] font-mono-tabular">
-                  {formatKes(financialSummary.totalAssetsValue)}
-                </div>
-                <div className="space-y-1.5 pt-1">
-                  <div className="flex items-center justify-between text-[11px] font-montserrat font-bold text-slate-600">
-                    <span>Stock + A/R + Net Cash</span>
-                    <span className="text-emerald-700">Live Ledger</span>
-                  </div>
-                  <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden flex">
-                    <div
-                      style={{ width: `${safeDivPct(stockMetrics.totalStockCost, financialSummary.totalAssetsValue)}%` }}
-                      className="bg-[#0A006E] h-full"
-                      title="Stock Valuation"
-                    />
-                    <div
-                      style={{ width: `${safeDivPct(salesMetrics.accountsReceivable, financialSummary.totalAssetsValue)}%` }}
-                      className="bg-[#34D186] h-full"
-                      title="Accounts Receivable"
-                    />
-                    <div
-                      style={{ width: `${safeDivPct(financialSummary.netCashCollected, financialSummary.totalAssetsValue)}%` }}
-                      className="bg-amber-400 h-full"
-                      title="Net Cash Collected"
-                    />
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] text-slate-500 pt-0.5">
-                    <span>Stock: {Math.round(safeDivPct(stockMetrics.totalStockCost, financialSummary.totalAssetsValue))}%</span>
-                    <span>A/R: {Math.round(safeDivPct(salesMetrics.accountsReceivable, financialSummary.totalAssetsValue))}%</span>
-                    <span>Cash: {Math.round(safeDivPct(financialSummary.netCashCollected, financialSummary.totalAssetsValue))}%</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Stat Card 2: Gross Profit */}
-              <div className="bg-white border border-slate-200 hover:border-emerald-600 rounded-2xl p-5 shadow-2xs space-y-3 transition">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-montserrat font-black text-slate-500 uppercase tracking-wider">
-                    Gross Profit
-                  </span>
-                  <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
-                    <TrendingUp className="w-4 h-4 stroke-[2.5]" />
-                  </div>
-                </div>
-                <div className={`text-2xl font-montserrat font-black font-mono-tabular ${
-                  financialSummary.grossProfit < 0 ? 'text-rose-700' : 'text-emerald-700'
-                }`}>
-                  {formatKes(financialSummary.grossProfit)}
-                </div>
-                <div className="space-y-1.5 pt-1">
-                  <div className="flex items-center justify-between text-[11px] font-montserrat font-bold text-slate-600">
-                    <span>Gross Margin</span>
-                    <span className={`font-black ${salesMetrics.grossMarginPct < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                      {salesMetrics.grossMarginPct.toFixed(1)}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                    <div
-                      style={{ width: `${Math.max(0, Math.min(100, salesMetrics.grossMarginPct))}%` }}
-                      className="bg-emerald-500 h-full rounded-full"
-                    />
-                  </div>
-                  <div className="text-[10px] text-slate-500 pt-0.5 flex items-center justify-between">
-                    <span>COGS: {formatKes(salesMetrics.estimatedCogs)}</span>
-                    <span className="text-emerald-700 font-bold">Net Sales - COGS</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Stat Card 3: Total Expenses */}
-              <div className="bg-white border border-slate-200 hover:border-rose-500 rounded-2xl p-5 shadow-2xs space-y-3 transition">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-montserrat font-black text-slate-500 uppercase tracking-wider">
-                    Total Expenses
-                  </span>
-                  <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center shadow-xs">
-                    <TrendingDown className="w-4 h-4 stroke-[2.5]" />
-                  </div>
-                </div>
-                <div className="text-2xl font-montserrat font-black text-rose-700 font-mono-tabular">
-                  {formatKes(financialSummary.totalExpenses)}
-                </div>
-                <div className="space-y-1.5 pt-1">
-                  <div className="flex items-center justify-between text-[11px] font-montserrat font-bold text-slate-600">
-                    <span>Expense-to-Sales</span>
-                    <span className="text-rose-600 font-black">
-                      {salesMetrics.netCommercialSales > 0
-                        ? ((financialSummary.totalExpenses / salesMetrics.netCommercialSales) * 100).toFixed(1)
-                        : '0.0'}
-                      %
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden flex">
-                    <div
-                      style={{ width: `${safeDivPct(financialSummary.payrollExpense, financialSummary.totalExpenses)}%` }}
-                      className="bg-rose-500 h-full"
-                      title="Payroll"
-                    />
-                    <div
-                      style={{ width: `${safeDivPct(financialSummary.writeOffsExpense, financialSummary.totalExpenses)}%` }}
-                      className="bg-amber-500 h-full"
-                      title="Stock Write-offs"
-                    />
-                    <div
-                      style={{ width: `${safeDivPct(financialSummary.recordedOverhead, financialSummary.totalExpenses)}%` }}
-                      className="bg-[#0A006E] h-full"
-                      title="Recorded Operating Expenses"
-                    />
-                  </div>
-                  <div className="text-[10px] text-slate-500 pt-0.5 flex items-center justify-between">
-                    <span>Payroll: {Math.round(safeDivPct(financialSummary.payrollExpense, financialSummary.totalExpenses))}%</span>
-                    <span>Loss: {Math.round(safeDivPct(financialSummary.writeOffsExpense, financialSummary.totalExpenses))}%</span>
-                    <span>Ops: {Math.round(safeDivPct(financialSummary.recordedOverhead, financialSummary.totalExpenses))}%</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Stat Card 4: Net Profit / Loss */}
-              <div className="bg-white border border-slate-200 hover:border-[#0A006E] rounded-2xl p-5 shadow-2xs space-y-3 transition">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-montserrat font-black text-slate-500 uppercase tracking-wider">
-                    {financialSummary.netProfit < 0 ? 'Net Operating Loss' : 'Net Profit'}
-                  </span>
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shadow-xs border ${
-                    financialSummary.netProfit < 0
-                      ? 'bg-rose-600 text-white border-rose-700'
-                      : 'bg-[#FFDE00] text-[#0A006E] border-[#0A006E]'
-                  }`}>
-                    <Sparkles className="w-4 h-4 stroke-[2.5]" />
-                  </div>
-                </div>
-                <div className={`text-2xl font-montserrat font-black font-mono-tabular ${
-                  financialSummary.netProfit < 0 ? 'text-rose-700' : 'text-[#0A006E]'
-                }`}>
-                  {formatKes(financialSummary.netProfit)}
-                </div>
-                <div className="space-y-1.5 pt-1">
-                  <div className="flex items-center justify-between text-[11px] font-montserrat font-bold text-slate-600">
-                    <span>Net Margin</span>
-                    <span className={`font-black ${financialSummary.netProfit < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
-                      {financialSummary.netProfitMargin.toFixed(1)}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                    <div
-                      style={{ width: `${Math.max(0, Math.min(100, Math.abs(financialSummary.netProfitMargin)))}%` }}
-                      className={`${financialSummary.netProfit < 0 ? 'bg-rose-600' : 'bg-[#0A006E]'} h-full rounded-full`}
-                    />
-                  </div>
-                  <div className={`text-[10px] font-bold pt-0.5 flex items-center justify-between ${
-                    financialSummary.netProfit < 0 ? 'text-rose-600' : 'text-emerald-700'
-                  }`}>
-                    <span>{financialSummary.netProfit < 0 ? 'Deficit After Expenses' : 'Surplus Generated'}</span>
-                    <span>Reconciled P&amp;L</span>
-                  </div>
-                </div>
-              </div>
+          {/* Actionable Pending Cheque Alert (Only shown when cheques await maturity) */}
+          {chequeStats.processingDocs.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="font-montserrat font-semibold text-amber-950 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-700 shrink-0" />
+                <span>
+                  {chequeStats.processingDocs.length} client cheque(s) awaiting clearing ({formatKes(chequeStats.processingTotal)})
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveTab('cheques')}
+                className="px-3 py-1 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold cursor-pointer"
+              >
+                Review Cheques →
+              </button>
             </div>
           )}
 
-          {/* Executive Graphical Visualizations: P&L Bar Graph & Operating Expense Pie Chart */}
+          {/* 2 Core Visual Charts: P&L Flow Bar Graph & Expense Outflow Pie Chart */}
           {isWidgetVisible('charts') && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <BarGraph
-                title="Executive P&L & Surplus Flow"
-                subtitle="Gross Revenue, COGS, Gross Profit, Expenses & Net Result"
+                title="P&L Snapshot"
+                subtitle="Gross Sales, COGS, Expenses & Net Result"
                 data={pnlBarChartData}
-                badge="P&L Comparison"
+                badge="P&L"
                 activeColor="#0A006E"
                 mode="compare"
-                emptyMessage="Record sales or expenses to populate P&L comparison bars"
+                emptyMessage="Record sales or expenses to view P&L bars"
               />
               <AnalyticsPieChart
-                title="Operating Expense & Outflow Breakdown"
-                subtitle="Payroll, Stock Write-Offs, and Logged Expense Categories"
+                title="Expense & Outflow Mix"
+                subtitle="Payroll, stock write-offs & operating overheads"
                 data={expensePieChartData}
-                badge="Expense Mix"
+                badge="Outflow"
                 centerMetricLabel="Total Outflow"
-                emptyMessage="No expenses, payroll disbursements, or write-offs recorded for this period"
+                emptyMessage="No expenses recorded for this period"
               />
             </div>
           )}
 
-          {isWidgetVisible('income_statement') && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Live Profit & Loss Breakdown Card */}
-              <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 space-y-3.5">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+          {/* Clean 6-Tile Quick Workspaces Grid */}
+          {isWidgetVisible('workspace_tiles') && (
+            <div className="space-y-1.5">
+              <div className="text-[10px] font-montserrat font-bold text-slate-400 uppercase tracking-wider px-0.5">
+                Finance Workspaces (Tap to Open)
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('cheques')}
+                  className="p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer transition"
+                >
+                  <FileCheck2 className="w-4 h-4 text-amber-600" />
                   <div>
-                    <h3 className="text-sm font-montserrat font-bold text-[#0A006E]">
-                      Commercial Income Statement (P&amp;L)
-                    </h3>
-                    <p className="text-[11px] text-slate-500">
-                      Live POS sales, COGS, expenses, payroll &amp; write-offs.
-                    </p>
+                    <div className="text-xs font-montserrat font-bold text-slate-900">Cheques &amp; Client POs</div>
+                    <div className="text-[11px] text-slate-500 font-mono-tabular">
+                      {chequeStats.processingDocs.length} processing · {chequeStats.allChequeDocs.length} total
+                    </div>
                   </div>
-                  <span className="text-[11px] font-mono-tabular font-bold text-[#0A006E] bg-slate-100 px-2 py-0.5 rounded">
-                    {dateFilter}
-                  </span>
-                </div>
+                </button>
 
-                <div className="space-y-2 text-xs">
-                  <div className="flex items-center justify-between py-1 border-b border-slate-100">
-                    <span className="font-semibold text-slate-700">Gross Commercial Sales Turnover:</span>
-                    <span className="font-mono-tabular font-bold text-slate-900">{formatKes(salesMetrics.grossSales)}</span>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('expenses')}
+                  className="p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer transition"
+                >
+                  <Wallet className="w-4 h-4 text-rose-600" />
+                  <div>
+                    <div className="text-xs font-montserrat font-bold text-slate-900">Operating Expenses</div>
+                    <div className="text-[11px] text-slate-500 font-mono-tabular">
+                      {filteredExpenses.length} vouchers · {formatKes(expenseMetrics.totalRecorded)}
+                    </div>
                   </div>
+                </button>
 
-                  <div className="flex items-center justify-between py-1 border-b border-slate-100 text-rose-700">
-                    <span className="font-semibold">Less: Credit Notes Issued &amp; Returns:</span>
-                    <span className="font-mono-tabular font-bold">- {formatKes(salesMetrics.creditNotesTotal)}</span>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('sales')}
+                  className="p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer transition"
+                >
+                  <DollarSign className="w-4 h-4 text-[#0A006E]" />
+                  <div>
+                    <div className="text-xs font-montserrat font-bold text-slate-900">Sales &amp; Tenders</div>
+                    <div className="text-[11px] text-slate-500 font-mono-tabular">
+                      {salesMetrics.completedOrdersCount} orders · {formatKes(salesMetrics.grossSales)}
+                    </div>
                   </div>
+                </button>
 
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-200 font-bold text-slate-900 bg-slate-50 px-2 rounded-lg">
-                    <span>Net Commercial Revenue:</span>
-                    <span className="font-mono-tabular text-sm text-[#0A006E]">{formatKes(salesMetrics.netCommercialSales)}</span>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('stock')}
+                  className="p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer transition"
+                >
+                  <Package className="w-4 h-4 text-emerald-600" />
+                  <div>
+                    <div className="text-xs font-montserrat font-bold text-slate-900">Stock Valuation</div>
+                    <div className="text-[11px] text-slate-500 font-mono-tabular">
+                      {stockMetrics.totalBottlesInBond.toLocaleString()} btls · {formatKes(stockMetrics.totalStockCost)}
+                    </div>
                   </div>
+                </button>
 
-                  <div className="flex items-center justify-between py-1 border-b border-slate-100 text-amber-800">
-                    <span className="font-semibold">Less: Cost of Goods Sold (COGS):</span>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('deadstock_damages')}
+                  className="p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer transition"
+                >
+                  <PackageX className="w-4 h-4 text-amber-700" />
+                  <div>
+                    <div className="text-xs font-montserrat font-bold text-slate-900">Write-Offs &amp; Idle</div>
+                    <div className="text-[11px] text-slate-500 font-mono-tabular">
+                      {stockMetrics.deadStockItems.length} idle SKUs · {formatKes(stockMetrics.totalWriteOffs)}
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('tax_credit')}
+                  className="p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer transition"
+                >
+                  <ShieldAlert className="w-4 h-4 text-indigo-600" />
+                  <div>
+                    <div className="text-xs font-montserrat font-bold text-slate-900">KRA Tax &amp; A/R</div>
+                    <div className="text-[11px] text-slate-500 font-mono-tabular">
+                      VAT {formatKes(taxMetrics.estimatedVatPayable)}
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Concise P&L Summary & Recent Ledger (Expanded Mode Only) */}
+          {!isMinimal && isWidgetVisible('income_statement') && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2.5 text-xs">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <h3 className="text-sm font-montserrat font-bold text-[#0A006E]">P&amp;L Statement</h3>
+                    <span className="text-[11px] font-mono-tabular text-slate-500">{dateFilter}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-100">
+                    <span className="text-slate-600">Net Commercial Revenue</span>
+                    <span className="font-mono-tabular font-bold text-slate-900">{formatKes(salesMetrics.netCommercialSales)}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-100 text-amber-800">
+                    <span>Less: COGS</span>
                     <span className="font-mono-tabular font-bold">- {formatKes(salesMetrics.estimatedCogs)}</span>
                   </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-200 font-bold text-[#1E9E60] bg-emerald-50/60 px-2 rounded-lg">
-                    <span>Gross Operating Profit:</span>
-                    <span className="font-mono-tabular text-sm">{formatKes(salesMetrics.grossProfit)} ({salesMetrics.grossMarginPct.toFixed(1)}%)</span>
+                  <div className="flex justify-between py-1 border-b border-slate-100 text-emerald-700 font-bold">
+                    <span>Gross Profit ({salesMetrics.grossMarginPct.toFixed(1)}%)</span>
+                    <span className="font-mono-tabular">{formatKes(salesMetrics.grossProfit)}</span>
                   </div>
-
-                  <div className="flex items-center justify-between py-1 border-b border-slate-100 text-rose-700">
-                    <span className="font-semibold flex items-center gap-2">
-                      Less: Operating Expenses ({filteredExpenses.length}):
-                      <button
-                        type="button"
-                        onClick={() => setIsExpenseModalOpen(true)}
-                        className="text-[10px] font-bold text-[#0A006E] bg-[#FFDE00] px-1.5 py-0.5 rounded cursor-pointer"
-                      >
-                        + Add
-                      </button>
-                    </span>
-                    <span className="font-mono-tabular font-bold">- {formatKes(expenseMetrics.totalRecorded)}</span>
+                  <div className="flex justify-between py-1 border-b border-slate-100 text-rose-700">
+                    <span>Less: Expenses, Payroll &amp; Write-Offs</span>
+                    <span className="font-mono-tabular font-bold">- {formatKes(financialSummary.totalExpenses)}</span>
                   </div>
-
-                  <div className="flex items-center justify-between py-1 border-b border-slate-100 text-rose-600">
-                    <span className="font-semibold">Less: Stock Write-Offs:</span>
-                    <span className="font-mono-tabular font-bold">- {formatKes(stockMetrics.totalWriteOffs)}</span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1 border-b border-slate-100 text-slate-700">
-                    <span className="font-semibold">Less: Payroll Disbursed ({filteredPayrollRuns.length} Runs):</span>
-                    <span className="font-mono-tabular font-bold">- {formatKes(taxMetrics.totalPayrollDisbursed)}</span>
-                  </div>
-
-                  <div className={`flex items-center justify-between py-2 border font-black text-sm px-3 rounded-lg mt-2 ${
-                    financialSummary.netProfit < 0
-                      ? 'border-rose-300 text-rose-800 bg-rose-50'
-                      : 'border-[#0A006E]/30 text-[#0A006E] bg-[#FFDE00]/25'
-                  }`}>
-                    <span>{financialSummary.netProfit < 0 ? 'Net Operating Deficit:' : 'Net Commercial Surplus:'}</span>
+                  <div className="flex justify-between pt-1.5 font-black text-sm text-[#0A006E]">
+                    <span>{financialSummary.netProfit < 0 ? 'Net Deficit' : 'Net Profit'}</span>
                     <span className="font-mono-tabular">{formatKes(financialSummary.netProfit)}</span>
                   </div>
                 </div>
+
+                <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2.5 text-xs">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <h3 className="text-sm font-montserrat font-bold text-[#0A006E]">Balance &amp; Liquidity</h3>
+                    <span className="text-[11px] text-slate-500">Live Assets</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-100">
+                    <span className="text-slate-600">Bonded Stock Valuation (Cost)</span>
+                    <span className="font-mono-tabular font-bold text-slate-900">{formatKes(stockMetrics.totalStockCost)}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-100">
+                    <span className="text-slate-600">Accounts Receivable (B2B)</span>
+                    <span className="font-mono-tabular font-bold text-slate-900">{formatKes(salesMetrics.accountsReceivable)}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-100">
+                    <span className="text-slate-600">Net Settled Cash Inflow</span>
+                    <span className="font-mono-tabular font-bold text-emerald-700">{formatKes(financialSummary.netCashCollected)}</span>
+                  </div>
+                  <div className="flex justify-between pt-1.5 font-black text-sm text-[#0A006E]">
+                    <span>Working Assets Total</span>
+                    <span className="font-mono-tabular">{formatKes(financialSummary.totalAssetsValue)}</span>
+                  </div>
+                </div>
               </div>
 
-              {/* Live Inventory Asset & Working Capital Balance */}
-              <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 space-y-3.5">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
-                  <div>
-                    <h3 className="text-sm font-montserrat font-bold text-[#0A006E]">
-                      Inventory Valuation &amp; Liquidity
-                    </h3>
-                    <p className="text-[11px] text-slate-500">
-                      Bonded warehouses, receivables, and settled cash.
-                    </p>
-                  </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-montserrat font-bold text-[#0A006E]">Recent Transactions</h3>
+                  <span className="text-xs font-mono-tabular text-slate-500">
+                    Showing {Math.min(8, filteredTransactions.length)} of {filteredTransactions.length}
+                  </span>
                 </div>
-
-                <div className="space-y-2.5 text-xs">
-                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 flex items-center justify-between">
-                    <span className="font-bold text-slate-700">Landed Inventory Asset (Cost):</span>
-                    <span className="font-mono-tabular font-black text-[#0A006E] text-sm">
-                      {formatKes(stockMetrics.totalStockCost)}
-                    </span>
+                {filteredTransactions.length === 0 ? (
+                  <div className="py-6 text-center text-xs text-slate-500">
+                    No commercial transactions match the selected filters.
                   </div>
-
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                      <div className="text-slate-500 text-[10px] font-bold">Wholesale Value</div>
-                      <div className="text-sm font-montserrat font-black text-slate-900 font-mono-tabular mt-0.5">
-                        {formatKes(stockMetrics.totalStockWholesaleValue)}
-                      </div>
-                    </div>
-
-                    <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                      <div className="text-slate-500 text-[10px] font-bold">Retail Value</div>
-                      <div className="text-sm font-montserrat font-black text-[#1E9E60] font-mono-tabular mt-0.5">
-                        {formatKes(stockMetrics.totalStockRetailValue)}
-                      </div>
-                    </div>
+                ) : (
+                  <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-montserrat">
+                          <th className="py-2 px-3 font-bold">Doc #</th>
+                          <th className="py-2 px-3 font-bold">Customer</th>
+                          <th className="py-2 px-3 font-bold">Status</th>
+                          <th className="py-2 px-3 font-bold text-right">Amount</th>
+                          <th className="py-2 px-3 font-bold text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredTransactions.slice(0, 8).map((t) => (
+                          <tr key={t.id} className="hover:bg-slate-50">
+                            <td className="py-2 px-3 font-mono-tabular font-bold text-[#0A006E]">{t.docNumber}</td>
+                            <td className="py-2 px-3 text-slate-800">{t.customerName}</td>
+                            <td className="py-2 px-3 text-slate-600">{t.status}</td>
+                            <td className="py-2 px-3 text-right font-mono-tabular font-bold">{formatKes(t.totalAmount)}</td>
+                            <td className="py-2 px-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => onPreviewDoc?.(t)}
+                                className="px-2.5 py-1 bg-slate-100 hover:bg-[#0A006E] hover:text-[#FFDE00] text-[#0A006E] rounded-md text-[11px] font-bold transition cursor-pointer"
+                              >
+                                View
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-
-                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1.5">
-                    <div className="flex items-center justify-between text-slate-800">
-                      <span className="font-semibold">Net Settled Inflow:</span>
-                      <span className="font-mono-tabular font-bold text-[#0A006E]">
-                        {formatKes(financialSummary.netCashCollected)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-slate-800">
-                      <span className="font-semibold">Unrealized Inventory Margin:</span>
-                      <span className="font-mono-tabular font-bold text-[#1E9E60]">
-                        {formatKes(stockMetrics.potentialGrossMargin)} ({stockMetrics.potentialMarginPct.toFixed(1)}%)
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-slate-800">
-                      <span className="font-semibold">Stock Units in Bond:</span>
-                      <span className="font-mono-tabular font-bold">
-                        {stockMetrics.totalBottlesInBond.toLocaleString()} Bottles
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-amber-800">
-                      <span className="font-semibold">Capital in Dead Stock:</span>
-                      <span className="font-mono-tabular font-bold">
-                        {formatKes(stockMetrics.totalDeadStockCapitalKes)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                )}
               </div>
             </div>
           )}
+        </div>
+      )}
 
-          {/* Quick Recent Transactions Ledger (Expanded Mode Only to Keep Minimal Clean) */}
-          {!isMinimal && (
-            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+      {/* TAB: CLIENT PURCHASE ORDERS & CHEQUE CLEARING */}
+      {activeTab === 'cheques' && (
+        <div className="space-y-4">
+          <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-montserrat font-black text-[#0A006E] flex items-center gap-2">
+                <FileCheck2 className="w-4 h-4 text-[#0A006E]" />
+                Client Purchase Orders &amp; Cheque Clearing Desk
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Create client Purchase Orders with cheque details, hold unmatured cheques as <strong>Processing</strong>, clear to <strong>Paid</strong> or mark <strong>Rejected</strong>, and print client receipts reflecting the exact status.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsChequePoModalOpen(true)}
+              className="px-4 py-2 bg-[#0A006E] hover:bg-indigo-950 text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              New Client Purchase Order (Cheque)
+            </button>
+          </div>
+
+          {/* 3 Status KPI Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <button
+              type="button"
+              onClick={() => setChequeStatusFilter(chequeStatusFilter === 'Processing' ? 'ALL' : 'Processing')}
+              className={`text-left rounded-xl p-4 border-2 transition cursor-pointer ${
+                chequeStatusFilter === 'Processing'
+                  ? 'bg-amber-50 border-amber-500 shadow-xs'
+                  : 'bg-amber-50/60 border-amber-200 hover:border-amber-400'
+              }`}
+            >
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-montserrat font-bold text-[#0A006E]">
-                  Recent Live Commercial &amp; Financial Ledger
-                </h3>
-                <span className="text-xs font-mono-tabular text-slate-500">
-                  Showing {Math.min(10, filteredTransactions.length)} of {filteredTransactions.length}
+                <span className="text-[11px] font-montserrat font-black text-amber-900 uppercase">
+                  Processing (Not Matured)
                 </span>
+                <Clock className="w-4 h-4 text-amber-700" />
               </div>
+              <div className="text-xl font-montserrat font-black text-amber-950 font-mono-tabular mt-1">
+                {formatKes(chequeStats.processingTotal)}
+              </div>
+              <div className="text-[11px] text-amber-800 mt-0.5">
+                {chequeStats.processingDocs.length} cheque{chequeStats.processingDocs.length === 1 ? '' : 's'} awaiting maturity
+              </div>
+            </button>
 
-            {filteredTransactions.length === 0 ? (
-              <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-xs text-slate-500">
-                No commercial transactions match the selected branch &amp; date period.
+            <button
+              type="button"
+              onClick={() => setChequeStatusFilter(chequeStatusFilter === 'Paid' ? 'ALL' : 'Paid')}
+              className={`text-left rounded-xl p-4 border-2 transition cursor-pointer ${
+                chequeStatusFilter === 'Paid'
+                  ? 'bg-emerald-50 border-emerald-500 shadow-xs'
+                  : 'bg-emerald-50/60 border-emerald-200 hover:border-emerald-400'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-montserrat font-black text-emerald-900 uppercase">
+                  Paid (Cleared Cheques)
+                </span>
+                <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+              </div>
+              <div className="text-xl font-montserrat font-black text-emerald-950 font-mono-tabular mt-1">
+                {formatKes(chequeStats.paidTotal)}
+              </div>
+              <div className="text-[11px] text-emerald-800 mt-0.5">
+                {chequeStats.paidDocs.length} cleared &amp; settled
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setChequeStatusFilter(chequeStatusFilter === 'Rejected' ? 'ALL' : 'Rejected')}
+              className={`text-left rounded-xl p-4 border-2 transition cursor-pointer ${
+                chequeStatusFilter === 'Rejected'
+                  ? 'bg-rose-50 border-rose-500 shadow-xs'
+                  : 'bg-rose-50/60 border-rose-200 hover:border-rose-400'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-montserrat font-black text-rose-900 uppercase">
+                  Rejected (Returned Cheques)
+                </span>
+                <XCircle className="w-4 h-4 text-rose-700" />
+              </div>
+              <div className="text-xl font-montserrat font-black text-rose-950 font-mono-tabular mt-1">
+                {formatKes(chequeStats.rejectedTotal)}
+              </div>
+              <div className="text-[11px] text-rose-800 mt-0.5">
+                {chequeStats.rejectedDocs.length} bounced / excluded from revenue
+              </div>
+            </button>
+          </div>
+
+          {/* Filter & Search Bar */}
+          <div className="bg-white border border-slate-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {(['ALL', 'Processing', 'Paid', 'Rejected'] as const).map((st) => (
+                <button
+                  key={st}
+                  type="button"
+                  onClick={() => setChequeStatusFilter(st)}
+                  className={`px-3 py-1.5 rounded-lg font-montserrat font-bold cursor-pointer transition ${
+                    chequeStatusFilter === st
+                      ? 'bg-[#0A006E] text-[#FFDE00]'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  {st === 'ALL' ? 'All Cheques & POs' : st}
+                </button>
+              ))}
+            </div>
+            <div className="relative min-w-[230px]">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={chequeSearch}
+                onChange={(e) => setChequeSearch(e.target.value)}
+                placeholder="Search PO #, Cheque #, Client, Bank..."
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-[#0A006E]"
+              />
+            </div>
+          </div>
+
+          {/* Mobile Cards View */}
+          <div className="grid grid-cols-1 gap-3 md:hidden">
+            {chequeStats.visibleList.length === 0 ? (
+              <div className="bg-white border border-slate-200 rounded-xl p-6 text-center text-xs text-slate-500">
+                No cheque transactions or purchase orders match your current filter.
               </div>
             ) : (
-              <div className="overflow-x-auto bg-white border border-slate-200 rounded-xl">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
-                      <th className="py-2.5 px-3 font-black">Doc Number</th>
-                      <th className="py-2.5 px-3 font-black">Type</th>
-                      <th className="py-2.5 px-3 font-black">Channel</th>
-                      <th className="py-2.5 px-3 font-black">Branch</th>
-                      <th className="py-2.5 px-3 font-black">Customer / Client</th>
-                      <th className="py-2.5 px-3 font-black">Payment Tender</th>
-                      <th className="py-2.5 px-3 font-black text-right">Amount (KES)</th>
-                      <th className="py-2.5 px-3 font-black text-center">Status</th>
-                      <th className="py-2.5 px-3 font-black text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {filteredTransactions.slice(0, 10).map((t) => (
-                      <tr key={t.id} className="hover:bg-slate-50">
-                        <td className="py-2.5 px-3 font-mono-tabular font-bold text-[#0A006E]">{t.docNumber}</td>
-                        <td className="py-2.5 px-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            t.docType === 'Credit Note'
-                              ? 'bg-rose-100 text-rose-700'
-                              : t.docType === 'Invoice'
-                              ? 'bg-blue-100 text-blue-700'
-                              : 'bg-emerald-100 text-emerald-700'
-                          }`}>
-                            {t.docType}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-slate-600">{t.channel}</td>
-                        <td className="py-2.5 px-3 text-slate-700">{t.branchName}</td>
-                        <td className="py-2.5 px-3 font-medium text-slate-900">{t.customerName}</td>
-                        <td className="py-2.5 px-3 text-slate-600">{t.paymentMethod || 'Settled'}</td>
-                        <td className={`py-2.5 px-3 text-right font-mono-tabular font-bold ${
-                          t.docType === 'Credit Note' ? 'text-rose-600' : 'text-slate-900'
-                        }`}>
-                          {t.docType === 'Credit Note' ? `- ${formatKes(t.totalAmount)}` : formatKes(t.totalAmount)}
-                        </td>
-                        <td className="py-2.5 px-3 text-center">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#34D186]/20 text-[#1E9E60]">
-                            {t.status}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-right">
+              chequeStats.visibleList.map((tx) => {
+                const st: ChequeStatus =
+                  tx.status === 'Paid' || tx.status === 'Rejected' || tx.status === 'Processing'
+                    ? tx.status
+                    : tx.chequeDetails?.status || 'Processing';
+                return (
+                  <div key={tx.id} className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-2.5 text-xs">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-mono-tabular font-black text-[#0A006E]">
+                          {tx.docNumber} · <span className="text-slate-600">{tx.docType}</span>
+                        </div>
+                        <div className="font-montserrat font-bold text-slate-900">{tx.customerName}</div>
+                      </div>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                          st === 'Paid'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : st === 'Rejected'
+                            ? 'bg-rose-100 text-rose-700'
+                            : 'bg-amber-100 text-amber-900'
+                        }`}
+                      >
+                        {st === 'Processing' ? 'Processing (Not Matured)' : st}
+                      </span>
+                    </div>
+
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-[11px] space-y-0.5">
+                      <div>
+                        <strong>Cheque #:</strong>{' '}
+                        <span className="font-mono-tabular font-bold">{tx.chequeDetails?.chequeNumber || '—'}</span> ·{' '}
+                        <strong>Bank:</strong> {tx.chequeDetails?.drawerBank || '—'}
+                      </div>
+                      <div>
+                        <strong>Drawer:</strong> {tx.chequeDetails?.drawerName || tx.customerName} ·{' '}
+                        <strong>Maturity:</strong> {tx.chequeDetails?.maturityDate || '—'}
+                      </div>
+                      {tx.chequeDetails?.rejectionReason && (
+                        <div className="text-rose-700 font-semibold">
+                          Rejection Reason: {tx.chequeDetails.rejectionReason}
+                        </div>
+                      )}
+                      <div className="text-sm font-montserrat font-black text-[#0A006E] font-mono-tabular pt-0.5">
+                        {formatKes(tx.totalAmount)}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5">
+                      {st !== 'Paid' && (
+                        <button
+                          type="button"
+                          disabled={updatingChequeId === tx.id}
+                          onClick={() => handleUpdateChequeStatus(tx, 'Paid')}
+                          className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg text-[11px] font-bold cursor-pointer disabled:opacity-60"
+                        >
+                          Mark Paid
+                        </button>
+                      )}
+                      {st !== 'Processing' && (
+                        <button
+                          type="button"
+                          disabled={updatingChequeId === tx.id}
+                          onClick={() => handleUpdateChequeStatus(tx, 'Processing')}
+                          className="px-2.5 py-1.5 bg-amber-500 text-white rounded-lg text-[11px] font-bold cursor-pointer disabled:opacity-60"
+                        >
+                          Set Processing
+                        </button>
+                      )}
+                      {st !== 'Rejected' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRejectingChequeTxId(tx.id);
+                            setInlineRejectionReason(tx.chequeDetails?.rejectionReason || '');
+                          }}
+                          className="px-2.5 py-1.5 bg-rose-600 text-white rounded-lg text-[11px] font-bold cursor-pointer"
+                        >
+                          Reject Cheque
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleIssueOrPrintChequeReceipt(tx)}
+                        className="px-2.5 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-black flex items-center gap-1 cursor-pointer"
+                      >
+                        <Printer className="w-3 h-3" />
+                        Print Client Receipt
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onPreviewDoc?.(tx)}
+                        className="px-2.5 py-1.5 bg-slate-100 text-slate-800 rounded-lg text-[11px] font-bold cursor-pointer"
+                      >
+                        View {tx.docType}
+                      </button>
+                    </div>
+
+                    {rejectingChequeTxId === tx.id && (
+                      <div className="bg-rose-50 border border-rose-200 rounded-lg p-2.5 space-y-2">
+                        <input
+                          type="text"
+                          value={inlineRejectionReason}
+                          onChange={(e) => setInlineRejectionReason(e.target.value)}
+                          placeholder="Reason for rejecting cheque (e.g. Insufficient funds / Stale)"
+                          className="w-full px-2.5 py-1.5 bg-white border border-rose-300 rounded-lg text-xs"
+                        />
+                        <div className="flex gap-2">
                           <button
                             type="button"
-                            onClick={() => onPreviewDoc?.(t)}
-                            className="px-2.5 py-1 bg-slate-100 hover:bg-[#FFDE00] text-[#0A006E] rounded-lg text-[11px] font-bold transition cursor-pointer"
+                            onClick={() => handleUpdateChequeStatus(tx, 'Rejected', inlineRejectionReason)}
+                            className="px-3 py-1 bg-rose-600 text-white rounded-lg text-xs font-bold cursor-pointer"
                           >
-                            View Doc
+                            Confirm Rejection
                           </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                          <button
+                            type="button"
+                            onClick={() => setRejectingChequeTxId(null)}
+                            className="px-3 py-1 bg-slate-200 text-slate-700 rounded-lg text-xs font-bold cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
-          )}
+
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto bg-white border border-slate-200 rounded-xl">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
+                  <th className="py-2.5 px-3 font-black">Doc # &amp; Type</th>
+                  <th className="py-2.5 px-3 font-black">Client &amp; Branch</th>
+                  <th className="py-2.5 px-3 font-black">Cheque Particulars</th>
+                  <th className="py-2.5 px-3 font-black text-right">Amount (KES)</th>
+                  <th className="py-2.5 px-3 font-black text-center">Clearing Status</th>
+                  <th className="py-2.5 px-3 font-black text-right">Accounts Actions &amp; Receipt</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {chequeStats.visibleList.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-slate-500">
+                      No cheque transactions or client purchase orders match the selected filter.
+                    </td>
+                  </tr>
+                ) : (
+                  chequeStats.visibleList.map((tx) => {
+                    const st: ChequeStatus =
+                      tx.status === 'Paid' || tx.status === 'Rejected' || tx.status === 'Processing'
+                        ? tx.status
+                        : tx.chequeDetails?.status || 'Processing';
+                    return (
+                      <React.Fragment key={tx.id}>
+                        <tr className="hover:bg-slate-50">
+                          <td className="py-2.5 px-3">
+                            <div className="font-mono-tabular font-black text-[#0A006E]">{tx.docNumber}</div>
+                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-800 text-[10px] font-bold">
+                              {tx.docType}
+                            </span>
+                            {tx.relatedInvoiceNo && (
+                              <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                Ref: {tx.relatedInvoiceNo}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <div className="font-bold text-slate-900">{tx.customerName}</div>
+                            <div className="text-[10px] text-slate-500">{tx.branchName}</div>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            {tx.chequeDetails ? (
+                              <div className="space-y-0.5">
+                                <div className="font-mono-tabular font-bold text-slate-900">
+                                  Chq #{tx.chequeDetails.chequeNumber} · {tx.chequeDetails.drawerBank}
+                                  {tx.chequeDetails.branchName ? ` (${tx.chequeDetails.branchName})` : ''}
+                                </div>
+                                <div className="text-[10px] text-slate-600">
+                                  Drawer: {tx.chequeDetails.drawerName} · Dated {tx.chequeDetails.chequeDate} · Maturity{' '}
+                                  <strong className="text-[#0A006E]">{tx.chequeDetails.maturityDate}</strong>
+                                </div>
+                                {tx.chequeDetails.rejectionReason && (
+                                  <div className="text-[10px] text-rose-700 font-semibold">
+                                    Rejected: {tx.chequeDetails.rejectionReason}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-slate-500 italic">PO awaiting cheque attachment</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono-tabular font-black text-[#0A006E]">
+                            {formatKes(tx.totalAmount)}
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span
+                              className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-black ${
+                                st === 'Paid'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : st === 'Rejected'
+                                  ? 'bg-rose-100 text-rose-700'
+                                  : 'bg-amber-100 text-amber-900'
+                              }`}
+                            >
+                              {st === 'Processing' ? 'Processing (Not Matured)' : st}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                              {st !== 'Paid' && (
+                                <button
+                                  type="button"
+                                  disabled={updatingChequeId === tx.id}
+                                  onClick={() => handleUpdateChequeStatus(tx, 'Paid')}
+                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold cursor-pointer disabled:opacity-60"
+                                >
+                                  Mark Paid
+                                </button>
+                              )}
+                              {st !== 'Processing' && (
+                                <button
+                                  type="button"
+                                  disabled={updatingChequeId === tx.id}
+                                  onClick={() => handleUpdateChequeStatus(tx, 'Processing')}
+                                  className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[11px] font-bold cursor-pointer disabled:opacity-60"
+                                >
+                                  Processing
+                                </button>
+                              )}
+                              {st !== 'Rejected' && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setRejectingChequeTxId(tx.id);
+                                    setInlineRejectionReason(tx.chequeDetails?.rejectionReason || '');
+                                  }}
+                                  className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-700 rounded-lg text-[11px] font-bold cursor-pointer"
+                                >
+                                  Reject
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleIssueOrPrintChequeReceipt(tx)}
+                                className="px-2.5 py-1 bg-[#0A006E] hover:bg-indigo-950 text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-black flex items-center gap-1 cursor-pointer"
+                              >
+                                <Printer className="w-3 h-3" />
+                                Print Receipt
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onPreviewDoc?.(tx)}
+                                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold cursor-pointer"
+                              >
+                                View
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {rejectingChequeTxId === tx.id && (
+                          <tr className="bg-rose-50/70">
+                            <td colSpan={6} className="px-3 py-2.5">
+                              <div className="flex items-center justify-end gap-2">
+                                <input
+                                  type="text"
+                                  value={inlineRejectionReason}
+                                  onChange={(e) => setInlineRejectionReason(e.target.value)}
+                                  placeholder="Enter cheque rejection reason (e.g. Insufficient funds / Stale date / Signature mismatch)"
+                                  className="flex-1 max-w-lg px-3 py-1.5 bg-white border border-rose-300 rounded-lg text-xs"
+                                />
+                                <button
+                                  type="button"
+                                  disabled={updatingChequeId === tx.id}
+                                  onClick={() =>
+                                    handleUpdateChequeStatus(tx, 'Rejected', inlineRejectionReason)
+                                  }
+                                  className="px-3.5 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-bold cursor-pointer"
+                                >
+                                  Confirm Reject Cheque
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setRejectingChequeTxId(null)}
+                                  className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-bold cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -2785,6 +3530,378 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* NEW CLIENT PURCHASE ORDER (CHEQUE) MODAL */}
+      {isChequePoModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white border-2 border-[#0A006E] rounded-2xl max-w-3xl w-full shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col">
+            <div className="bg-[#0A006E] text-white px-5 py-3.5 flex items-center justify-between shrink-0">
+              <div>
+                <span className="text-[10px] font-montserrat font-black text-[#FFDE00] uppercase tracking-wider">
+                  Accounts Receivable &amp; Cheque Clearing
+                </span>
+                <h3 className="text-base font-montserrat font-black">
+                  Create Client Purchase Order (Cheque Payment)
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsChequePoModalOpen(false)}
+                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-5 space-y-4 overflow-y-auto text-xs">
+              {/* Branch & Client Selection */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-montserrat font-bold text-slate-700 mb-1">
+                    Issuing Branch / Depot *
+                  </label>
+                  <select
+                    value={poBranchId}
+                    onChange={(e) => setPoBranchId(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-bold text-[#0A006E]"
+                  >
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} ({b.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-montserrat font-bold text-slate-700 mb-1">
+                    Quick-Select Client / Trade Partner
+                  </label>
+                  <select
+                    value={poSelectedPartyKey}
+                    onChange={(e) => handleSelectPoParty(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-800"
+                  >
+                    <option value="">-- Choose Registered Client or Enter Manually --</option>
+                    {externalCustomers.map((c) => (
+                      <option key={c.id} value={`cust:${c.id}`}>
+                        [Client] {c.companyName ? `${c.companyName} (${c.name})` : c.name}
+                      </option>
+                    ))}
+                    {partners.map((p) => (
+                      <option key={p.id} value={`partner:${p.id}`}>
+                        [{p.partnerType}] {p.companyName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Client / Company Name *</label>
+                  <input
+                    type="text"
+                    value={poCustomerName}
+                    onChange={(e) => setPoCustomerName(e.target.value)}
+                    placeholder="e.g. Westlands Wine Merchants Ltd"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-semibold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Client Phone</label>
+                  <input
+                    type="text"
+                    value={poCustomerPhone}
+                    onChange={(e) => setPoCustomerPhone(e.target.value)}
+                    placeholder="e.g. 0722 000 000"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-mono-tabular"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Client KRA PIN</label>
+                  <input
+                    type="text"
+                    value={poCustomerKraPin}
+                    onChange={(e) => setPoCustomerKraPin(e.target.value.toUpperCase())}
+                    placeholder="e.g. P051234567X"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-mono-tabular uppercase"
+                  />
+                </div>
+              </div>
+
+              {/* Order Line Items Builder */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-montserrat font-black text-[#0A006E]">Purchase Order Items</span>
+                  <select
+                    value={poTaxMode}
+                    onChange={(e) => setPoTaxMode(e.target.value as typeof poTaxMode)}
+                    className="px-2.5 py-1 bg-white border border-slate-300 rounded-lg text-[11px] font-bold"
+                  >
+                    <option value="EXCLUSIVE_16">+16% VAT Exclusive</option>
+                    <option value="INCLUSIVE_16">16% VAT Inclusive</option>
+                    <option value="EXEMPT_0">0% Exempt</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+                  <div className="sm:col-span-5">
+                    <label className="block font-bold text-slate-600 mb-1">Product SKU</label>
+                    <select
+                      value={poProdId}
+                      onChange={(e) => {
+                        setPoProdId(e.target.value);
+                        setPoCustomPrice(0);
+                      }}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-semibold text-[#0A006E]"
+                    >
+                      {products.slice(0, 150).map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.sku} · {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block font-bold text-slate-600 mb-1">Unit</label>
+                    <select
+                      value={poUnitMode}
+                      onChange={(e) => {
+                        setPoUnitMode(e.target.value as 'Bottle' | 'Case');
+                        setPoCustomPrice(0);
+                      }}
+                      className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded-lg font-semibold"
+                    >
+                      <option value="Case">Case</option>
+                      <option value="Bottle">Bottle</option>
+                    </select>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block font-bold text-slate-600 mb-1">Qty</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={poQty}
+                      onChange={(e) => setPoQty(Number(e.target.value))}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-mono-tabular font-bold"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block font-bold text-slate-600 mb-1">Unit KES</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={poActiveUnitPrice}
+                      onChange={(e) => setPoCustomPrice(Number(e.target.value))}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-mono-tabular font-bold text-[#0A006E]"
+                    />
+                  </div>
+                  <div className="sm:col-span-1">
+                    <button
+                      type="button"
+                      onClick={handleAddPoLineItem}
+                      className="w-full py-1.5 px-2 bg-[#0A006E] text-[#FFDE00] rounded-lg font-montserrat font-black flex items-center justify-center cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {poLineItems.length > 0 && (
+                  <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+                    <table className="w-full text-left text-[11px]">
+                      <thead className="bg-slate-100 text-slate-700 font-bold">
+                        <tr>
+                          <th className="py-1.5 px-2.5">Item</th>
+                          <th className="py-1.5 px-2.5 text-right">Qty</th>
+                          <th className="py-1.5 px-2.5 text-right">Total</th>
+                          <th className="py-1.5 px-2.5 text-center">Remove</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {poLineItems.map((li, idx) => (
+                          <tr key={`${li.productId}-${li.unitMode}`}>
+                            <td className="py-1.5 px-2.5 font-semibold">
+                              {li.name} ({li.unitMode})
+                            </td>
+                            <td className="py-1.5 px-2.5 text-right font-mono">{li.quantityUnits}</td>
+                            <td className="py-1.5 px-2.5 text-right font-mono-tabular font-bold text-[#0A006E]">
+                              {formatKes(li.lineTotal)}
+                            </td>
+                            <td className="py-1.5 px-2.5 text-center">
+                              <button
+                                type="button"
+                                onClick={() => setPoLineItems((prev) => prev.filter((_, i) => i !== idx))}
+                                className="text-rose-600 cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 inline" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap items-center justify-end gap-4 pt-1 font-mono-tabular text-xs">
+                  <span>Subtotal: <strong>{formatKes(poFinancials.subtotal)}</strong></span>
+                  <span>VAT: <strong>{formatKes(poFinancials.tax)}</strong></span>
+                  <span className="text-sm font-black text-[#0A006E]">
+                    PO Total: {formatKes(poFinancials.total)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Cheque Details & Clearing Status */}
+              <div className="bg-amber-50/90 border border-amber-300 rounded-xl p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-montserrat font-black text-amber-950 flex items-center gap-1.5">
+                    <FileCheck2 className="w-4 h-4 text-amber-700" />
+                    Cheque Particulars &amp; Clearing Status
+                  </span>
+                  <span className="font-mono-tabular font-black text-[#0A006E]">
+                    {formatKes(poFinancials.total)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div>
+                    <label className="block font-bold text-amber-900 mb-1">Cheque Number *</label>
+                    <input
+                      type="text"
+                      value={poChequeNumber}
+                      onChange={(e) => setPoChequeNumber(e.target.value)}
+                      placeholder="e.g. CHQ-009214"
+                      className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-lg font-mono-tabular font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-amber-900 mb-1">Drawer Bank *</label>
+                    <input
+                      type="text"
+                      value={poDrawerBank}
+                      onChange={(e) => setPoDrawerBank(e.target.value)}
+                      placeholder="e.g. KCB Bank / Equity"
+                      className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-lg font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-amber-900 mb-1">Bank Branch (Optional)</label>
+                    <input
+                      type="text"
+                      value={poBranchName}
+                      onChange={(e) => setPoBranchName(e.target.value)}
+                      placeholder="e.g. Westlands"
+                      className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-amber-900 mb-1">Drawer / Account Name</label>
+                    <input
+                      type="text"
+                      value={poDrawerName}
+                      onChange={(e) => setPoDrawerName(e.target.value)}
+                      placeholder={poCustomerName || 'Account Signatory'}
+                      className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-amber-900 mb-1">Cheque Issue Date *</label>
+                    <input
+                      type="date"
+                      value={poChequeDate}
+                      onChange={(e) => setPoChequeDate(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-lg font-mono-tabular"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-amber-900 mb-1">Maturity / Clearing Date *</label>
+                    <input
+                      type="date"
+                      value={poMaturityDate}
+                      onChange={(e) => setPoMaturityDate(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-lg font-mono-tabular"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block font-bold text-amber-900 mb-1">Initial Cheque Status *</label>
+                    <select
+                      value={poInitialStatus}
+                      onChange={(e) => setPoInitialStatus(e.target.value as ChequeStatus)}
+                      className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-lg font-bold text-[#0A006E]"
+                    >
+                      <option value="Processing">Processing (Cheque Not Matured)</option>
+                      <option value="Paid">Paid (Cheque Cleared &amp; Honoured)</option>
+                      <option value="Rejected">Rejected (Cheque Bounced / Returned)</option>
+                    </select>
+                  </div>
+                  {poInitialStatus === 'Rejected' ? (
+                    <div>
+                      <label className="block font-bold text-rose-700 mb-1">Rejection Reason</label>
+                      <input
+                        type="text"
+                        value={poRejectionReason}
+                        onChange={(e) => setPoRejectionReason(e.target.value)}
+                        placeholder="e.g. Insufficient funds / Refer to drawer"
+                        className="w-full px-3 py-1.5 bg-white border border-rose-300 rounded-lg text-rose-800"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block font-bold text-amber-900 mb-1">Internal Clearing Notes</label>
+                      <input
+                        type="text"
+                        value={poNotes}
+                        onChange={(e) => setPoNotes(e.target.value)}
+                        placeholder="e.g. Client bank clearance expected within 3 working days"
+                        className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-lg"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {poModalError && (
+                <div className="p-2.5 bg-rose-50 border border-rose-300 rounded-xl text-rose-700 font-bold">
+                  {poModalError}
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setIsChequePoModalOpen(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-montserrat font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingPo}
+                  onClick={() => handleSaveClientChequePo(false)}
+                  className="px-4 py-2 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] border border-[#0A006E] rounded-xl font-montserrat font-black cursor-pointer disabled:opacity-60"
+                >
+                  {isSavingPo ? 'Saving...' : 'Save Purchase Order'}
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingPo}
+                  onClick={() => handleSaveClientChequePo(true)}
+                  className="px-4 py-2 bg-[#0A006E] hover:bg-indigo-950 text-[#FFDE00] rounded-xl font-montserrat font-black flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  Save &amp; Print Client Receipt
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
