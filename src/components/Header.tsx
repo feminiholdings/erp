@@ -132,7 +132,7 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <>
       {/* VAAIRO Compact Signature Deep Navy Header with Curved Single-Wave Bottom Edge */}
-      <header className="sticky top-0 z-30 pt-2.5 pb-6 sm:pt-3 sm:pb-7 px-4 sm:px-6 bg-[#0A006E] text-white flex items-center justify-between gap-4 sm:gap-8 relative overflow-hidden shadow-md">
+      <header className="sticky top-0 z-30 pt-2 pb-4 sm:pt-3 sm:pb-7 px-3.5 sm:px-6 bg-[#0A006E] text-white flex items-center justify-between gap-3 sm:gap-8 relative overflow-hidden shadow-md">
         {/* Zone 1: VAAIRO Wordmark & Wine Brand Icon */}
         <a
           href="#top"
