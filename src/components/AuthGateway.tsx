@@ -132,6 +132,11 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
   const [screenView, setScreenView] = useState<'boxes' | 'departments' | 'branches' | 'users' | 'pin'>('boxes');
   const [executiveModalRole, setExecutiveModalRole] = useState<'Admin' | 'Accountant' | null>(null);
   const [authMethodTab, setAuthMethodTab] = useState<'email' | 'google' | 'pin'>('email');
+  const [acctPopupStep, setAcctPopupStep] = useState<'branches' | 'users' | 'pin'>('branches');
+  const [acctSelectedBranchId, setAcctSelectedBranchId] = useState<string | null>(null);
+  const [acctSelectedBranchName, setAcctSelectedBranchName] = useState<string | null>(null);
+  const [acctSelectedUser, setAcctSelectedUser] = useState<StaffMember | null>(null);
+  const [isModalPinFocused, setIsModalPinFocused] = useState<boolean>(false);
   const [emailValue, setEmailValue] = useState<string>('');
   const [passwordValue, setPasswordValue] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -154,9 +159,82 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
     [staffList]
   );
 
+  const accountantBranches = useMemo(() => {
+    const map = new Map<
+      string,
+      { id: string; name: string; regionName?: string; code?: string; isMain?: boolean; count: number }
+    >();
+
+    branches.forEach((b) => {
+      const code = (b.code || '').toUpperCase();
+      const name = (b.name || '').toLowerCase();
+      const isDummy =
+        code === 'BR-LWR-003' ||
+        code === 'BR-SUB-002' ||
+        name.includes('lower basin') ||
+        name.includes('northgate suburban');
+
+      if (b.status !== 'Closed' && !isDummy) {
+        map.set(b.id, {
+          id: b.id,
+          name: b.name,
+          regionName: b.regionName,
+          code: b.code,
+          isMain: Boolean(b.isMain || code === 'BR-HQ-001' || name.includes('hq')),
+          count: 0,
+        });
+      }
+    });
+
+    activeAccountants.forEach((s) => {
+      const branchKey = s.branchId || s.branchName;
+      if (!branchKey) return;
+      const sBranchName = (s.branchName || '').toLowerCase();
+      if (sBranchName.includes('lower basin') || sBranchName.includes('northgate suburban')) {
+        return;
+      }
+      if (map.has(s.branchId)) {
+        map.get(s.branchId)!.count += 1;
+      } else if (map.has(branchKey)) {
+        map.get(branchKey)!.count += 1;
+      } else {
+        map.set(branchKey, {
+          id: s.branchId || branchKey,
+          name: s.branchName || 'HQ - Main Branch',
+          isMain: false,
+          count: 1,
+        });
+      }
+    });
+
+    if (map.size === 0) {
+      map.set('br-hq-001', {
+        id: 'br-hq-001',
+        name: 'HQ - Main Branch',
+        regionName: 'Metropolitan CBD & High-Street Zone',
+        code: 'BR-HQ-001',
+        isMain: true,
+        count: activeAccountants.length,
+      });
+    }
+
+    return Array.from(map.values()).sort((a, b) => {
+      if (a.isMain && !b.isMain) return -1;
+      if (!a.isMain && b.isMain) return 1;
+      return b.count - a.count;
+    });
+  }, [branches, activeAccountants]);
+
+  const acctBranchUsers = useMemo(() => {
+    return activeAccountants.filter((s) => {
+      if (!acctSelectedBranchId || acctSelectedBranchId === 'all') return true;
+      return s.branchId === acctSelectedBranchId || s.branchName === acctSelectedBranchName;
+    });
+  }, [activeAccountants, acctSelectedBranchId, acctSelectedBranchName]);
+
   const handleOpenExecutiveLogin = (
     role: 'Admin' | 'Accountant',
-    preferredMode: 'email' | 'google' | 'pin' = 'email'
+    preferredMode: 'email' | 'google' | 'pin' = role === 'Accountant' ? 'pin' : 'email'
   ) => {
     setSelectedBox(role);
     setExecutiveModalRole(role);
@@ -166,14 +244,11 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
     setEmailValue('');
     setModalPinDigits('');
     lastSubmittedModalPinRef.current = '';
-    if (role === 'Accountant') {
-      const currentAccountants = staffList.filter(
-        (s) => s.role === 'Accountant' && s.status === 'Active'
-      );
-      setSelectedModalAccountantId(currentAccountants.length === 1 ? currentAccountants[0].id : '');
-    } else {
-      setSelectedModalAccountantId('');
-    }
+    setAcctPopupStep('branches');
+    setAcctSelectedBranchId(null);
+    setAcctSelectedBranchName(null);
+    setAcctSelectedUser(null);
+    setSelectedModalAccountantId('');
   };
 
   const handleCloseExecutiveModal = () => {
@@ -184,6 +259,11 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
     setModalPinDigits('');
     lastSubmittedModalPinRef.current = '';
     setSelectedModalAccountantId('');
+    setAcctPopupStep('branches');
+    setAcctSelectedBranchId(null);
+    setAcctSelectedBranchName(null);
+    setAcctSelectedUser(null);
+    setIsModalPinFocused(false);
   };
 
   const handleSubmitEmailAuth = async (e?: React.FormEvent) => {
@@ -258,44 +338,53 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
     }
   }, [screenView, pinDigits, isSubmitting, selectedDepartment, selectedUser, onPinLogin]);
 
-  // Auto-focus hidden modal PIN input when Accountant Option 2 PIN tab is active
+  // Auto-focus hidden modal PIN input when Accountant PIN Terminal step is active
   useEffect(() => {
-    if (executiveModalRole === 'Accountant' && authMethodTab === 'pin') {
+    if (executiveModalRole === 'Accountant' && authMethodTab === 'pin' && acctPopupStep === 'pin') {
       const timer = setTimeout(() => {
         modalPinInputRef.current?.focus();
+        setIsModalPinFocused(true);
       }, 60);
       return () => clearTimeout(timer);
     } else {
+      setIsModalPinFocused(false);
       lastSubmittedModalPinRef.current = '';
     }
-  }, [executiveModalRole, authMethodTab]);
+  }, [executiveModalRole, authMethodTab, acctPopupStep]);
 
-  // Auto-submit Accountant Option 2 6-Digit PIN once 6 digits are entered
+  // Auto-submit Accountant 6-Digit PIN once 6 digits are entered inside the pop-up
   useEffect(() => {
     if (
       executiveModalRole === 'Accountant' &&
       authMethodTab === 'pin' &&
+      acctPopupStep === 'pin' &&
       modalPinDigits.length === 6 &&
       !isSubmitting &&
       lastSubmittedModalPinRef.current !== modalPinDigits
     ) {
       lastSubmittedModalPinRef.current = modalPinDigits;
-      onPinLogin(modalPinDigits, 'Accountant', selectedModalAccountantId || undefined);
+      onPinLogin(
+        modalPinDigits,
+        'Accountant',
+        acctSelectedUser?.id || selectedModalAccountantId || undefined
+      );
     } else if (modalPinDigits.length < 6) {
       lastSubmittedModalPinRef.current = '';
     }
   }, [
     executiveModalRole,
     authMethodTab,
+    acctPopupStep,
     modalPinDigits,
     isSubmitting,
+    acctSelectedUser,
     selectedModalAccountantId,
     onPinLogin,
   ]);
 
-  // Physical keyboard support inside Accountant Option 2 PIN tab
+  // Physical keyboard support inside Accountant PIN Terminal pop-up
   useEffect(() => {
-    if (executiveModalRole !== 'Accountant' || authMethodTab !== 'pin') return;
+    if (executiveModalRole !== 'Accountant' || authMethodTab !== 'pin' || acctPopupStep !== 'pin') return;
 
     const handleModalKeyDown = (e: KeyboardEvent) => {
       if (
@@ -316,8 +405,12 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
         lastSubmittedModalPinRef.current = '';
         playClickSound();
         setModalPinDigits((prev) => prev.slice(0, -1));
-      } else if (e.key === 'Delete') {
+      } else if (e.key === 'Delete' || e.key === 'Escape') {
         e.preventDefault();
+        if (e.key === 'Escape' && modalPinDigits.length === 0) {
+          handleCloseExecutiveModal();
+          return;
+        }
         lastSubmittedModalPinRef.current = '';
         playClickSound();
         setModalPinDigits('');
@@ -325,7 +418,11 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
         e.preventDefault();
         if (modalPinDigits.length === 6 && !isSubmitting) {
           lastSubmittedModalPinRef.current = modalPinDigits;
-          onPinLogin(modalPinDigits, 'Accountant', selectedModalAccountantId || undefined);
+          onPinLogin(
+            modalPinDigits,
+            'Accountant',
+            acctSelectedUser?.id || selectedModalAccountantId || undefined
+          );
         }
       }
     };
@@ -335,8 +432,10 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
   }, [
     executiveModalRole,
     authMethodTab,
+    acctPopupStep,
     modalPinDigits,
     isSubmitting,
+    acctSelectedUser,
     selectedModalAccountantId,
     onPinLogin,
   ]);
@@ -627,7 +726,7 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
                 <div
                   onClick={() => {
                     if (isSubmitting) return;
-                    handleOpenExecutiveLogin('Accountant', 'email');
+                    handleOpenExecutiveLogin('Accountant', 'pin');
                   }}
                   className={`w-full group min-h-[68px] sm:min-h-0 aspect-auto sm:aspect-square rounded-2xl sm:rounded-3xl p-3 sm:p-8 flex flex-row sm:flex-col items-center justify-between sm:justify-center gap-3 sm:gap-6 text-left sm:text-center cursor-pointer border-3 relative overflow-hidden transition-all duration-300 hover:-translate-y-1 sm:hover:-translate-y-3 hover:scale-[1.01] sm:hover:scale-[1.04] hover:shadow-[0_20px_40px_-12px_rgba(255,222,0,0.6)] ${
                     selectedBox === 'Accountant'
@@ -649,10 +748,10 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
                         ACCOUNTS
                       </h2>
                       <p className="text-[11px] sm:hidden font-montserrat font-semibold text-[#0A006E]/80 mt-0.5 truncate">
-                        Google · Email · PIN (Option 2)
+                        PIN Terminal · Email · Google
                       </p>
                       <p className="hidden sm:block text-[11px] font-montserrat font-bold text-[#0A006E]/75 mt-1">
-                        Email / Google · Option 2: PIN
+                        PIN Terminal · Email · Google
                       </p>
                     </div>
                   </div>
@@ -1356,16 +1455,20 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
         </div>
       </footer>
 
-      {/* EXECUTIVE AUTHENTICATION MODAL (ADMIN & ACCOUNTANT) */}
+      {/* EXECUTIVE & STAFF-STYLE ACCOUNTANT AUTHENTICATION POP-UP */}
       {executiveModalRole && (
         <div
-          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto"
+          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-2.5 sm:p-6 overflow-y-auto"
           onClick={(e) => {
             if (e.target === e.currentTarget) handleCloseExecutiveModal();
           }}
         >
           <div
-            className="relative w-full max-w-md max-h-[94dvh] flex flex-col bg-white rounded-3xl shadow-2xl border-2 border-slate-200 overflow-hidden my-auto transition-all animate-in fade-in zoom-in-95 duration-200"
+            className={`relative w-full ${
+              executiveModalRole === 'Accountant' && authMethodTab === 'pin'
+                ? 'max-w-3xl lg:max-w-4xl'
+                : 'max-w-md'
+            } max-h-[94dvh] flex flex-col bg-white rounded-3xl shadow-2xl border-2 border-slate-200 overflow-hidden my-auto transition-all duration-200`}
             role="dialog"
             aria-modal="true"
           >
@@ -1392,11 +1495,9 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
                   )}
                 </div>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-montserrat font-black italic text-lg sm:text-xl tracking-tight leading-tight truncate">
-                      {executiveModalRole === 'Admin' ? 'ADMIN ACCESS' : 'ACCOUNTS ACCESS'}
-                    </h3>
-                  </div>
+                  <h3 className="font-montserrat font-black italic text-lg sm:text-xl tracking-tight leading-tight truncate">
+                    {executiveModalRole === 'Admin' ? 'ADMIN ACCESS' : 'ACCOUNTS & FINANCE LOGIN'}
+                  </h3>
                   <p
                     className={`text-[11px] font-montserrat font-semibold mt-0.5 truncate ${
                       executiveModalRole === 'Admin' ? 'text-white/80' : 'text-[#0A006E]/80'
@@ -1404,7 +1505,7 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
                   >
                     {executiveModalRole === 'Admin'
                       ? 'System Administrator Authentication'
-                      : 'Finance & General Ledger Gateway'}
+                      : 'Select Branch & Profile for PIN Terminal, or Sign In via Email / Google'}
                   </p>
                 </div>
               </div>
@@ -1424,12 +1525,31 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
               </button>
             </div>
 
-            {/* Method Tabs: Email vs Google (+ Option 2 PIN for Accountant) */}
+            {/* Method Tabs: Staff-Style PIN (for Accountant), Email, Google */}
             <div
               className={`p-1.5 sm:p-2 bg-slate-100 border-b border-slate-200 grid gap-1 sm:gap-1.5 shrink-0 ${
                 executiveModalRole === 'Accountant' ? 'grid-cols-3' : 'grid-cols-2'
               }`}
             >
+              {executiveModalRole === 'Accountant' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMethodTab('pin');
+                    setLocalModalError(null);
+                    setModalPinDigits('');
+                    lastSubmittedModalPinRef.current = '';
+                  }}
+                  className={`py-2 px-1.5 sm:px-2.5 rounded-xl font-montserrat font-bold text-[11px] sm:text-xs flex items-center justify-center gap-1 sm:gap-1.5 transition-all cursor-pointer ${
+                    authMethodTab === 'pin'
+                      ? 'bg-[#0A006E] text-[#FFDE00] shadow-sm font-black'
+                      : 'text-[#0A006E] bg-white/70 hover:bg-white'
+                  }`}
+                >
+                  <KeyRound className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.2] shrink-0" />
+                  <span className="truncate">Profile &amp; PIN</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -1460,38 +1580,523 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
                 <GoogleIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                 <span className="truncate">Google</span>
               </button>
-              {executiveModalRole === 'Accountant' && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMethodTab('pin');
-                    setLocalModalError(null);
-                    setModalPinDigits('');
-                    lastSubmittedModalPinRef.current = '';
-                  }}
-                  className={`py-2 px-1.5 sm:px-2.5 rounded-xl font-montserrat font-bold text-[11px] sm:text-xs flex items-center justify-center gap-1 sm:gap-1.5 transition-all cursor-pointer ${
-                    authMethodTab === 'pin'
-                      ? 'bg-[#0A006E] text-[#FFDE00] shadow-sm font-black'
-                      : 'text-[#0A006E] bg-[#FFDE00]/35 hover:bg-[#FFDE00]/60'
-                  }`}
-                >
-                  <KeyRound className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.2] shrink-0" />
-                  <span className="truncate">PIN Opt 2</span>
-                </button>
-              )}
             </div>
 
             {/* Modal Body */}
             <div className="p-4 sm:p-6 space-y-4 flex-1 overflow-y-auto">
               {/* Errors if any */}
               {(localModalError || authError) && (
-                <div className="p-3 rounded-xl bg-red-50 border border-red-300 text-xs text-red-950 flex items-start gap-2.5 font-montserrat font-semibold">
-                  <AnimatedErrorPromptIcon size="sm" />
-                  <span className="leading-snug">{localModalError || authError}</span>
+                <div className="p-3 rounded-xl bg-red-50 border border-red-300 text-xs text-red-950 flex items-start justify-between gap-2.5 font-montserrat font-semibold">
+                  <div className="flex items-start gap-2.5 min-w-0">
+                    <AnimatedErrorPromptIcon size="sm" />
+                    <span className="leading-snug">{localModalError || authError}</span>
+                  </div>
+                  {authMethodTab === 'pin' && modalPinDigits.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        lastSubmittedModalPinRef.current = '';
+                        setModalPinDigits('');
+                        modalPinInputRef.current?.focus();
+                      }}
+                      className="text-[11px] font-bold text-red-700 underline shrink-0 cursor-pointer"
+                    >
+                      Clear PIN
+                    </button>
+                  )}
                 </div>
               )}
 
-              {/* TAB 1: EMAIL SIGN-IN FORM */}
+              {/* STAFF-STYLE ACCOUNTANT FLOW INSIDE POP-UP (BRANCHES -> PROFILE -> WIDE PIN TERMINAL) */}
+              {executiveModalRole === 'Accountant' && authMethodTab === 'pin' && (
+                <>
+                  {/* Step 1: Select Branch Station (exact Staffs style) */}
+                  {acctPopupStep === 'branches' && (
+                    <div className="space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                        <div>
+                          <span className="text-[10px] font-montserrat font-bold text-slate-500 uppercase tracking-widest block">
+                            STEP 1 OF 2 · SELECT BRANCH STATION
+                          </span>
+                          <h4 className="text-base sm:text-lg font-montserrat font-black italic text-[#0A006E]">
+                            ACCOUNTS &amp; FINANCE
+                          </h4>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAcctSelectedUser(null);
+                            setModalPinDigits('');
+                            lastSubmittedModalPinRef.current = '';
+                            setAcctPopupStep('pin');
+                          }}
+                          className="px-3 py-2 rounded-xl bg-[#0A006E] hover:bg-[#12009E] text-[#FFDE00] font-montserrat font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition"
+                        >
+                          <KeyRound className="w-3.5 h-3.5" />
+                          <span>Direct PIN</span>
+                        </button>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+                        <p className="font-montserrat font-semibold text-slate-600">
+                          Select your operational branch to pick your accountant profile:
+                        </p>
+                        <span className="font-montserrat font-bold text-[#0A006E]">
+                          {activeAccountants.length} Active Accountant{activeAccountants.length === 1 ? '' : 's'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                        {/* All Branches Card */}
+                        <div
+                          onClick={() => {
+                            setAcctSelectedBranchId('all');
+                            setAcctSelectedBranchName('All Operational Branches');
+                            setAcctPopupStep('users');
+                          }}
+                          className="group bg-white hover:bg-slate-50 border-2 border-slate-200 hover:border-[#0A006E] rounded-2xl p-4 flex flex-col justify-between gap-3 cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-11 h-11 rounded-xl bg-[#0A006E] text-white flex items-center justify-center shrink-0">
+                                <Users className="w-5 h-5" />
+                              </div>
+                              <div className="min-w-0">
+                                <h5 className="font-montserrat font-bold text-slate-900 text-sm truncate group-hover:text-[#0A006E]">
+                                  All Branches
+                                </h5>
+                                <span className="text-[11px] text-slate-500">All active accountants</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-montserrat font-bold text-[#0A006E]">
+                            <span>{activeAccountants.length} Profiles</span>
+                            <span>View All →</span>
+                          </div>
+                        </div>
+
+                        {/* Individual Branch Cards */}
+                        {accountantBranches.map((branch) => (
+                          <div
+                            key={branch.id}
+                            onClick={() => {
+                              setAcctSelectedBranchId(branch.id);
+                              setAcctSelectedBranchName(branch.name);
+                              setAcctPopupStep('users');
+                            }}
+                            className="group bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-2xl p-4 flex flex-col justify-between gap-3 cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-11 h-11 rounded-xl bg-slate-100 group-hover:bg-[#0A006E] text-[#0A006E] group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                                  <Building2 className="w-5 h-5" />
+                                </div>
+                                <div className="min-w-0">
+                                  <h5 className="font-montserrat font-bold text-slate-900 text-sm truncate group-hover:text-[#0A006E]">
+                                    {branch.name}
+                                  </h5>
+                                  <div className="text-[11px] text-slate-500 truncate">
+                                    {branch.regionName || branch.code || 'Active Station'}
+                                  </div>
+                                </div>
+                              </div>
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                                  branch.count > 0
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : 'bg-slate-100 text-slate-500'
+                                }`}
+                              >
+                                {branch.count} Staff
+                              </span>
+                            </div>
+                            <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-montserrat font-bold text-[#0A006E]">
+                              <span className="text-slate-400 font-mono text-[11px]">{branch.code || 'Branch'}</span>
+                              <span>Select Branch →</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Step 2: Select Accountant User Profile (exact Staffs style) */}
+                  {acctPopupStep === 'users' && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                        <button
+                          type="button"
+                          onClick={() => setAcctPopupStep('branches')}
+                          className="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-[#0A006E] font-montserrat font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <ArrowLeft className="w-3.5 h-3.5 stroke-[2.5]" />
+                          <span>Branches</span>
+                        </button>
+
+                        <div className="text-center min-w-0">
+                          <span className="text-[10px] font-montserrat font-bold text-slate-500 uppercase tracking-widest block">
+                            STEP 2 OF 2 · SELECT YOUR NAME
+                          </span>
+                          <h4 className="text-base sm:text-lg font-montserrat font-black italic text-[#0A006E] truncate">
+                            {acctSelectedBranchName || 'Accounts Department'}
+                          </h4>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAcctSelectedUser(null);
+                            setModalPinDigits('');
+                            lastSubmittedModalPinRef.current = '';
+                            setAcctPopupStep('pin');
+                          }}
+                          className="px-3 py-2 rounded-xl bg-[#0A006E] hover:bg-[#12009E] text-[#FFDE00] font-montserrat font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <KeyRound className="w-3.5 h-3.5" />
+                          <span>Direct PIN</span>
+                        </button>
+                      </div>
+
+                      {acctBranchUsers.length === 0 ? (
+                        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 text-center space-y-3">
+                          <Users className="w-10 h-10 text-slate-400 mx-auto" />
+                          <div className="text-sm font-montserrat font-bold text-slate-900">
+                            No Active Accountant Provisioned at {acctSelectedBranchName || 'this branch'}
+                          </div>
+                          <p className="text-xs text-slate-600 max-w-md mx-auto">
+                            You can enter your Accountant security PIN directly, select All Branches, or sign in using Email / Google above.
+                          </p>
+                          <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAcctSelectedBranchId('all');
+                                setAcctSelectedBranchName('All Operational Branches');
+                              }}
+                              className="px-3.5 py-2 bg-white border border-slate-300 text-slate-700 rounded-xl text-xs font-montserrat font-bold cursor-pointer"
+                            >
+                              View All Branches
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAcctSelectedUser(null);
+                                setModalPinDigits('');
+                                lastSubmittedModalPinRef.current = '';
+                                setAcctPopupStep('pin');
+                              }}
+                              className="px-3.5 py-2 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-bold cursor-pointer"
+                            >
+                              Enter PIN Directly
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                          {acctBranchUsers.map((user) => {
+                            const initials = user.name
+                              .split(' ')
+                              .filter(Boolean)
+                              .slice(0, 2)
+                              .map((n) => n[0].toUpperCase())
+                              .join('');
+
+                            return (
+                              <div
+                                key={user.id}
+                                onClick={() => {
+                                  setAcctSelectedUser(user);
+                                  setModalPinDigits('');
+                                  lastSubmittedModalPinRef.current = '';
+                                  setAcctPopupStep('pin');
+                                }}
+                                className="group bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-2xl p-4 flex flex-col justify-between gap-3 cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                              >
+                                <div className="flex items-start justify-between gap-2.5">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <div className="w-11 h-11 rounded-xl bg-[#0A006E] text-[#FFDE00] font-montserrat font-black text-sm flex items-center justify-center shrink-0">
+                                      {initials || 'AC'}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <h5 className="font-montserrat font-bold text-slate-900 text-sm truncate group-hover:text-[#0A006E]">
+                                        {user.name}
+                                      </h5>
+                                      <div className="flex items-center gap-1 text-[11px] text-slate-500 truncate mt-0.5">
+                                        <Building2 className="w-3 h-3 shrink-0 text-slate-400" />
+                                        <span className="truncate">{user.branchName}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                                    Active
+                                  </span>
+                                </div>
+                                <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                                  <span className="text-[11px] text-slate-400 font-mono-tabular">
+                                    {user.lastLoginAt
+                                      ? new Date(user.lastLoginAt).toLocaleDateString()
+                                      : 'Ready'}
+                                  </span>
+                                  <span className="font-montserrat font-bold text-[#0A006E] group-hover:translate-x-0.5 transition-transform">
+                                    Enter PIN →
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Step 3: Wide Landscape Two-Column PIN Terminal inside Pop-Up (exact Staffs layout) */}
+                  {acctPopupStep === 'pin' && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            lastSubmittedModalPinRef.current = '';
+                            setModalPinDigits('');
+                            setAcctPopupStep(acctSelectedBranchId ? 'users' : 'branches');
+                          }}
+                          className="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-montserrat font-semibold text-xs flex items-center gap-2 cursor-pointer transition"
+                        >
+                          <ArrowLeft className="w-3.5 h-3.5 stroke-[2.5]" />
+                          <span>{acctSelectedBranchId ? 'Back to Accountant List' : 'Back to Branches'}</span>
+                        </button>
+
+                        <div className="flex items-center gap-2 text-xs font-montserrat font-bold text-slate-500">
+                          <Lock className="w-4 h-4 text-[#0A006E]" />
+                          <span className="uppercase tracking-wider">Accounts PIN Terminal</span>
+                        </div>
+                      </div>
+
+                      <input
+                        ref={modalPinInputRef}
+                        type="tel"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={6}
+                        value={modalPinDigits}
+                        onChange={(e) => {
+                          const cleaned = e.target.value.replace(/\D/g, '').slice(0, 6);
+                          setModalPinDigits(cleaned);
+                        }}
+                        onFocus={() => setIsModalPinFocused(true)}
+                        onBlur={() => setIsModalPinFocused(false)}
+                        className="sr-only"
+                        aria-label="Accountant 6-Digit Security PIN Input"
+                      />
+
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-5 lg:gap-7 items-start">
+                        {/* Left Column (5 cols): Profile Card + 6-Digit PIN Status Boxes */}
+                        <div className="md:col-span-5 space-y-4">
+                          {acctSelectedUser ? (
+                            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-12 h-12 rounded-xl bg-[#0A006E] text-[#FFDE00] font-montserrat font-black text-sm flex items-center justify-center shrink-0">
+                                  {acctSelectedUser.name
+                                    .split(' ')
+                                    .filter(Boolean)
+                                    .slice(0, 2)
+                                    .map((n) => n[0].toUpperCase())
+                                    .join('') || 'AC'}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="text-sm font-montserrat font-bold text-slate-900 truncate">
+                                    {acctSelectedUser.name}
+                                  </div>
+                                  <div className="text-xs text-slate-500 truncate mt-0.5 font-medium">
+                                    Accountant · {acctSelectedUser.branchName}
+                                  </div>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAcctSelectedUser(null);
+                                  lastSubmittedModalPinRef.current = '';
+                                  setModalPinDigits('');
+                                  setAcctPopupStep('users');
+                                }}
+                                className="px-2.5 py-1 text-xs font-montserrat font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-200 rounded-lg cursor-pointer shrink-0"
+                              >
+                                Switch
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-3">
+                              <div>
+                                <div className="text-xs font-montserrat font-semibold text-slate-500 uppercase tracking-wide">
+                                  Department Terminal
+                                </div>
+                                <div className="text-sm font-montserrat font-bold text-slate-900">
+                                  ACCOUNTS &amp; FINANCE
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  lastSubmittedModalPinRef.current = '';
+                                  setModalPinDigits('');
+                                  setAcctPopupStep('branches');
+                                }}
+                                className="px-2.5 py-1 text-xs font-montserrat font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-200 rounded-lg cursor-pointer"
+                              >
+                                Change
+                              </button>
+                            </div>
+                          )}
+
+                          {/* 6-Digit PIN Status Display (Identical to Staffs) */}
+                          <div
+                            onClick={() => {
+                              modalPinInputRef.current?.focus();
+                              setIsModalPinFocused(true);
+                            }}
+                            className={`p-4 rounded-2xl bg-slate-50 border transition-all cursor-text space-y-3 ${
+                              isModalPinFocused
+                                ? 'border-[#0A006E] ring-2 ring-[#0A006E]/15'
+                                : 'border-slate-200'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between text-xs font-montserrat font-semibold text-slate-600 px-1">
+                              <span>Security PIN Status</span>
+                              <span className="font-mono text-slate-500">{modalPinDigits.length} / 6 Digits</span>
+                            </div>
+
+                            <div className="flex items-center justify-center gap-2 py-1">
+                              {[0, 1, 2, 3, 4, 5].map((idx) => {
+                                const filled = idx < modalPinDigits.length;
+                                const isCurrent = idx === modalPinDigits.length;
+                                return (
+                                  <div
+                                    key={idx}
+                                    className={`w-10 h-12 rounded-xl flex items-center justify-center font-mono font-bold text-xl border transition-all select-none ${
+                                      filled
+                                        ? 'border-[#0A006E] bg-[#0A006E] text-white shadow-xs'
+                                        : isCurrent
+                                        ? 'border-[#0A006E] bg-white ring-2 ring-[#0A006E]/20 text-[#0A006E]'
+                                        : 'border-slate-200 bg-white text-slate-300'
+                                    }`}
+                                  >
+                                    {filled ? (
+                                      <span>{modalPinDigits[idx]}</span>
+                                    ) : isCurrent ? (
+                                      <span className="w-1.5 h-5 bg-[#0A006E] animate-pulse rounded-full" />
+                                    ) : (
+                                      <span className="text-slate-300 text-base font-normal">—</span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            <div className="flex items-center justify-between text-[11px] text-slate-500 font-montserrat pt-1 border-t border-slate-200/80">
+                              <span className="flex items-center gap-1.5">
+                                <Keyboard className="w-3.5 h-3.5 text-slate-400" />
+                                <span>Physical keyboard (0–9)</span>
+                              </span>
+                              <span className="text-slate-400 font-medium">Auto-submits on 6th digit</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right Column (7 cols): Keypad + Unlock Button */}
+                        <div className="md:col-span-7 space-y-4">
+                          <div className="grid grid-cols-3 gap-2.5">
+                            {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
+                              <button
+                                key={digit}
+                                type="button"
+                                onClick={() => {
+                                  if (isSubmitting) return;
+                                  playClickSound();
+                                  setModalPinDigits((prev) => (prev.length < 6 ? prev + digit : prev));
+                                }}
+                                className="py-3 sm:py-3.5 rounded-xl font-mono font-bold text-xl sm:text-2xl bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-800 border border-slate-200 transition active:scale-95 shadow-2xs flex items-center justify-center select-none cursor-pointer"
+                              >
+                                {digit}
+                              </button>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                lastSubmittedModalPinRef.current = '';
+                                playClickSound();
+                                setModalPinDigits('');
+                                modalPinInputRef.current?.focus();
+                              }}
+                              className="py-3 sm:py-3.5 rounded-xl font-montserrat font-semibold text-xs sm:text-sm uppercase bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-600 border border-slate-200 transition active:scale-95 flex items-center justify-center select-none cursor-pointer"
+                            >
+                              Clear
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isSubmitting) return;
+                                playClickSound();
+                                setModalPinDigits((prev) => (prev.length < 6 ? prev + '0' : prev));
+                              }}
+                              className="py-3 sm:py-3.5 rounded-xl font-mono font-bold text-xl sm:text-2xl bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-800 border border-slate-200 transition active:scale-95 shadow-2xs flex items-center justify-center select-none cursor-pointer"
+                            >
+                              0
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                lastSubmittedModalPinRef.current = '';
+                                playClickSound();
+                                setModalPinDigits((prev) => prev.slice(0, -1));
+                              }}
+                              className="py-3 sm:py-3.5 rounded-xl bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-600 border border-slate-200 transition active:scale-95 flex items-center justify-center cursor-pointer select-none"
+                              aria-label="Backspace"
+                            >
+                              <Delete className="w-5 h-5 stroke-[2.2]" />
+                            </button>
+                          </div>
+
+                          <button
+                            type="button"
+                            disabled={modalPinDigits.length !== 6 || isSubmitting}
+                            onClick={() => {
+                              if (modalPinDigits.length === 6 && !isSubmitting) {
+                                lastSubmittedModalPinRef.current = modalPinDigits;
+                                onPinLogin(
+                                  modalPinDigits,
+                                  'Accountant',
+                                  acctSelectedUser?.id || selectedModalAccountantId || undefined
+                                );
+                              }
+                            }}
+                            className="w-full py-3.5 px-4 bg-[#0A006E] hover:bg-[#070050] disabled:opacity-40 text-white font-montserrat font-bold text-sm sm:text-base rounded-xl transition-all cursor-pointer shadow-md active:scale-98 flex items-center justify-center gap-2"
+                          >
+                            {isSubmitting ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin text-white" />
+                                <span>Verifying PIN...</span>
+                              </>
+                            ) : acctSelectedUser ? (
+                              <>
+                                <Lock className="w-4 h-4 text-white" />
+                                <span>Unlock as {acctSelectedUser.name}</span>
+                              </>
+                            ) : (
+                              <>
+                                <Lock className="w-4 h-4 text-white" />
+                                <span>Unlock Accounts Terminal</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* TAB 2: EMAIL SIGN-IN FORM */}
               {authMethodTab === 'email' && (
                 <form onSubmit={handleSubmitEmailAuth} className="space-y-3.5">
                   <div>
@@ -1586,7 +2191,7 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
                 </form>
               )}
 
-              {/* TAB 2: GOOGLE SIGN-IN */}
+              {/* TAB 3: GOOGLE SIGN-IN */}
               {authMethodTab === 'google' && (
                 <div className="space-y-4 py-2 text-center">
                   <div className="w-16 h-16 rounded-2xl bg-white border-2 border-slate-200 mx-auto flex items-center justify-center shadow-sm">
@@ -1632,175 +2237,24 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
                   </p>
                 </div>
               )}
-              {/* TAB 3 (OPTION 2): ACCOUNTANT 6-DIGIT PIN SIGN-IN */}
-              {executiveModalRole === 'Accountant' && authMethodTab === 'pin' && (
-                <div className="space-y-3.5">
-                  <input
-                    ref={modalPinInputRef}
-                    type="tel"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={6}
-                    value={modalPinDigits}
-                    onChange={(e) => {
-                      const cleaned = e.target.value.replace(/\D/g, '').slice(0, 6);
-                      setModalPinDigits(cleaned);
-                    }}
-                    className="sr-only"
-                    aria-label="Accountant 6-Digit PIN Input"
-                  />
-
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#FFDE00] text-[#0A006E] font-montserrat font-black text-[10px] uppercase tracking-wider">
-                        Option 2 Login
-                      </span>
-                      <h4 className="font-montserrat font-black text-sm text-slate-900 mt-1">
-                        Enter Accountant 6-Digit Security PIN
-                      </h4>
-                    </div>
-                  </div>
-
-                  {activeAccountants.length > 0 && (
-                    <div>
-                      <label className="block text-[11px] font-montserrat font-bold text-slate-600 mb-1">
-                        Accountant Profile
-                      </label>
-                      <select
-                        value={selectedModalAccountantId}
-                        onChange={(e) => {
-                          setSelectedModalAccountantId(e.target.value);
-                          setModalPinDigits('');
-                          lastSubmittedModalPinRef.current = '';
-                          modalPinInputRef.current?.focus();
-                        }}
-                        className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-200 focus:border-[#0A006E] rounded-xl text-xs font-montserrat font-bold text-slate-900 outline-none"
-                      >
-                        <option value="">Any Active Accountant (Auto-Match PIN)</option>
-                        {activeAccountants.map((acc) => (
-                          <option key={acc.id} value={acc.id}>
-                            {acc.name} · {acc.branchName}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {/* 6-Digit PIN Boxes */}
-                  <div
-                    onClick={() => modalPinInputRef.current?.focus()}
-                    className="p-3 rounded-2xl bg-slate-50 border-2 border-slate-200 hover:border-[#0A006E]/50 cursor-text space-y-2 transition"
-                  >
-                    <div className="flex items-center justify-center gap-1.5 sm:gap-2">
-                      {[0, 1, 2, 3, 4, 5].map((idx) => {
-                        const filled = idx < modalPinDigits.length;
-                        const isCurrent = idx === modalPinDigits.length;
-                        return (
-                          <div
-                            key={idx}
-                            className={`w-9 h-10 sm:w-10 sm:h-11 rounded-xl flex items-center justify-center font-mono font-bold text-base sm:text-lg border transition-all select-none ${
-                              filled
-                                ? 'border-[#0A006E] bg-[#0A006E] text-[#FFDE00] shadow-xs'
-                                : isCurrent
-                                ? 'border-[#0A006E] bg-white ring-2 ring-[#0A006E]/20 text-[#0A006E]'
-                                : 'border-slate-200 bg-white text-slate-300'
-                            }`}
-                          >
-                            {filled ? modalPinDigits[idx] : isCurrent ? '•' : '—'}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="flex items-center justify-between text-[10px] font-montserrat font-semibold text-slate-500 px-1">
-                      <span>Type 0–9 or tap keypad below</span>
-                      <span>{modalPinDigits.length} / 6 Digits</span>
-                    </div>
-                  </div>
-
-                  {/* Compact Numeric Keypad */}
-                  <div className="grid grid-cols-3 gap-2">
-                    {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
-                      <button
-                        key={digit}
-                        type="button"
-                        onClick={() => {
-                          if (isSubmitting) return;
-                          playClickSound();
-                          setModalPinDigits((prev) => (prev.length < 6 ? prev + digit : prev));
-                        }}
-                        className="py-2.5 rounded-xl font-mono font-bold text-lg bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-800 border border-slate-200 transition active:scale-95 flex items-center justify-center select-none cursor-pointer"
-                      >
-                        {digit}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        lastSubmittedModalPinRef.current = '';
-                        playClickSound();
-                        setModalPinDigits('');
-                        modalPinInputRef.current?.focus();
-                      }}
-                      className="py-2.5 rounded-xl font-montserrat font-bold text-xs uppercase bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 transition active:scale-95 cursor-pointer"
-                    >
-                      Clear
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (isSubmitting) return;
-                        playClickSound();
-                        setModalPinDigits((prev) => (prev.length < 6 ? prev + '0' : prev));
-                      }}
-                      className="py-2.5 rounded-xl font-mono font-bold text-lg bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-800 border border-slate-200 transition active:scale-95 flex items-center justify-center select-none cursor-pointer"
-                    >
-                      0
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        lastSubmittedModalPinRef.current = '';
-                        playClickSound();
-                        setModalPinDigits((prev) => prev.slice(0, -1));
-                      }}
-                      className="py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 transition active:scale-95 flex items-center justify-center cursor-pointer"
-                      aria-label="Backspace"
-                    >
-                      <Delete className="w-4 h-4 stroke-[2.2]" />
-                    </button>
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={modalPinDigits.length !== 6 || isSubmitting}
-                    onClick={() => {
-                      if (modalPinDigits.length === 6 && !isSubmitting) {
-                        lastSubmittedModalPinRef.current = modalPinDigits;
-                        onPinLogin(modalPinDigits, 'Accountant', selectedModalAccountantId || undefined);
-                      }
-                    }}
-                    className="w-full py-3 px-4 rounded-xl bg-[#0A006E] hover:bg-[#12009E] disabled:opacity-45 text-[#FFDE00] font-montserrat font-black text-sm tracking-wide shadow-md transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-98"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin text-[#FFDE00]" />
-                        <span>Verifying PIN...</span>
-                      </>
-                    ) : (
-                      <>
-                        <KeyRound className="w-4 h-4 stroke-[2.5]" />
-                        <span>Unlock Accounts with PIN</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
             </div>
 
-            {/* Modal Bottom Switch to PIN */}
+            {/* Modal Bottom Footer */}
             <div className="px-4 sm:px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs font-montserrat text-slate-600 shrink-0">
               {executiveModalRole === 'Accountant' ? (
-                authMethodTab !== 'pin' ? (
+                authMethodTab === 'pin' ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMethodTab('email');
+                      setLocalModalError(null);
+                    }}
+                    className="text-[#0A006E] hover:underline font-bold flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>Sign In with Email / Google</span>
+                  </button>
+                ) : (
                   <button
                     type="button"
                     onClick={() => {
@@ -1812,22 +2266,7 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
                     className="text-[#0A006E] hover:underline font-black flex items-center gap-1.5 transition cursor-pointer"
                   >
                     <KeyRound className="w-3.5 h-3.5" />
-                    <span>Option 2: Login with 6-Digit PIN</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const matchedAcc = activeAccountants.find(
-                        (a) => a.id === selectedModalAccountantId
-                      );
-                      handleCloseExecutiveModal();
-                      handleBypassToPin('Accountant', matchedAcc || null);
-                    }}
-                    className="text-slate-600 hover:text-[#0A006E] font-bold flex items-center gap-1.5 transition cursor-pointer"
-                  >
-                    <KeyRound className="w-3.5 h-3.5" />
-                    <span>Open Full PIN Terminal</span>
+                    <span>Back to Profile &amp; PIN Terminal</span>
                   </button>
                 )
               ) : (
