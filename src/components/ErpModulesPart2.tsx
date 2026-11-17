@@ -34,6 +34,9 @@ import {
   Phone,
   FileSpreadsheet,
   ListChecks,
+  FileCheck2,
+  Clock,
+  User,
 } from 'lucide-react';
 import {
   StaffMember,
@@ -56,6 +59,8 @@ import {
   DocType,
   LineItem,
   LeaveRequest,
+  ChequeStatus,
+  ChequeDetails,
 } from '../types';
 import { LeaveManagementPortal } from './LeaveManagementPortal';
 import { GoogleIcon } from './icons/GoogleIcon';
@@ -66,6 +71,7 @@ import {
   exportCommercialDocumentPDF,
   calculateGeoPrice,
   formatKes,
+  getDocumentCreationRecord,
   isUserFeaturePermitted,
 } from '../erpUtils';
 import { hashPassword, decryptPinForAdmin } from '../utils/security';
@@ -774,6 +780,7 @@ export const PartnersOnboardingModule: React.FC<{
 export const DocumentsAndCreditNotesModule: React.FC<{
   currentUser: StaffMember;
   transactions: TransactionDoc[];
+  auditLogs?: AuditLog[];
   branches: Branch[];
   allBranches?: Branch[];
   regions: GeoRegion[];
@@ -793,6 +800,7 @@ export const DocumentsAndCreditNotesModule: React.FC<{
 }> = ({
   currentUser,
   transactions,
+  auditLogs = [],
   branches,
   allBranches,
   regions,
@@ -809,7 +817,9 @@ export const DocumentsAndCreditNotesModule: React.FC<{
 }) => {
   const [filterDocType, setFilterDocType] = useState<string>('All');
   const [filterFacilityId, setFilterFacilityId] = useState<string>('ALL');
+  const [filterCreatedDate, setFilterCreatedDate] = useState<string>('');
   const [searchDocQuery, setSearchDocQuery] = useState('');
+  const [ledgerView, setLedgerView] = useState<'ledger' | 'creation_record'>('ledger');
   const [isCreatorExpanded, setIsCreatorExpanded] = useState(true);
 
   const {
@@ -891,6 +901,21 @@ export const DocumentsAndCreditNotesModule: React.FC<{
   const [taxMode, setTaxMode] = useState<'EXCLUSIVE_16' | 'INCLUSIVE_16' | 'EXEMPT_0'>('EXCLUSIVE_16');
   const [deductFacilityStock, setDeductFacilityStock] = useState(false);
   const [docNotes, setDocNotes] = useState('');
+
+  // Cheque Payment & Clearing Details State
+  const [chequeNumber, setChequeNumber] = useState('');
+  const [drawerBank, setDrawerBank] = useState('');
+  const [drawerBranch, setDrawerBranch] = useState('');
+  const [drawerName, setDrawerName] = useState('');
+  const [chequeDate, setChequeDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [maturityDate, setMaturityDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 3);
+    return d.toISOString().slice(0, 10);
+  });
+  const [chequeRejectionReason, setChequeRejectionReason] = useState('');
+  const [rejectingTxId, setRejectingTxId] = useState<string | null>(null);
+  const [inlineRejectReason, setInlineRejectReason] = useState('');
 
   // Line Item Builder State
   const [selectedProdId, setSelectedProdId] = useState(products[0]?.id || '');
@@ -976,8 +1001,12 @@ export const DocumentsAndCreditNotesModule: React.FC<{
     setCreatorError(null);
     setCustomUnitPrice(0);
     if (nextType === 'Receipt') {
-      setDocStatus('Paid');
-      setPaymentMethod('M-Pesa Paybill / Till');
+      setDocStatus(paymentMethod === 'Cheque' ? 'Processing' : 'Paid');
+      if (paymentMethod !== 'Cheque') setPaymentMethod('M-Pesa Paybill / Till');
+    } else if (nextType === 'Purchase Order') {
+      setDocStatus(paymentMethod === 'Cheque' ? 'Processing' : 'Issued');
+      setTaxMode('EXCLUSIVE_16');
+      setDeductFacilityStock(false);
     } else if (nextType === 'Credit Note') {
       setDocStatus('Credited');
       setPaymentMethod('Ledger Credit Offset');
@@ -990,7 +1019,7 @@ export const DocumentsAndCreditNotesModule: React.FC<{
       setDocStatus('Issued');
       setTaxMode('EXEMPT_0');
     } else {
-      setDocStatus('Issued');
+      setDocStatus(paymentMethod === 'Cheque' ? 'Processing' : 'Issued');
       setTaxMode('EXCLUSIVE_16');
     }
   };
@@ -1076,6 +1105,10 @@ export const DocumentsAndCreditNotesModule: React.FC<{
       setCreatorError('Please enter a Customer, Recipient Facility, or Consignee name.');
       return;
     }
+    if (paymentMethod === 'Cheque' && (!chequeNumber.trim() || !drawerBank.trim())) {
+      setCreatorError('Please enter the Cheque Number and Drawer Bank for cheque payments.');
+      return;
+    }
 
     setCreatorError(null);
     setIsCreatingDoc(true);
@@ -1088,6 +1121,7 @@ export const DocumentsAndCreditNotesModule: React.FC<{
         'Packing List': 'PKL',
         Receipt: 'RCP',
         'Credit Note': 'CRN',
+        'Purchase Order': 'PO',
       };
       const suffix = Date.now().toString().slice(-6);
       const docNumber = `${prefixMap[docType]}-${suffix}`;
@@ -1097,10 +1131,48 @@ export const DocumentsAndCreditNotesModule: React.FC<{
           ? directoryBranches.find((b) => b.id === selectedRecipientBranchId)
           : undefined;
 
+      const resolvedStatus: TransactionDoc['status'] =
+        docType === 'Credit Note'
+          ? 'Credited'
+          : paymentMethod === 'Cheque'
+          ? docStatus === 'Paid' || docStatus === 'Rejected'
+            ? docStatus
+            : 'Processing'
+          : docStatus;
+
+      const resolvedChequeStatus: ChequeStatus =
+        resolvedStatus === 'Paid' || resolvedStatus === 'Rejected'
+          ? resolvedStatus
+          : 'Processing';
+
+      const chequeDetailsObj: ChequeDetails | undefined =
+        paymentMethod === 'Cheque'
+          ? {
+              chequeNumber: chequeNumber.trim(),
+              drawerBank: drawerBank.trim(),
+              ...(drawerBranch.trim() ? { branchName: drawerBranch.trim() } : {}),
+              drawerName:
+                drawerName.trim() ||
+                customerName.trim() ||
+                recipientBranchObj?.name ||
+                'Direct Trade Account',
+              chequeDate: chequeDate || new Date().toISOString().slice(0, 10),
+              maturityDate: maturityDate || chequeDate || new Date().toISOString().slice(0, 10),
+              amountKes: docFinancials.total,
+              status: resolvedChequeStatus,
+              ...(resolvedChequeStatus === 'Rejected' && chequeRejectionReason.trim()
+                ? { rejectionReason: chequeRejectionReason.trim() }
+                : {}),
+              updatedBy: currentUser.name,
+              updatedAt: new Date().toISOString(),
+            }
+          : undefined;
+
       const updatedProducts: { productId: string; newTotal: number; newBranchStockJson: string }[] = [];
       if (
         deductFacilityStock &&
-        (docType === 'Invoice' || docType === 'Receipt' || docType === 'Delivery Note')
+        resolvedStatus !== 'Rejected' &&
+        (docType === 'Invoice' || docType === 'Receipt' || docType === 'Delivery Note' || docType === 'Purchase Order')
       ) {
         const deductByProd: Record<string, number> = {};
         docLineItems.forEach((li) => {
@@ -1156,7 +1228,8 @@ export const DocumentsAndCreditNotesModule: React.FC<{
         exciseAndTax: docFinancials.tax,
         totalAmount: docFinancials.total,
         paymentMethod,
-        status: docType === 'Credit Note' ? 'Credited' : docStatus,
+        status: resolvedStatus,
+        ...(chequeDetailsObj ? { chequeDetails: chequeDetailsObj } : {}),
         relatedInvoiceNo: refInvoiceNo.trim() || undefined,
         validUntil: docType === 'Quote' ? validUntil : undefined,
         notes: docNotes.trim() || undefined,
@@ -1176,6 +1249,11 @@ export const DocumentsAndCreditNotesModule: React.FC<{
       setDocLineItems([]);
       setRefInvoiceNo('');
       setDocNotes('');
+      setChequeNumber('');
+      setDrawerBank('');
+      setDrawerBranch('');
+      setDrawerName('');
+      setChequeRejectionReason('');
       if (recipientMode === 'custom') {
         setCustomerName('');
         setCustomerPhone('');
@@ -1197,6 +1275,7 @@ export const DocumentsAndCreditNotesModule: React.FC<{
       docs = docs.filter(
         (t) =>
           t.docType === 'Invoice' ||
+          t.docType === 'Purchase Order' ||
           t.docType === 'Credit Note' ||
           t.docType === 'Receipt' ||
           t.docType === 'Quote'
@@ -1207,6 +1286,7 @@ export const DocumentsAndCreditNotesModule: React.FC<{
           t.channel.includes('Wholesale') ||
           t.channel.includes('Sales') ||
           t.docType === 'Invoice' ||
+          t.docType === 'Purchase Order' ||
           t.docType === 'Quote' ||
           t.docType === 'Online Order' ||
           t.docType === 'Delivery Note'
@@ -1257,25 +1337,189 @@ export const DocumentsAndCreditNotesModule: React.FC<{
       docs = docs.filter((t) => t.docType === filterDocType);
     }
 
+    if (filterCreatedDate) {
+      docs = docs.filter((t) => getDocumentCreationRecord(t).createdDate === filterCreatedDate);
+    }
+
     const q = searchDocQuery.trim().toLowerCase();
     if (q) {
-      docs = docs.filter(
-        (t) =>
+      docs = docs.filter((t) => {
+        const rec = getDocumentCreationRecord(t);
+        return (
           t.docNumber.toLowerCase().includes(q) ||
           t.customerName.toLowerCase().includes(q) ||
           t.branchName.toLowerCase().includes(q) ||
+          rec.createdBy.toLowerCase().includes(q) ||
+          rec.createdByRole.toLowerCase().includes(q) ||
+          rec.createdDay.toLowerCase().includes(q) ||
+          rec.createdDate.toLowerCase().includes(q) ||
+          rec.createdTime.toLowerCase().includes(q) ||
           (t.relatedInvoiceNo || '').toLowerCase().includes(q) ||
           (t.linkedTransferNo || '').toLowerCase().includes(q)
-      );
+        );
+      });
     }
 
     return docs;
-  }, [transactions, filterDocType, filterFacilityId, searchDocQuery, currentUser, directoryBranches]);
+  }, [transactions, filterDocType, filterFacilityId, filterCreatedDate, searchDocQuery, currentUser, directoryBranches]);
+
+  const creationRecordEntries = useMemo(() => {
+    const liveDocNumbers = new Set<string>();
+    const entries = visibleDocs.map((tx) => {
+      liveDocNumbers.add(tx.docNumber);
+      const rec = getDocumentCreationRecord(tx);
+      return {
+        key: tx.id,
+        docNumber: tx.docNumber,
+        docType: tx.docType as string,
+        createdBy: rec.createdBy,
+        createdByRole: rec.createdByRole,
+        createdDay: rec.createdDay,
+        createdDate: rec.createdDate,
+        createdTime: rec.createdTime,
+        createdAt: rec.createdAt,
+        branchName: tx.branchName,
+        channel: tx.channel as string,
+        customerName: tx.customerName,
+        totalAmount: tx.totalAmount,
+        status: tx.status as string,
+        tx: tx as TransactionDoc | undefined,
+      };
+    });
+
+    // Also include immutable Document Creation Record logs whose transaction isn't in liveDocNumbers
+    const q = searchDocQuery.trim().toLowerCase();
+    auditLogs.forEach((log) => {
+      const isDocCreationLog =
+        log.module === 'Document Creation Record' ||
+        log.action.startsWith('Created ') ||
+        log.action.startsWith('Issued ');
+      if (!isDocCreationLog) return;
+
+      const docNoMatch = log.action.match(/\b(INV|RCP|PO|QTE|DN|PKL|CRN|ORD|REC)-[A-Z0-9-]+\b/i);
+      const docNumber = docNoMatch ? docNoMatch[0] : log.action;
+      if (liveDocNumbers.has(docNumber)) return;
+
+      const rec = getDocumentCreationRecord({
+        createdBy: log.actorName,
+        createdByRole: log.actorRole,
+        createdAt: log.createdAt,
+        createdDay: log.createdDay,
+        createdDate: log.createdDate,
+        createdTime: log.createdTime,
+      });
+
+      if (filterCreatedDate && rec.createdDate !== filterCreatedDate) return;
+      if (filterFacilityId !== 'ALL') {
+        const targetBr = directoryBranches.find((b) => b.id === filterFacilityId);
+        if (targetBr && log.branchName !== targetBr.name) return;
+      }
+      if (q) {
+        const haystack = `${docNumber} ${log.action} ${log.details} ${rec.createdBy} ${rec.createdByRole} ${rec.createdDay} ${rec.createdDate} ${rec.createdTime} ${log.branchName}`.toLowerCase();
+        if (!haystack.includes(q)) return;
+      }
+
+      entries.push({
+        key: log.id,
+        docNumber,
+        docType: log.action.replace(/^(Created|Issued)\s+/i, '').replace(docNumber, '').trim() || 'Document',
+        createdBy: rec.createdBy,
+        createdByRole: rec.createdByRole,
+        createdDay: rec.createdDay,
+        createdDate: rec.createdDate,
+        createdTime: rec.createdTime,
+        createdAt: rec.createdAt,
+        branchName: log.branchName,
+        channel: log.module,
+        customerName: log.details,
+        totalAmount: 0,
+        status: 'Archived Log',
+        tx: undefined,
+      });
+    });
+
+    return entries.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }, [visibleDocs, auditLogs, filterCreatedDate, filterFacilityId, searchDocQuery, directoryBranches]);
+
+  const handleQuickChequeStatusChange = async (
+    tx: TransactionDoc,
+    nextStatus: ChequeStatus,
+    reason?: string
+  ) => {
+    if (!onUpdateDocument) return;
+    const nextChequeDetails: ChequeDetails = {
+      chequeNumber: tx.chequeDetails?.chequeNumber || 'PENDING-REF',
+      drawerBank: tx.chequeDetails?.drawerBank || 'Client Bank',
+      ...(tx.chequeDetails?.branchName ? { branchName: tx.chequeDetails.branchName } : {}),
+      drawerName: tx.chequeDetails?.drawerName || tx.customerName,
+      chequeDate: tx.chequeDetails?.chequeDate || (tx.createdAt || new Date().toISOString()).slice(0, 10),
+      maturityDate: tx.chequeDetails?.maturityDate || (tx.createdAt || new Date().toISOString()).slice(0, 10),
+      amountKes: tx.chequeDetails?.amountKes ?? tx.totalAmount,
+      status: nextStatus,
+      ...(nextStatus === 'Rejected' && reason?.trim() ? { rejectionReason: reason.trim() } : {}),
+      updatedBy: currentUser.name,
+      updatedAt: new Date().toISOString(),
+    };
+    await onUpdateDocument(tx.id, {
+      status: nextStatus,
+      chequeDetails: nextChequeDetails,
+    });
+    const linkedDocs = transactions.filter(
+      (other) =>
+        other.id !== tx.id &&
+        (other.relatedInvoiceNo === tx.docNumber ||
+          (tx.relatedInvoiceNo && other.docNumber === tx.relatedInvoiceNo))
+    );
+    for (const linked of linkedDocs) {
+      await onUpdateDocument(linked.id, {
+        status: nextStatus,
+        chequeDetails: nextChequeDetails,
+      }).catch(() => {});
+    }
+    setRejectingTxId(null);
+    setInlineRejectReason('');
+  };
 
   const handleSaveDerivedDoc = async (
     baseTx: TransactionDoc,
     targetType: 'Packing List' | 'Delivery Note' | 'Invoice' | 'Receipt'
   ) => {
+    const isChequeDoc = baseTx.paymentMethod === 'Cheque' || Boolean(baseTx.chequeDetails);
+    const liveChequeStatus: ChequeStatus =
+      baseTx.status === 'Paid' || baseTx.status === 'Rejected' || baseTx.status === 'Processing'
+        ? baseTx.status
+        : baseTx.chequeDetails?.status || 'Processing';
+
+    // If issuing a Receipt for a Cheque PO/Invoice that already has a linked Receipt, sync & preview it
+    if (targetType === 'Receipt' && isChequeDoc) {
+      const existingReceipt = transactions.find(
+        (t) => t.docType === 'Receipt' && t.relatedInvoiceNo === baseTx.docNumber
+      );
+      if (existingReceipt) {
+        const syncedChequeDetails = baseTx.chequeDetails
+          ? { ...baseTx.chequeDetails, status: liveChequeStatus }
+          : existingReceipt.chequeDetails;
+        if (
+          onUpdateDocument &&
+          (existingReceipt.status !== liveChequeStatus ||
+            existingReceipt.chequeDetails?.status !== liveChequeStatus)
+        ) {
+          await onUpdateDocument(existingReceipt.id, {
+            status: liveChequeStatus,
+            ...(syncedChequeDetails ? { chequeDetails: syncedChequeDetails } : {}),
+          });
+        }
+        onPreviewDoc({
+          ...existingReceipt,
+          status: liveChequeStatus,
+          ...(syncedChequeDetails ? { chequeDetails: syncedChequeDetails } : {}),
+        });
+        return;
+      }
+    }
+
     const prefix =
       targetType === 'Packing List'
         ? 'PKL'
@@ -1285,6 +1529,16 @@ export const DocumentsAndCreditNotesModule: React.FC<{
         ? 'INV'
         : 'RCP';
     const docNumber = `${prefix}-${Date.now().toString().slice(-5)}`;
+
+    const nextStatus: TransactionDoc['status'] =
+      targetType === 'Receipt' ? (isChequeDoc ? liveChequeStatus : 'Paid') : 'Issued';
+
+    const nextChequeDetails = baseTx.chequeDetails
+      ? {
+          ...baseTx.chequeDetails,
+          status: isChequeDoc ? liveChequeStatus : baseTx.chequeDetails.status,
+        }
+      : undefined;
 
     if (onCreateDocument) {
       const saved = await onCreateDocument(
@@ -1311,8 +1565,14 @@ export const DocumentsAndCreditNotesModule: React.FC<{
           subtotal: baseTx.subtotal,
           exciseAndTax: baseTx.exciseAndTax,
           totalAmount: baseTx.totalAmount,
-          paymentMethod: targetType === 'Receipt' ? 'Settled Payment' : baseTx.paymentMethod,
-          status: targetType === 'Receipt' ? 'Paid' : 'Issued',
+          paymentMethod:
+            targetType === 'Receipt'
+              ? isChequeDoc
+                ? 'Cheque'
+                : 'Settled Payment'
+              : baseTx.paymentMethod,
+          status: nextStatus,
+          ...(nextChequeDetails ? { chequeDetails: nextChequeDetails } : {}),
           relatedInvoiceNo: baseTx.docNumber,
           linkedTransferNo: baseTx.linkedTransferNo,
           notes: `Generated from ${baseTx.docType} ${baseTx.docNumber}`,
@@ -1325,7 +1585,7 @@ export const DocumentsAndCreditNotesModule: React.FC<{
       if (onUpdateDocument) {
         if (baseTx.docType === 'Quote' && targetType === 'Invoice') {
           await onUpdateDocument(baseTx.id, { status: 'Approved' });
-        } else if (baseTx.docType === 'Invoice' && targetType === 'Receipt') {
+        } else if (baseTx.docType === 'Invoice' && targetType === 'Receipt' && !isChequeDoc) {
           await onUpdateDocument(baseTx.id, { status: 'Paid' });
         }
       }
@@ -1340,6 +1600,8 @@ export const DocumentsAndCreditNotesModule: React.FC<{
       ...baseTx,
       docType: targetType,
       docNumber,
+      status: nextStatus,
+      ...(nextChequeDetails ? { chequeDetails: nextChequeDetails } : {}),
     });
   };
 
@@ -1349,10 +1611,11 @@ export const DocumentsAndCreditNotesModule: React.FC<{
     shortDesc: string;
   }> = [
     { type: 'Invoice', label: 'Invoice', shortDesc: 'Tax / Trade Billing' },
+    { type: 'Purchase Order', label: 'Purchase Order', shortDesc: 'Client PO / Cheque' },
     { type: 'Quote', label: 'Quotation', shortDesc: 'Proforma Offer' },
     { type: 'Delivery Note', label: 'Delivery Note', shortDesc: 'Dispatch Transit' },
     { type: 'Packing List', label: 'Packing List', shortDesc: 'Case & Seal Manifest' },
-    { type: 'Receipt', label: 'Receipt', shortDesc: 'Payment Settled' },
+    { type: 'Receipt', label: 'Receipt', shortDesc: 'Payment / Cheque Receipt' },
     { type: 'Credit Note', label: 'Credit Note', shortDesc: 'Return / Offset' },
   ];
 
@@ -1386,20 +1649,22 @@ export const DocumentsAndCreditNotesModule: React.FC<{
               type="button"
               onClick={() =>
                 exportReportToPDF(
-                  'Commercial Ledger: Invoices, Quotes, Delivery Notes, Receipts & Credit Notes',
+                  'Commercial Ledger & Document Creation Record',
                   `Exported by ${currentUser.name}`,
-                  ['Doc No', 'Type', 'Issuing Facility', 'Geo-Zone', 'Customer', 'Subtotal (KES)', 'Tax (KES)', 'Total (KES)', 'Status'],
-                  visibleDocs.map((d) => [
-                    d.docNumber,
-                    d.docType,
-                    d.branchName,
-                    d.regionName,
-                    d.customerName,
-                    Math.round(d.subtotal).toLocaleString(),
-                    Math.round(d.exciseAndTax).toLocaleString(),
-                    Math.round(d.totalAmount).toLocaleString(),
-                    d.status,
-                  ]),
+                  ['Doc No', 'Type', 'Customer', 'Created By', 'Day Created', 'Time Created', 'Total (KES)', 'Status'],
+                  visibleDocs.map((d) => {
+                    const rec = getDocumentCreationRecord(d);
+                    return [
+                      d.docNumber,
+                      d.docType,
+                      d.customerName,
+                      `${rec.createdBy} (${rec.createdByRole})`,
+                      rec.createdDay,
+                      rec.createdTime,
+                      Math.round(d.totalAmount).toLocaleString(),
+                      d.status,
+                    ];
+                  }),
                   'Vaairo_Commercial_Documents_Statement'
                 )
               }
@@ -1413,21 +1678,27 @@ export const DocumentsAndCreditNotesModule: React.FC<{
               onClick={() =>
                 exportToCSV(
                   'Vaairo_Commercial_Documents_Statement',
-                  ['Doc No', 'Type', 'Channel', 'Facility', 'Geo-Zone', 'Customer', 'Subtotal (KES)', 'Excise/Tax (KES)', 'Total (KES)', 'Status', 'Issued By', 'Created At'],
-                  visibleDocs.map((d) => [
-                    d.docNumber,
-                    d.docType,
-                    d.channel,
-                    d.branchName,
-                    d.regionName,
-                    d.customerName,
-                    d.subtotal,
-                    d.exciseAndTax,
-                    d.totalAmount,
-                    d.status,
-                    d.createdBy,
-                    d.createdAt,
-                  ])
+                  ['Doc No', 'Type', 'Channel', 'Facility', 'Customer', 'Subtotal (KES)', 'Excise/Tax (KES)', 'Total (KES)', 'Status', 'Created By', 'Creator Role', 'Day Created', 'Date (YYYY-MM-DD)', 'Time Created', 'ISO Timestamp'],
+                  visibleDocs.map((d) => {
+                    const rec = getDocumentCreationRecord(d);
+                    return [
+                      d.docNumber,
+                      d.docType,
+                      d.channel,
+                      d.branchName,
+                      d.customerName,
+                      d.subtotal,
+                      d.exciseAndTax,
+                      d.totalAmount,
+                      d.status,
+                      rec.createdBy,
+                      rec.createdByRole,
+                      rec.createdDay,
+                      rec.createdDate,
+                      rec.createdTime,
+                      rec.createdAt,
+                    ];
+                  })
                 )
               }
               className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
@@ -1806,7 +2077,13 @@ export const DocumentsAndCreditNotesModule: React.FC<{
                   <label className="font-montserrat font-bold text-slate-700">Payment Method / Terms</label>
                   <select
                     value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    onChange={(e) => {
+                      const nextPm = e.target.value;
+                      setPaymentMethod(nextPm);
+                      if (nextPm === 'Cheque') {
+                        setDocStatus('Processing');
+                      }
+                    }}
                     className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold"
                   >
                     <option value="M-Pesa Paybill / Till">M-Pesa Paybill / Till</option>
@@ -1842,7 +2119,9 @@ export const DocumentsAndCreditNotesModule: React.FC<{
                     className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold"
                   >
                     <option value="Issued">Issued</option>
+                    <option value="Processing">Processing (Unmatured Cheque)</option>
                     <option value="Paid">Paid</option>
+                    <option value="Rejected">Rejected (Bounced Cheque)</option>
                     <option value="Approved">Approved</option>
                     <option value="Fulfilled">Fulfilled</option>
                     <option value="Pending Verification">Pending Verification</option>
@@ -1877,6 +2156,94 @@ export const DocumentsAndCreditNotesModule: React.FC<{
                 )}
               </div>
 
+              {paymentMethod === 'Cheque' && (
+                <div className="bg-amber-50/90 border border-amber-300 rounded-2xl p-3.5 space-y-2.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-montserrat font-black text-amber-950 flex items-center gap-1.5">
+                      <FileCheck2 className="w-4 h-4 text-amber-700" />
+                      Cheque Payment &amp; Clearing Details
+                    </span>
+                    <span className="font-mono-tabular font-bold text-[#0A006E]">
+                      Amount: {formatKes(docFinancials.total)}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                    <div>
+                      <label className="font-bold text-amber-900">Cheque Number *</label>
+                      <input
+                        type="text"
+                        required
+                        value={chequeNumber}
+                        onChange={(e) => setChequeNumber(e.target.value)}
+                        placeholder="e.g. CHQ-004821"
+                        className="w-full mt-1 px-3 py-1.5 bg-white border border-amber-300 rounded-xl font-mono-tabular font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-amber-900">Drawer Bank *</label>
+                      <input
+                        type="text"
+                        required
+                        value={drawerBank}
+                        onChange={(e) => setDrawerBank(e.target.value)}
+                        placeholder="e.g. KCB Bank / NCBA / Equity"
+                        className="w-full mt-1 px-3 py-1.5 bg-white border border-amber-300 rounded-xl font-semibold"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-amber-900">Bank Branch (Optional)</label>
+                      <input
+                        type="text"
+                        value={drawerBranch}
+                        onChange={(e) => setDrawerBranch(e.target.value)}
+                        placeholder="e.g. Kenyatta Avenue"
+                        className="w-full mt-1 px-3 py-1.5 bg-white border border-amber-300 rounded-xl"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-amber-900">Drawer / Account Name</label>
+                      <input
+                        type="text"
+                        value={drawerName}
+                        onChange={(e) => setDrawerName(e.target.value)}
+                        placeholder={customerName || 'Client / Signatory Name'}
+                        className="w-full mt-1 px-3 py-1.5 bg-white border border-amber-300 rounded-xl"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-amber-900">Cheque Issue Date *</label>
+                      <input
+                        type="date"
+                        value={chequeDate}
+                        onChange={(e) => setChequeDate(e.target.value)}
+                        className="w-full mt-1 px-3 py-1.5 bg-white border border-amber-300 rounded-xl font-mono-tabular"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-amber-900">Maturity / Clearing Date *</label>
+                      <input
+                        type="date"
+                        value={maturityDate}
+                        onChange={(e) => setMaturityDate(e.target.value)}
+                        className="w-full mt-1 px-3 py-1.5 bg-white border border-amber-300 rounded-xl font-mono-tabular"
+                      />
+                    </div>
+                  </div>
+                  {docStatus === 'Rejected' && (
+                    <div>
+                      <label className="font-bold text-rose-700">Cheque Rejection Reason</label>
+                      <input
+                        type="text"
+                        value={chequeRejectionReason}
+                        onChange={(e) => setChequeRejectionReason(e.target.value)}
+                        placeholder="e.g. Refer to drawer / Insufficient funds"
+                        className="w-full mt-1 px-3 py-1.5 bg-white border border-rose-300 rounded-xl text-rose-800"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 {docType === 'Credit Note' ? (
                   <div>
@@ -1902,7 +2269,7 @@ export const DocumentsAndCreditNotesModule: React.FC<{
                 )}
 
                 <div className="flex flex-col justify-end">
-                  {(docType === 'Invoice' || docType === 'Receipt' || docType === 'Delivery Note') && (
+                  {(docType === 'Invoice' || docType === 'Receipt' || docType === 'Delivery Note' || docType === 'Purchase Order') && (
                     <label className="flex items-center gap-2 bg-white px-3 py-2.5 rounded-xl border border-slate-200 font-bold text-[#0A006E] cursor-pointer">
                       <input
                         type="checkbox"
@@ -1953,13 +2320,109 @@ export const DocumentsAndCreditNotesModule: React.FC<{
         </div>
       )}
 
-      {/* Document Filter & Ledger */}
+      {/* Document Filter, Ledger & Creation Record */}
       {isDocWidgetVisible('docs_ledger') && (
       <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-200 pb-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setLedgerView('ledger')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer transition ${
+                ledgerView === 'ledger'
+                  ? 'bg-[#0A006E] text-[#FFDE00] shadow-xs'
+                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Commercial Documents ({visibleDocs.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setLedgerView('creation_record')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer transition ${
+                ledgerView === 'creation_record'
+                  ? 'bg-[#0A006E] text-[#FFDE00] shadow-xs'
+                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>Document Creation Record ({creationRecordEntries.length})</span>
+            </button>
+          </div>
+
+          {ledgerView === 'creation_record' && (
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() =>
+                  exportReportToPDF(
+                    'Document Creation Record (Who Created, Day & Time)',
+                    `Generated by ${currentUser.name} · ${creationRecordEntries.length} records`,
+                    ['Document #', 'Type', 'Created By', 'Role', 'Day Created', 'Time Created', 'Facility', 'Customer'],
+                    creationRecordEntries.map((r) => [
+                      r.docNumber,
+                      r.docType,
+                      r.createdBy,
+                      r.createdByRole,
+                      r.createdDay,
+                      r.createdTime,
+                      r.branchName,
+                      r.customerName.slice(0, 60),
+                    ]),
+                    'Vaairo_Document_Creation_Record'
+                  )
+                }
+                className="px-2.5 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Export Record PDF
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  exportToCSV(
+                    'Vaairo_Document_Creation_Record',
+                    ['Document No', 'Document Type', 'Created By', 'Creator Role', 'Day Created', 'Date (YYYY-MM-DD)', 'Time Created', 'Facility', 'Channel', 'Customer / Details', 'Amount (KES)', 'Status', 'ISO Timestamp'],
+                    creationRecordEntries.map((r) => [
+                      r.docNumber,
+                      r.docType,
+                      r.createdBy,
+                      r.createdByRole,
+                      r.createdDay,
+                      r.createdDate,
+                      r.createdTime,
+                      r.branchName,
+                      r.channel,
+                      r.customerName,
+                      r.totalAmount,
+                      r.status,
+                      r.createdAt,
+                    ])
+                  )
+                }
+                className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                CSV
+              </button>
+            </div>
+          )}
+        </div>
+
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-1.5">
-            {['All', 'Invoice', 'Quote', 'Delivery Note', 'Packing List', 'Receipt', 'Credit Note', 'Online Order'].map(
-              (dt) => (
+            {[
+              'All',
+              'Purchase Order',
+              'Invoice',
+              'Quote',
+              'Delivery Note',
+              'Packing List',
+              'Receipt',
+              'Credit Note',
+              'Online Order',
+            ].map((dt) => (
                 <button
                   key={dt}
                   onClick={() => setFilterDocType(dt)}
@@ -1976,6 +2439,26 @@ export const DocumentsAndCreditNotesModule: React.FC<{
           </div>
 
           <div className="flex flex-col sm:flex-row gap-2 text-xs">
+            <div className="flex items-center gap-1">
+              <input
+                type="date"
+                value={filterCreatedDate}
+                onChange={(e) => setFilterCreatedDate(e.target.value)}
+                aria-label="Filter by day created"
+                title="Filter documents by creation day"
+                className="px-2.5 py-2 bg-white border border-slate-200 rounded-xl font-mono-tabular text-slate-800"
+              />
+              {filterCreatedDate && (
+                <button
+                  type="button"
+                  onClick={() => setFilterCreatedDate('')}
+                  className="px-2 py-2 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-slate-900 font-bold cursor-pointer"
+                  title="Clear day filter"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
             <select
               value={filterFacilityId}
               onChange={(e) => setFilterFacilityId(e.target.value)}
@@ -1992,12 +2475,136 @@ export const DocumentsAndCreditNotesModule: React.FC<{
               type="text"
               value={searchDocQuery}
               onChange={(e) => setSearchDocQuery(e.target.value)}
-              placeholder="Search Doc No, Customer, Batch..."
+              placeholder="Search Doc #, Creator, Day, Customer..."
               className="px-3 py-2 bg-white border border-slate-200 rounded-xl min-w-[200px]"
             />
           </div>
         </div>
 
+        {ledgerView === 'creation_record' ? (
+          <div className="space-y-3">
+            {/* Mobile Creation Record Cards */}
+            <div className="grid grid-cols-1 gap-3 md:hidden">
+              {creationRecordEntries.length === 0 ? (
+                <div className="bg-white border border-slate-200 rounded-xl p-6 text-center text-xs text-slate-500">
+                  No document creation records match your current filters.
+                </div>
+              ) : (
+                creationRecordEntries.map((entry) => (
+                  <div key={entry.key} className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-2 text-xs">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-mono-tabular font-black text-[#0A006E]">
+                          {entry.docNumber} · {entry.docType}
+                        </div>
+                        <div className="text-[11px] text-slate-600 mt-0.5">{entry.branchName}</div>
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                        {entry.status}
+                      </span>
+                    </div>
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 space-y-1 text-[11px]">
+                      <div className="flex items-center gap-1.5 text-slate-900 font-bold">
+                        <User className="w-3.5 h-3.5 text-[#0A006E] shrink-0" />
+                        <span>{entry.createdBy}</span>
+                        <span className="text-slate-500 font-normal">({entry.createdByRole})</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-slate-700 font-mono-tabular">
+                        <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                        <span>{entry.createdDay}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[#0A006E] font-mono-tabular font-bold">
+                        <Clock className="w-3.5 h-3.5 text-[#0A006E] shrink-0" />
+                        <span>{entry.createdTime}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      <span className="text-[11px] text-slate-600 truncate">{entry.customerName}</span>
+                      {entry.tx && (
+                        <button
+                          type="button"
+                          onClick={() => onPreviewDoc(entry.tx!)}
+                          className="px-2.5 py-1 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-black shrink-0 cursor-pointer"
+                        >
+                          View Doc
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Desktop Creation Record Table */}
+            <div className="hidden md:block overflow-x-auto bg-white border border-slate-200 rounded-xl">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
+                    <th className="py-2.5 px-3 font-black">Document # &amp; Type</th>
+                    <th className="py-2.5 px-3 font-black">Created By (Who)</th>
+                    <th className="py-2.5 px-3 font-black">Day Created</th>
+                    <th className="py-2.5 px-3 font-black">Time Created</th>
+                    <th className="py-2.5 px-3 font-black">Facility &amp; Customer</th>
+                    <th className="py-2.5 px-3 font-black text-right">Amount / Record</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {creationRecordEntries.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-6 text-center text-slate-500">
+                        No document creation records match your current filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    creationRecordEntries.map((entry) => (
+                      <tr key={entry.key} className="hover:bg-slate-50">
+                        <td className="py-2.5 px-3">
+                          <div className="font-mono-tabular font-black text-[#0A006E]">{entry.docNumber}</div>
+                          <div className="text-[11px] font-semibold text-slate-700">{entry.docType}</div>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="font-montserrat font-bold text-slate-900">{entry.createdBy}</div>
+                          <div className="text-[11px] text-slate-500">{entry.createdByRole}</div>
+                        </td>
+                        <td className="py-2.5 px-3 font-mono-tabular text-slate-800 whitespace-nowrap">
+                          {entry.createdDay}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono-tabular font-bold text-[#0A006E] whitespace-nowrap">
+                          {entry.createdTime}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="font-semibold text-slate-900">{entry.branchName}</div>
+                          <div className="text-[11px] text-slate-600 max-w-xs truncate">{entry.customerName}</div>
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          {entry.tx ? (
+                            <div className="flex items-center justify-end gap-2">
+                              <span className="font-mono-tabular font-bold text-[#0A006E]">
+                                {formatKes(entry.totalAmount)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => onPreviewDoc(entry.tx!)}
+                                className="px-2.5 py-1 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-black cursor-pointer"
+                              >
+                                View
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] font-semibold text-slate-500">
+                              Immutable Audit Record
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+        <>
         {/* Mobile Cards View */}
         <div className="grid grid-cols-1 gap-3 md:hidden">
           {visibleDocs.length === 0 ? (
@@ -2005,22 +2612,52 @@ export const DocumentsAndCreditNotesModule: React.FC<{
               No documents found for filter "{filterDocType}".
             </div>
           ) : (
-            visibleDocs.map((tx) => (
+            visibleDocs.map((tx) => {
+              const isChequeTx = tx.paymentMethod === 'Cheque' || Boolean(tx.chequeDetails);
+              const canManageCheque = currentUser.role === 'Accountant' || currentUser.role === 'Admin';
+              const creationRec = getDocumentCreationRecord(tx);
+              return (
               <div key={tx.id} className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-2.5 text-xs">
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="font-mono-tabular font-black text-[#0A006E]">{tx.docNumber}</div>
-                    <div className="font-montserrat font-bold text-slate-900">
-                      {tx.docType} · <span className="text-emerald-700">{tx.status}</span>
+                    <div className="font-montserrat font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
+                      <span>{tx.docType}</span>
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                          tx.status === 'Paid' || tx.status === 'Fulfilled' || tx.status === 'Approved'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : tx.status === 'Processing'
+                            ? 'bg-amber-100 text-amber-800'
+                            : tx.status === 'Rejected'
+                            ? 'bg-rose-100 text-rose-700'
+                            : 'bg-blue-50 text-blue-800'
+                        }`}
+                      >
+                        {tx.status === 'Processing' ? 'Processing (Not Matured)' : tx.status}
+                      </span>
                     </div>
                   </div>
                   <div className="text-right font-mono-tabular font-black text-[#0A006E]">
                     {formatKes(tx.totalAmount)}
                   </div>
                 </div>
-                <div className="text-[11px] text-slate-600">
+                <div className="text-[11px] text-slate-600 space-y-0.5">
                   <div><strong>Facility:</strong> {tx.branchName} ({tx.regionName})</div>
                   <div><strong>Recipient:</strong> {tx.customerName}</div>
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 mt-1 font-mono-tabular text-slate-700">
+                    <div>
+                      <strong>Created By:</strong> {creationRec.createdBy} ({creationRec.createdByRole})
+                    </div>
+                    <div>
+                      <strong>Day:</strong> {creationRec.createdDay} · <strong>Time:</strong> {creationRec.createdTime}
+                    </div>
+                  </div>
+                  {tx.chequeDetails && (
+                    <div className="text-amber-900 font-semibold mt-0.5">
+                      Cheque #{tx.chequeDetails.chequeNumber} · {tx.chequeDetails.drawerBank} · Maturity: {tx.chequeDetails.maturityDate}
+                    </div>
+                  )}
                   {tx.linkedTransferNo && <div><strong>Batch:</strong> {tx.linkedTransferNo}</div>}
                 </div>
                 <div className="flex flex-wrap gap-1.5 pt-1">
@@ -2044,13 +2681,48 @@ export const DocumentsAndCreditNotesModule: React.FC<{
                       Convert → Invoice
                     </button>
                   )}
-                  {tx.docType === 'Invoice' && tx.status !== 'Paid' && tx.status !== 'Credited' && (
+                  {(tx.docType === 'Purchase Order' ||
+                    (tx.docType === 'Invoice' && (isChequeTx || (tx.status !== 'Paid' && tx.status !== 'Credited')))) && (
                     <button
                       onClick={() => handleSaveDerivedDoc(tx, 'Receipt')}
                       className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg text-[11px] font-bold cursor-pointer"
                     >
-                      Settle → Receipt
+                      {isChequeTx ? 'Print Client Receipt' : 'Settle → Receipt'}
                     </button>
+                  )}
+                  {isChequeTx && canManageCheque && onUpdateDocument && (
+                    <>
+                      {tx.status !== 'Paid' && (
+                        <button
+                          type="button"
+                          onClick={() => handleQuickChequeStatusChange(tx, 'Paid')}
+                          className="px-2 py-1.5 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-lg text-[11px] font-bold cursor-pointer"
+                        >
+                          Mark Paid
+                        </button>
+                      )}
+                      {tx.status !== 'Processing' && (
+                        <button
+                          type="button"
+                          onClick={() => handleQuickChequeStatusChange(tx, 'Processing')}
+                          className="px-2 py-1.5 bg-amber-50 border border-amber-300 text-amber-800 rounded-lg text-[11px] font-bold cursor-pointer"
+                        >
+                          Processing
+                        </button>
+                      )}
+                      {tx.status !== 'Rejected' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRejectingTxId(tx.id);
+                            setInlineRejectReason(tx.chequeDetails?.rejectionReason || '');
+                          }}
+                          className="px-2 py-1.5 bg-rose-50 border border-rose-300 text-rose-700 rounded-lg text-[11px] font-bold cursor-pointer"
+                        >
+                          Reject
+                        </button>
+                      )}
+                    </>
                   )}
                   <button
                     onClick={() => handleSaveDerivedDoc(tx, 'Delivery Note')}
@@ -2059,8 +2731,36 @@ export const DocumentsAndCreditNotesModule: React.FC<{
                     + Delivery Note
                   </button>
                 </div>
+                {rejectingTxId === tx.id && (
+                  <div className="flex flex-col gap-1.5 pt-2 border-t border-rose-200 bg-rose-50/70 p-2 rounded-lg">
+                    <input
+                      type="text"
+                      value={inlineRejectReason}
+                      onChange={(e) => setInlineRejectReason(e.target.value)}
+                      placeholder="Cheque rejection reason (e.g. Insufficient funds)"
+                      className="px-2.5 py-1.5 bg-white border border-rose-300 rounded-lg text-[11px]"
+                    />
+                    <div className="flex gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleQuickChequeStatusChange(tx, 'Rejected', inlineRejectReason)}
+                        className="px-2.5 py-1 bg-rose-600 text-white rounded-lg text-[11px] font-bold cursor-pointer"
+                      >
+                        Confirm Reject
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRejectingTxId(null)}
+                        className="px-2.5 py-1 bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-            ))
+              );
+            })
           )}
         </div>
 
@@ -2073,6 +2773,7 @@ export const DocumentsAndCreditNotesModule: React.FC<{
                 <th className="py-2.5 px-3 font-black">Type &amp; Status</th>
                 <th className="py-2.5 px-3 font-black">Issuing Facility</th>
                 <th className="py-2.5 px-3 font-black">Customer / Consignee</th>
+                <th className="py-2.5 px-3 font-black">Created By · Day · Time</th>
                 <th className="py-2.5 px-3 font-black text-right">Total (KES)</th>
                 <th className="py-2.5 px-3 font-black text-right">
                   Print / Convert / Issue Linked Docs
@@ -2082,13 +2783,18 @@ export const DocumentsAndCreditNotesModule: React.FC<{
             <tbody className="divide-y divide-slate-200">
               {visibleDocs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-6 text-center text-slate-500">
+                  <td colSpan={7} className="py-6 text-center text-slate-500">
                     No documents found for filter "{filterDocType}".
                   </td>
                 </tr>
               ) : (
-                visibleDocs.map((tx) => (
-                  <tr key={tx.id} className="hover:bg-slate-50">
+                visibleDocs.map((tx) => {
+                  const isChequeTx = tx.paymentMethod === 'Cheque' || Boolean(tx.chequeDetails);
+                  const canManageCheque = currentUser.role === 'Accountant' || currentUser.role === 'Admin';
+                  const creationRec = getDocumentCreationRecord(tx);
+                  return (
+                  <React.Fragment key={tx.id}>
+                  <tr className="hover:bg-slate-50">
                     <td className="py-2.5 px-3 font-mono-tabular font-bold text-[#0A006E]">
                       <div>{tx.docNumber}</div>
                       {tx.orderCategory === 'WAREHOUSE_PURCHASE' && (
@@ -2103,23 +2809,40 @@ export const DocumentsAndCreditNotesModule: React.FC<{
                         className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold ${
                           tx.status === 'Paid' || tx.status === 'Fulfilled' || tx.status === 'Approved'
                             ? 'bg-emerald-50 text-emerald-700'
+                            : tx.status === 'Processing'
+                            ? 'bg-amber-100 text-amber-800'
+                            : tx.status === 'Rejected'
+                            ? 'bg-rose-100 text-rose-700'
                             : tx.status === 'Credited'
                             ? 'bg-amber-50 text-amber-800'
                             : 'bg-blue-50 text-blue-800'
                         }`}
                       >
-                        {tx.status}
+                        {tx.status === 'Processing' ? 'Processing (Not Matured)' : tx.status}
                       </span>
                     </td>
                     <td className="py-2.5 px-3 text-slate-700">
                       <div className="font-semibold text-slate-900">{tx.branchName}</div>
-                      <div className="text-[10px] text-slate-500">{tx.regionName} · By {tx.createdBy}</div>
+                      <div className="text-[10px] text-slate-500">{tx.regionName}</div>
                     </td>
                     <td className="py-2.5 px-3 text-slate-700">
                       <div className="font-semibold text-slate-900">{tx.customerName}</div>
+                      {tx.chequeDetails && (
+                        <div className="text-[10px] text-amber-800 font-mono-tabular font-semibold">
+                          Chq #{tx.chequeDetails.chequeNumber} · {tx.chequeDetails.drawerBank} · Mat: {tx.chequeDetails.maturityDate}
+                        </div>
+                      )}
                       {tx.relatedInvoiceNo && (
                         <div className="text-[10px] text-slate-500 font-mono">Ref: {tx.relatedInvoiceNo}</div>
                       )}
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-700 whitespace-nowrap">
+                      <div className="font-montserrat font-bold text-slate-900">
+                        {creationRec.createdBy}{' '}
+                        <span className="font-normal text-[10px] text-slate-500">({creationRec.createdByRole})</span>
+                      </div>
+                      <div className="text-[10px] font-mono-tabular text-slate-600">{creationRec.createdDay}</div>
+                      <div className="text-[10px] font-mono-tabular font-bold text-[#0A006E]">{creationRec.createdTime}</div>
                     </td>
                     <td className="py-2.5 px-3 text-right font-mono-tabular font-bold text-[#0A006E]">
                       {formatKes(tx.totalAmount)}
@@ -2156,14 +2879,49 @@ export const DocumentsAndCreditNotesModule: React.FC<{
                             Convert → Invoice
                           </button>
                         )}
-                        {tx.docType === 'Invoice' && tx.status !== 'Paid' && tx.status !== 'Credited' && (
+                        {(tx.docType === 'Purchase Order' ||
+                          (tx.docType === 'Invoice' && (isChequeTx || (tx.status !== 'Paid' && tx.status !== 'Credited')))) && (
                           <button
                             type="button"
                             onClick={() => handleSaveDerivedDoc(tx, 'Receipt')}
                             className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold cursor-pointer"
                           >
-                            Settle → Receipt
+                            {isChequeTx ? 'Print Client Receipt' : 'Settle → Receipt'}
                           </button>
+                        )}
+                        {isChequeTx && canManageCheque && onUpdateDocument && (
+                          <>
+                            {tx.status !== 'Paid' && (
+                              <button
+                                type="button"
+                                onClick={() => handleQuickChequeStatusChange(tx, 'Paid')}
+                                className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-lg text-[11px] font-bold cursor-pointer"
+                              >
+                                Mark Paid
+                              </button>
+                            )}
+                            {tx.status !== 'Processing' && (
+                              <button
+                                type="button"
+                                onClick={() => handleQuickChequeStatusChange(tx, 'Processing')}
+                                className="px-2 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-800 rounded-lg text-[11px] font-bold cursor-pointer"
+                              >
+                                Processing
+                              </button>
+                            )}
+                            {tx.status !== 'Rejected' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRejectingTxId(tx.id);
+                                  setInlineRejectReason(tx.chequeDetails?.rejectionReason || '');
+                                }}
+                                className="px-2 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-700 rounded-lg text-[11px] font-bold cursor-pointer"
+                              >
+                                Reject
+                              </button>
+                            )}
+                          </>
                         )}
                         <button
                           type="button"
@@ -2188,11 +2946,44 @@ export const DocumentsAndCreditNotesModule: React.FC<{
                       </div>
                     </td>
                   </tr>
-                ))
+                  {rejectingTxId === tx.id && (
+                    <tr className="bg-rose-50/70">
+                      <td colSpan={7} className="px-3 py-2">
+                        <div className="flex items-center justify-end gap-2">
+                          <input
+                            type="text"
+                            value={inlineRejectReason}
+                            onChange={(e) => setInlineRejectReason(e.target.value)}
+                            placeholder="Reason for rejecting cheque (e.g. Insufficient funds / Stale cheque)"
+                            className="flex-1 max-w-md px-3 py-1.5 bg-white border border-rose-300 rounded-lg text-xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleQuickChequeStatusChange(tx, 'Rejected', inlineRejectReason)}
+                            className="px-3 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-bold cursor-pointer"
+                          >
+                            Confirm Reject
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRejectingTxId(null)}
+                            className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-bold cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
+        </>
+        )}
       </div>
       )}
     </div>
@@ -5955,7 +6746,7 @@ export const AuditAndSecurityModule: React.FC<{
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
-                <th className="py-2.5 px-3 font-black">Timestamp</th>
+                <th className="py-2.5 px-3 font-black">Day &amp; Time</th>
                 <th className="py-2.5 px-3 font-black">User & Role</th>
                 <th className="py-2.5 px-3 font-black">Action & Module</th>
                 <th className="py-2.5 px-3 font-black">Transaction / Activity Details</th>
@@ -5964,10 +6755,13 @@ export const AuditAndSecurityModule: React.FC<{
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {filteredLogs.map((log) => (
+              {filteredLogs.map((log) => {
+                const logRec = getDocumentCreationRecord(log);
+                return (
                 <tr key={log.id} className="hover:bg-slate-50">
-                  <td className="py-2.5 px-3 font-mono-tabular text-slate-600 whitespace-nowrap">
-                    {new Date(log.createdAt).toLocaleString()}
+                  <td className="py-2.5 px-3 font-mono-tabular whitespace-nowrap">
+                    <div className="text-slate-800 font-semibold">{logRec.createdDay}</div>
+                    <div className="text-[11px] font-bold text-[#0A006E]">{logRec.createdTime}</div>
                   </td>
                   <td className="py-2.5 px-3">
                     <div className="font-montserrat font-bold text-slate-900">{log.actorName}</div>
@@ -5985,7 +6779,8 @@ export const AuditAndSecurityModule: React.FC<{
                     {log.severity}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

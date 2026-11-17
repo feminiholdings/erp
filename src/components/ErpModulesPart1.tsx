@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   Sparkles,
   Package,
@@ -89,6 +90,7 @@ import {
   exportToCSV,
   exportReportToPDF,
   formatKes,
+  getDocumentCreationRecord,
   isUserFeaturePermitted,
 } from '../erpUtils';
 import { NAIROBI_DRINKS_SUB_CATEGORIES } from '../data/nairobiDrinksCatalog';
@@ -612,9 +614,14 @@ export const OverviewModule: React.FC<{
 
         {/* HR KPI Strip */}
         {isWidgetVisible('kpi_strip') && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+            className="grid grid-cols-2 lg:grid-cols-4 gap-3"
+          >
             {isKpiVisible('headcount') && (
-              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="beta-kpi-card rounded-xl p-3.5">
                 <div className="text-[11px] font-montserrat font-semibold text-slate-500">Workforce Headcount</div>
                 <div className="text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
                   {staffList.length}
@@ -625,7 +632,7 @@ export const OverviewModule: React.FC<{
               </div>
             )}
             {isKpiVisible('compliance') && (
-              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="beta-kpi-card rounded-xl p-3.5">
                 <div className="text-[11px] font-montserrat font-semibold text-slate-500">KRA / NSSF Coverage</div>
                 <div className="text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
                   {kraCoverage}%
@@ -634,7 +641,7 @@ export const OverviewModule: React.FC<{
               </div>
             )}
             {isKpiVisible('payroll') && (
-              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="beta-kpi-card rounded-xl p-3.5">
                 <div className="text-[11px] font-montserrat font-semibold text-slate-500">Latest Payroll</div>
                 <div className="text-base sm:text-lg font-montserrat font-black text-[#0A006E] truncate mt-0.5">
                   {latestRun ? latestRun.period : 'Awaiting Run'}
@@ -645,7 +652,7 @@ export const OverviewModule: React.FC<{
               </div>
             )}
             {isKpiVisible('branches') && (
-              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="beta-kpi-card rounded-xl p-3.5">
                 <div className="text-[11px] font-montserrat font-semibold text-slate-500">Depots Staffed</div>
                 <div className="text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
                   {branches.length} Branches
@@ -653,16 +660,21 @@ export const OverviewModule: React.FC<{
                 <div className="text-[11px] text-slate-500 mt-0.5">10 RBAC Roles</div>
               </div>
             )}
-          </div>
+          </motion.div>
         )}
 
         {/* Quick Focus Workspace Tiles */}
         {isWidgetVisible('focus_tiles') && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
+            className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5"
+          >
             <button
               type="button"
               onClick={() => (onOpenHrLeaveTab ? onOpenHrLeaveTab() : onNavigateModule?.('hr_rbac'))}
-              className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1.5 cursor-pointer transition"
+              className="beta-action-tile p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1.5 cursor-pointer"
             >
               <Calendar className="w-4 h-4 text-fuchsia-600" />
               <div className="text-xs font-montserrat font-bold text-slate-900">Leave Approvals</div>
@@ -671,7 +683,7 @@ export const OverviewModule: React.FC<{
             <button
               type="button"
               onClick={() => onNavigateModule?.('hr_rbac')}
-              className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1.5 cursor-pointer transition"
+              className="beta-action-tile p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1.5 cursor-pointer"
             >
               <Users className="w-4 h-4 text-[#0A006E]" />
               <div className="text-xs font-montserrat font-bold text-slate-900">Staff &amp; Payroll</div>
@@ -680,7 +692,7 @@ export const OverviewModule: React.FC<{
             <button
               type="button"
               onClick={() => setFocusSection('hr_roles')}
-              className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1.5 cursor-pointer transition"
+              className="beta-action-tile p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1.5 cursor-pointer"
             >
               <ShieldCheck className="w-4 h-4 text-indigo-600" />
               <div className="text-xs font-montserrat font-bold text-slate-900">Role Breakdown</div>
@@ -689,7 +701,7 @@ export const OverviewModule: React.FC<{
             <button
               type="button"
               onClick={() => setFocusSection('hr_branches')}
-              className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1.5 cursor-pointer transition"
+              className="beta-action-tile p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1.5 cursor-pointer"
             >
               <Building2 className="w-4 h-4 text-emerald-600" />
               <div className="text-xs font-montserrat font-bold text-slate-900">Branch Staffing</div>
@@ -699,14 +711,14 @@ export const OverviewModule: React.FC<{
               <button
                 type="button"
                 onClick={() => onOpenKraReturns('PAYE_P10_SEC_B')}
-                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1.5 cursor-pointer transition"
+                className="beta-action-tile p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1.5 cursor-pointer"
               >
                 <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
                 <div className="text-xs font-montserrat font-bold text-slate-900">KRA P10 &amp; AHL</div>
                 <div className="text-[11px] text-slate-500">Export statutory .xlsx</div>
               </button>
             )}
-          </div>
+          </motion.div>
         )}
 
         {/* Expanded Full Details (Only when Full mode selected) */}
@@ -835,9 +847,14 @@ export const OverviewModule: React.FC<{
         />
 
         {isWidgetVisible('kpi_strip') && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+            className="grid grid-cols-2 lg:grid-cols-4 gap-3"
+          >
             {isKpiVisible('total_sales') && (
-              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="beta-kpi-card rounded-xl p-3.5">
                 <div className="text-[11px] font-montserrat font-semibold text-slate-500">Total Sales</div>
                 <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
                   {formatKes(totalRevenue)}
@@ -846,7 +863,7 @@ export const OverviewModule: React.FC<{
               </div>
             )}
             {isKpiVisible('wholesale') && (
-              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="beta-kpi-card rounded-xl p-3.5">
                 <div className="text-[11px] font-montserrat font-semibold text-slate-500">Wholesale B2B</div>
                 <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
                   {formatKes(wholesaleRevenue)}
@@ -855,7 +872,7 @@ export const OverviewModule: React.FC<{
               </div>
             )}
             {isKpiVisible('retail') && (
-              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="beta-kpi-card rounded-xl p-3.5">
                 <div className="text-[11px] font-montserrat font-semibold text-slate-500">Retail Counter</div>
                 <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
                   {formatKes(retailRevenue)}
@@ -864,7 +881,7 @@ export const OverviewModule: React.FC<{
               </div>
             )}
             {isKpiVisible('partners') && (
-              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="beta-kpi-card rounded-xl p-3.5">
                 <div className="text-[11px] font-montserrat font-semibold text-slate-500">Commercial Partners</div>
                 <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
                   {partners.length}
@@ -872,15 +889,20 @@ export const OverviewModule: React.FC<{
                 <div className="text-[11px] text-slate-500 mt-0.5">Licensed accounts</div>
               </div>
             )}
-          </div>
+          </motion.div>
         )}
 
         {isWidgetVisible('quick_actions') && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
+            className="grid grid-cols-2 sm:grid-cols-4 gap-2.5"
+          >
             <button
               type="button"
               onClick={() => setFocusSection('sales_performance')}
-              className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1 cursor-pointer transition"
+              className="beta-action-tile p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1 cursor-pointer"
             >
               <TrendingUp className="w-4 h-4 text-[#0A006E]" />
               <div className="text-xs font-montserrat font-bold text-slate-900">Sales Tracker</div>
@@ -889,7 +911,7 @@ export const OverviewModule: React.FC<{
             <button
               type="button"
               onClick={() => onNavigateModule?.('retail_pos')}
-              className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1 cursor-pointer transition"
+              className="beta-action-tile p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1 cursor-pointer"
             >
               <ShoppingCart className="w-4 h-4 text-emerald-600" />
               <div className="text-xs font-montserrat font-bold text-slate-900">Retail POS</div>
@@ -898,7 +920,7 @@ export const OverviewModule: React.FC<{
             <button
               type="button"
               onClick={() => onNavigateModule?.('geo_pricing')}
-              className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1 cursor-pointer transition"
+              className="beta-action-tile p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1 cursor-pointer"
             >
               <MapPin className="w-4 h-4 text-amber-600" />
               <div className="text-xs font-montserrat font-bold text-slate-900">Geo-Pricing</div>
@@ -907,13 +929,13 @@ export const OverviewModule: React.FC<{
             <button
               type="button"
               onClick={() => onNavigateModule?.('partners')}
-              className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1 cursor-pointer transition"
+              className="beta-action-tile p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1 cursor-pointer"
             >
               <Users className="w-4 h-4 text-indigo-600" />
               <div className="text-xs font-montserrat font-bold text-slate-900">Partners</div>
               <div className="text-[11px] text-slate-500">{partners.length} active accounts</div>
             </button>
-          </div>
+          </motion.div>
         )}
 
         {!isMinimal && isWidgetVisible('sales_tracker') && (
@@ -999,10 +1021,14 @@ export const OverviewModule: React.FC<{
           onToggleKpi={toggleKpi}
           onToggleWidget={toggleWidget}
           onReset={resetToDefault}
+          controlSize="lg"
         />
 
         {/* Prominent Gradient Primary Action Buttons: Onboard Items & Leave / Off */}
-        <div
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
           className={`grid grid-cols-1 ${
             onOpenOnboardItems ? 'sm:grid-cols-2' : ''
           } gap-3.5`}
@@ -1011,7 +1037,7 @@ export const OverviewModule: React.FC<{
             <button
               type="button"
               onClick={onOpenOnboardItems}
-              className="group min-h-[72px] sm:min-h-[78px] w-full px-5 py-4 rounded-2xl bg-gradient-to-r from-[#0A006E] via-[#15099C] to-[#2518CC] hover:from-[#070052] hover:to-[#2E20E0] text-white border border-[#FFDE00]/35 shadow-lg shadow-[#0A006E]/20 flex items-center justify-between gap-4 cursor-pointer transition-all hover:-translate-y-0.5 active:scale-[0.99] text-left"
+              className="beta-action-tile group min-h-[72px] sm:min-h-[78px] w-full px-5 py-4 rounded-2xl bg-gradient-to-r from-[#0A006E] via-[#15099C] to-[#2518CC] hover:from-[#070052] hover:to-[#2E20E0] text-white border border-[#FFDE00]/35 shadow-lg shadow-[#0A006E]/20 flex items-center justify-between gap-4 cursor-pointer active:scale-[0.99] text-left"
             >
               <div className="flex items-center gap-4 min-w-0">
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#FFDE00] to-amber-400 text-[#0A006E] flex items-center justify-center shrink-0 shadow-md group-hover:scale-105 transition-transform">
@@ -1035,7 +1061,7 @@ export const OverviewModule: React.FC<{
           <button
             type="button"
             onClick={() => onNavigateModule?.('leave_management')}
-            className="group min-h-[72px] sm:min-h-[78px] w-full px-5 py-4 rounded-2xl bg-gradient-to-r from-[#0C5E37] via-[#157E4C] to-[#21A165] hover:from-[#094A2B] hover:to-[#27B874] text-white border border-emerald-300/35 shadow-lg shadow-emerald-900/20 flex items-center justify-between gap-4 cursor-pointer transition-all hover:-translate-y-0.5 active:scale-[0.99] text-left"
+            className="beta-action-tile group min-h-[72px] sm:min-h-[78px] w-full px-5 py-4 rounded-2xl bg-gradient-to-r from-[#0C5E37] via-[#157E4C] to-[#21A165] hover:from-[#094A2B] hover:to-[#27B874] text-white border border-emerald-300/35 shadow-lg shadow-emerald-900/20 flex items-center justify-between gap-4 cursor-pointer active:scale-[0.99] text-left"
           >
             <div className="flex items-center gap-4 min-w-0">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-white/25 to-white/10 text-white border border-white/25 flex items-center justify-center shrink-0 shadow-md group-hover:scale-105 transition-transform">
@@ -1054,12 +1080,17 @@ export const OverviewModule: React.FC<{
               <ChevronRight className="w-5 h-5 text-white stroke-[2.5]" />
             </div>
           </button>
-        </div>
+        </motion.div>
 
         {isWidgetVisible('kpi_strip') && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
+            className="grid grid-cols-2 lg:grid-cols-4 gap-3"
+          >
             {isKpiVisible('valuation') && (
-              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="beta-kpi-card rounded-xl p-3.5">
                 <div className="text-[11px] font-montserrat font-semibold text-slate-500">Bonded Value</div>
                 <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
                   {formatKes(totalInventoryValue)}
@@ -1070,7 +1101,7 @@ export const OverviewModule: React.FC<{
               </div>
             )}
             {isKpiVisible('ips_lps') && (
-              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="beta-kpi-card rounded-xl p-3.5">
                 <div className="text-[11px] font-montserrat font-semibold text-slate-500">Catalog SKUs</div>
                 <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
                   {products.length} SKUs
@@ -1081,7 +1112,7 @@ export const OverviewModule: React.FC<{
               </div>
             )}
             {isKpiVisible('transfers') && (
-              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="beta-kpi-card rounded-xl p-3.5">
                 <div className="text-[11px] font-montserrat font-semibold text-slate-500">Transfers</div>
                 <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
                   {transfers.length} Total
@@ -1092,7 +1123,7 @@ export const OverviewModule: React.FC<{
               </div>
             )}
             {isKpiVisible('damages') && (
-              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="beta-kpi-card rounded-xl p-3.5">
                 <div className="text-[11px] font-montserrat font-semibold text-slate-500">Damages &amp; Spoilage</div>
                 <div className="text-lg sm:text-xl font-montserrat font-black text-rose-600 font-mono-tabular mt-0.5">
                   {damagedCount + spoiledCount} btls
@@ -1102,15 +1133,20 @@ export const OverviewModule: React.FC<{
                 </div>
               </div>
             )}
-          </div>
+          </motion.div>
         )}
 
         {isWidgetVisible('quick_tiles') && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.32, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
+            className="grid grid-cols-2 sm:grid-cols-4 gap-3"
+          >
             <button
               type="button"
               onClick={() => onNavigateModule?.('inventory')}
-              className="p-4 bg-gradient-to-br from-white to-emerald-50/60 hover:to-emerald-50 border border-slate-200 hover:border-emerald-300 rounded-xl text-left space-y-1.5 cursor-pointer transition shadow-2xs"
+              className="beta-action-tile p-4 bg-gradient-to-br from-white to-emerald-50/60 hover:to-emerald-50 border border-slate-200 hover:border-emerald-300 rounded-xl text-left space-y-1.5 cursor-pointer shadow-2xs"
             >
               <Package className="w-5 h-5 text-emerald-600" />
               <div className="text-sm font-montserrat font-bold text-slate-900">Master Inventory</div>
@@ -1119,7 +1155,7 @@ export const OverviewModule: React.FC<{
             <button
               type="button"
               onClick={() => onNavigateModule?.('branches_transfers')}
-              className="p-4 bg-gradient-to-br from-white to-amber-50/60 hover:to-amber-50 border border-slate-200 hover:border-amber-300 rounded-xl text-left space-y-1.5 cursor-pointer transition shadow-2xs"
+              className="beta-action-tile p-4 bg-gradient-to-br from-white to-amber-50/60 hover:to-amber-50 border border-slate-200 hover:border-amber-300 rounded-xl text-left space-y-1.5 cursor-pointer shadow-2xs"
             >
               <ArrowRightLeft className="w-5 h-5 text-amber-600" />
               <div className="text-sm font-montserrat font-bold text-slate-900">Stock Transfers</div>
@@ -1128,7 +1164,7 @@ export const OverviewModule: React.FC<{
             <button
               type="button"
               onClick={() => setFocusSection('inventory_branches')}
-              className="p-4 bg-gradient-to-br from-white to-indigo-50/60 hover:to-indigo-50 border border-slate-200 hover:border-[#0A006E]/40 rounded-xl text-left space-y-1.5 cursor-pointer transition shadow-2xs"
+              className="beta-action-tile p-4 bg-gradient-to-br from-white to-indigo-50/60 hover:to-indigo-50 border border-slate-200 hover:border-[#0A006E]/40 rounded-xl text-left space-y-1.5 cursor-pointer shadow-2xs"
             >
               <Building2 className="w-5 h-5 text-[#0A006E]" />
               <div className="text-sm font-montserrat font-bold text-slate-900">Branch Depots</div>
@@ -1137,13 +1173,13 @@ export const OverviewModule: React.FC<{
             <button
               type="button"
               onClick={() => onNavigateModule?.('internal_inbox')}
-              className="p-4 bg-gradient-to-br from-white to-rose-50/60 hover:to-rose-50 border border-slate-200 hover:border-rose-300 rounded-xl text-left space-y-1.5 cursor-pointer transition shadow-2xs"
+              className="beta-action-tile p-4 bg-gradient-to-br from-white to-rose-50/60 hover:to-rose-50 border border-slate-200 hover:border-rose-300 rounded-xl text-left space-y-1.5 cursor-pointer shadow-2xs"
             >
               <Inbox className="w-5 h-5 text-rose-600" />
               <div className="text-sm font-montserrat font-bold text-slate-900">Dept Inbox</div>
               <div className="text-xs text-slate-500">Staff requests</div>
             </button>
-          </div>
+          </motion.div>
         )}
 
         {!isMinimal && isWidgetVisible('branch_table') && (
@@ -1236,9 +1272,14 @@ export const OverviewModule: React.FC<{
         />
 
         {isWidgetVisible('kpi_strip') && (
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+            className="grid grid-cols-2 lg:grid-cols-3 gap-3"
+          >
             {isKpiVisible('sales_volume') && (
-              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="beta-kpi-card rounded-xl p-3.5">
                 <div className="text-[11px] font-montserrat font-semibold text-slate-500">My Sales Volume</div>
                 <div className="text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
                   {formatKes(ownSalesTotal)}
@@ -1247,7 +1288,7 @@ export const OverviewModule: React.FC<{
               </div>
             )}
             {isKpiVisible('commission') && (
-              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="beta-kpi-card rounded-xl p-3.5">
                 <div className="text-[11px] font-montserrat font-semibold text-slate-500">Earned Commission</div>
                 <div className="text-xl font-montserrat font-black text-emerald-700 font-mono-tabular mt-0.5">
                   {formatKes(earnedCommission)}
@@ -1256,7 +1297,7 @@ export const OverviewModule: React.FC<{
               </div>
             )}
             {isKpiVisible('queued_orders') && (
-              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="beta-kpi-card rounded-xl p-3.5">
                 <div className="text-[11px] font-montserrat font-semibold text-slate-500">Assigned Base</div>
                 <div className="text-sm font-montserrat font-bold text-[#0A006E] truncate mt-1">
                   {currentUser.branchName}
@@ -1264,7 +1305,7 @@ export const OverviewModule: React.FC<{
                 <div className="text-[11px] text-slate-500 mt-0.5">{products.length} catalog SKUs</div>
               </div>
             )}
-          </div>
+          </motion.div>
         )}
 
         {isWidgetVisible('recent_orders') && (
@@ -1366,9 +1407,14 @@ export const OverviewModule: React.FC<{
         />
 
         {isWidgetVisible('kpi_strip') && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+            className="grid grid-cols-2 lg:grid-cols-4 gap-3"
+          >
             {isKpiVisible('pending_dispatch') && (
-              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="beta-kpi-card rounded-xl p-3.5">
                 <div className="text-[11px] font-montserrat font-semibold text-slate-500">Pending Dispatch</div>
                 <div className="text-xl font-montserrat font-black text-amber-600 font-mono-tabular mt-0.5">
                   {pendingDispatch}
@@ -1376,7 +1422,7 @@ export const OverviewModule: React.FC<{
               </div>
             )}
             {isKpiVisible('in_transit') && (
-              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="beta-kpi-card rounded-xl p-3.5">
                 <div className="text-[11px] font-montserrat font-semibold text-slate-500">Out for Delivery</div>
                 <div className="text-xl font-montserrat font-black text-sky-700 font-mono-tabular mt-0.5">
                   {inTransit}
@@ -1384,7 +1430,7 @@ export const OverviewModule: React.FC<{
               </div>
             )}
             {isKpiVisible('delivered') && (
-              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="beta-kpi-card rounded-xl p-3.5">
                 <div className="text-[11px] font-montserrat font-semibold text-slate-500">Delivered</div>
                 <div className="text-xl font-montserrat font-black text-emerald-700 font-mono-tabular mt-0.5">
                   {delivered}
@@ -1392,14 +1438,14 @@ export const OverviewModule: React.FC<{
               </div>
             )}
             {isKpiVisible('riders') && (
-              <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+              <div className="beta-kpi-card rounded-xl p-3.5">
                 <div className="text-[11px] font-montserrat font-semibold text-slate-500">Active Riders</div>
                 <div className="text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
                   {activeRiders}
                 </div>
               </div>
             )}
-          </div>
+          </motion.div>
         )}
 
         <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1447,15 +1493,23 @@ export const OverviewModule: React.FC<{
 
     if (focusSection !== 'hub') {
       return (
-        <div className="space-y-4 pb-8">
-          <div className="bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 flex items-center justify-between gap-3 sticky top-0 z-20">
-            <button
-              type="button"
-              onClick={() => selectAdminFocusSection('hub')}
-              className="px-3 py-1.5 bg-[#0A006E] hover:bg-[#12009E] text-[#FFDE00] rounded-lg text-xs font-montserrat font-bold cursor-pointer shrink-0 flex items-center gap-1.5"
-            >
-              <span>← Back to Hub</span>
-            </button>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={focusSection}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            className="space-y-4 pb-8"
+          >
+            <div className="beta-header-bar rounded-xl px-3.5 py-2.5 flex items-center justify-between gap-3 sticky top-0 z-20">
+              <button
+                type="button"
+                onClick={() => selectAdminFocusSection('hub')}
+                className="px-3 py-1.5 bg-[#0A006E] hover:bg-[#12009E] text-[#FFDE00] rounded-lg text-xs font-montserrat font-bold cursor-pointer shrink-0 flex items-center gap-1.5"
+              >
+                <span>← Back to Hub</span>
+              </button>
             <div className="min-w-0 flex-1 text-right sm:text-left">
               <div className="text-xs sm:text-sm font-montserrat font-bold text-slate-900 truncate">
                 {sectionTitles[focusSection]}
@@ -1575,6 +1629,7 @@ export const OverviewModule: React.FC<{
                       <th className="py-2 px-3 font-bold">Type</th>
                       <th className="py-2 px-3 font-bold">Branch</th>
                       <th className="py-2 px-3 font-bold">Customer</th>
+                      <th className="py-2 px-3 font-bold">Created By · Day &amp; Time</th>
                       <th className="py-2 px-3 font-bold text-right">Amount</th>
                       <th className="py-2 px-3 font-bold text-right">Action</th>
                     </tr>
@@ -1582,17 +1637,25 @@ export const OverviewModule: React.FC<{
                   <tbody className="divide-y divide-slate-100">
                     {visibleTransactions.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="py-6 text-center text-slate-500">
+                        <td colSpan={7} className="py-6 text-center text-slate-500">
                           No commercial transactions issued yet.
                         </td>
                       </tr>
                     ) : (
-                      visibleTransactions.slice(0, 15).map((tx) => (
+                      visibleTransactions.slice(0, 15).map((tx) => {
+                        const creationRec = getDocumentCreationRecord(tx);
+                        return (
                         <tr key={tx.id} className="hover:bg-slate-50">
                           <td className="py-2 px-3 font-mono-tabular font-bold text-[#0A006E]">{tx.docNumber}</td>
                           <td className="py-2 px-3 font-montserrat font-semibold text-slate-900">{tx.docType}</td>
                           <td className="py-2 px-3 text-slate-600">{tx.branchName}</td>
                           <td className="py-2 px-3 text-slate-800">{tx.customerName}</td>
+                          <td className="py-2 px-3 whitespace-nowrap">
+                            <div className="font-semibold text-slate-900">{creationRec.createdBy}</div>
+                            <div className="text-[10px] font-mono-tabular text-slate-500">
+                              {creationRec.createdDay} · {creationRec.createdTime}
+                            </div>
+                          </td>
                           <td className="py-2 px-3 text-right font-mono-tabular font-bold">
                             {formatKes(tx.totalAmount)}
                           </td>
@@ -1606,7 +1669,8 @@ export const OverviewModule: React.FC<{
                             </button>
                           </td>
                         </tr>
-                      ))
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -1756,7 +1820,8 @@ export const OverviewModule: React.FC<{
               )}
             </div>
           )}
-        </div>
+          </motion.div>
+        </AnimatePresence>
       );
     }
 
@@ -1797,9 +1862,14 @@ export const OverviewModule: React.FC<{
 
         {/* Compact KPI Strip */}
         {(isWidgetVisible('kpi_strip') || currentUser.role === 'Branch Manager') && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+            className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3"
+          >
             {(isKpiVisible('turnover') || isKpiVisible('branch_sales')) && (
-              <div className="bg-white border border-slate-200 rounded-xl p-3">
+              <div className="beta-kpi-card rounded-xl p-3">
                 <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
                   {currentUser.role === 'Branch Manager' ? 'Branch Turnover' : 'Gross Turnover'}
                 </div>
@@ -1809,7 +1879,7 @@ export const OverviewModule: React.FC<{
               </div>
             )}
             {(isKpiVisible('catalog') || isKpiVisible('branch_stock')) && (
-              <div className="bg-white border border-slate-200 rounded-xl p-3">
+              <div className="beta-kpi-card rounded-xl p-3">
                 <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">Liquor Catalog</div>
                 <div className="text-base sm:text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5 truncate">
                   {products.length} SKUs
@@ -1817,7 +1887,7 @@ export const OverviewModule: React.FC<{
               </div>
             )}
             {(isKpiVisible('branches') || isKpiVisible('pending_transfers')) && (
-              <div className="bg-white border border-slate-200 rounded-xl p-3">
+              <div className="beta-kpi-card rounded-xl p-3">
                 <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
                   {currentUser.role === 'Branch Manager' ? 'Pending Transfers' : 'Depots & Zones'}
                 </div>
@@ -1829,7 +1899,7 @@ export const OverviewModule: React.FC<{
               </div>
             )}
             {(isKpiVisible('staff_transfers') || isKpiVisible('active_deliveries')) && (
-              <div className="bg-white border border-slate-200 rounded-xl p-3">
+              <div className="beta-kpi-card rounded-xl p-3">
                 <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
                   {currentUser.role === 'Branch Manager' ? 'Active Deliveries' : 'Staff & Transfers'}
                 </div>
@@ -1840,7 +1910,7 @@ export const OverviewModule: React.FC<{
                 </div>
               </div>
             )}
-          </div>
+          </motion.div>
         )}
 
         {/* Actionable Pending Alerts Strip (Only when items await decision) */}
@@ -1885,7 +1955,12 @@ export const OverviewModule: React.FC<{
 
         {/* Performance & Insights Focus Tiles */}
         {(isWidgetVisible('reports_grid') || isWidgetVisible('quick_tiles')) && (
-          <div className="space-y-1.5">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.06, ease: [0.16, 1, 0.3, 1] }}
+            className="space-y-1.5"
+          >
             <div className="text-[10px] font-montserrat font-bold text-slate-400 uppercase tracking-wider px-0.5">
               Reports &amp; Insights (Tap to Focus)
             </div>
@@ -1893,9 +1968,9 @@ export const OverviewModule: React.FC<{
               <button
                 type="button"
                 onClick={() => selectAdminFocusSection('sales_performance')}
-                className="p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer transition"
+                className="beta-action-tile group p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer"
               >
-                <TrendingUp className="w-4 h-4 text-[#0A006E]" />
+                <TrendingUp className="w-4 h-4 text-[#0A006E] group-hover:scale-110 transition-transform" />
                 <div>
                   <div className="text-xs font-montserrat font-bold text-slate-900">Sales Performance</div>
                   <div className="text-[11px] text-slate-500">Today · Week · Month · Year</div>
@@ -1905,9 +1980,9 @@ export const OverviewModule: React.FC<{
               <button
                 type="button"
                 onClick={() => selectAdminFocusSection('charts')}
-                className="p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer transition"
+                className="beta-action-tile group p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer"
               >
-                <BarChart3 className="w-4 h-4 text-indigo-600" />
+                <BarChart3 className="w-4 h-4 text-indigo-600 group-hover:scale-110 transition-transform" />
                 <div>
                   <div className="text-xs font-montserrat font-bold text-slate-900">Interactive Charts</div>
                   <div className="text-[11px] text-slate-500">Bar &amp; pie metrics</div>
@@ -1917,9 +1992,9 @@ export const OverviewModule: React.FC<{
               <button
                 type="button"
                 onClick={() => selectAdminFocusSection('branch_performance')}
-                className="p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer transition"
+                className="beta-action-tile group p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer"
               >
-                <Building2 className="w-4 h-4 text-emerald-600" />
+                <Building2 className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
                 <div>
                   <div className="text-xs font-montserrat font-bold text-slate-900">Regional Branches</div>
                   <div className="text-[11px] text-slate-500">Revenue &amp; bonded stock</div>
@@ -1929,21 +2004,26 @@ export const OverviewModule: React.FC<{
               <button
                 type="button"
                 onClick={() => selectAdminFocusSection('recent_docs')}
-                className="p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer transition"
+                className="beta-action-tile group p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer"
               >
-                <FileText className="w-4 h-4 text-amber-600" />
+                <FileText className="w-4 h-4 text-amber-600 group-hover:scale-110 transition-transform" />
                 <div>
                   <div className="text-xs font-montserrat font-bold text-slate-900">Latest Documents</div>
                   <div className="text-[11px] text-slate-500">Receipts, invoices &amp; quotes</div>
                 </div>
               </button>
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* Operations & Departments Grid */}
         {(isWidgetVisible('ops_grid') || isWidgetVisible('quick_tiles')) && (
-          <div className="space-y-1.5">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.32, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+            className="space-y-1.5"
+          >
             <div className="text-[10px] font-montserrat font-bold text-slate-400 uppercase tracking-wider px-0.5">
               Operations &amp; Tools
             </div>
@@ -1951,9 +2031,9 @@ export const OverviewModule: React.FC<{
               <button
                 type="button"
                 onClick={() => onNavigateModule?.('retail_pos')}
-                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer transition"
+                className="beta-action-tile group p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-lg bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                   <ShoppingCart className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
@@ -1965,9 +2045,9 @@ export const OverviewModule: React.FC<{
               <button
                 type="button"
                 onClick={() => onNavigateModule?.('sales_pos')}
-                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer transition"
+                className="beta-action-tile group p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                   <Briefcase className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
@@ -1979,9 +2059,9 @@ export const OverviewModule: React.FC<{
               <button
                 type="button"
                 onClick={() => onNavigateModule?.('inventory')}
-                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer transition"
+                className="beta-action-tile group p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                   <Package className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
@@ -1994,9 +2074,9 @@ export const OverviewModule: React.FC<{
                 <button
                   type="button"
                   onClick={() => setAdminOverviewView('accounting')}
-                  className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer transition"
+                  className="beta-action-tile group p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                     <DollarSign className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
@@ -2009,9 +2089,9 @@ export const OverviewModule: React.FC<{
               <button
                 type="button"
                 onClick={() => selectAdminFocusSection('delivery_queue')}
-                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer transition"
+                className="beta-action-tile group p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-lg bg-cyan-600 text-white flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-cyan-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                   <Truck className="w-4 h-4" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -2025,9 +2105,9 @@ export const OverviewModule: React.FC<{
               <button
                 type="button"
                 onClick={() => selectAdminFocusSection('transfers_queue')}
-                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer transition"
+                className="beta-action-tile group p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-lg bg-emerald-700 text-white flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-emerald-700 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                   <ArrowLeftRight className="w-4 h-4" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -2041,9 +2121,9 @@ export const OverviewModule: React.FC<{
               <button
                 type="button"
                 onClick={() => onNavigateModule?.('hr_rbac')}
-                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer transition"
+                className="beta-action-tile group p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-lg bg-purple-600 text-white flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-purple-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                   <Users className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
@@ -2055,9 +2135,9 @@ export const OverviewModule: React.FC<{
               <button
                 type="button"
                 onClick={() => (onOpenHrLeaveTab ? onOpenHrLeaveTab() : onNavigateModule?.('leave_management'))}
-                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer transition"
+                className="beta-action-tile group p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-lg bg-fuchsia-600 text-white flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-fuchsia-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                   <Calendar className="w-4 h-4" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -2072,9 +2152,9 @@ export const OverviewModule: React.FC<{
                 <button
                   type="button"
                   onClick={() => onOpenKraReturns('VAT3_SALES_SEC_B')}
-                  className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer transition"
+                  className="beta-action-tile group p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-emerald-600 text-[#FFDE00] flex items-center justify-center shrink-0">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-600 text-[#FFDE00] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                     <FileSpreadsheet className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
@@ -2088,9 +2168,9 @@ export const OverviewModule: React.FC<{
                 <button
                   type="button"
                   onClick={() => onOpenPayslip?.(latestPayrollRecord)}
-                  className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer transition"
+                  className="beta-action-tile group p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0">
+                  <div className="w-8 h-8 rounded-lg bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                     <Printer className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
@@ -2105,9 +2185,9 @@ export const OverviewModule: React.FC<{
               <button
                 type="button"
                 onClick={handleDownloadStatementPDF}
-                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer transition"
+                className="beta-action-tile group p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-lg bg-slate-800 text-[#FFDE00] flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-slate-800 text-[#FFDE00] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                   <Download className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
@@ -2116,7 +2196,7 @@ export const OverviewModule: React.FC<{
                 </div>
               </button>
             </div>
-          </div>
+          </motion.div>
         )}
       </div>
     );
@@ -2565,6 +2645,7 @@ export const OverviewModule: React.FC<{
                   <th className="py-2 px-3 font-bold">Type</th>
                   <th className="py-2 px-3 font-bold">Branch</th>
                   <th className="py-2 px-3 font-bold">Customer</th>
+                  <th className="py-2 px-3 font-bold">Created By · Day &amp; Time</th>
                   <th className="py-2 px-3 font-bold text-right">Amount</th>
                   <th className="py-2 px-3 font-bold text-right">PDF</th>
                 </tr>
@@ -2572,17 +2653,25 @@ export const OverviewModule: React.FC<{
               <tbody className="divide-y divide-slate-100">
                 {visibleTransactions.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-6 text-center text-slate-500">
+                    <td colSpan={7} className="py-6 text-center text-slate-500">
                       No commercial transactions issued yet.
                     </td>
                   </tr>
                 ) : (
-                  visibleTransactions.slice(0, 8).map((tx) => (
+                  visibleTransactions.slice(0, 8).map((tx) => {
+                    const creationRec = getDocumentCreationRecord(tx);
+                    return (
                     <tr key={tx.id} className="hover:bg-slate-50">
                       <td className="py-2 px-3 font-mono-tabular font-bold text-[#0A006E]">{tx.docNumber}</td>
                       <td className="py-2 px-3 font-montserrat font-semibold text-slate-900">{tx.docType}</td>
                       <td className="py-2 px-3 text-slate-600">{tx.branchName}</td>
                       <td className="py-2 px-3 text-slate-800">{tx.customerName}</td>
+                      <td className="py-2 px-3 whitespace-nowrap">
+                        <div className="font-semibold text-slate-900">{creationRec.createdBy}</div>
+                        <div className="text-[10px] font-mono-tabular text-slate-500">
+                          {creationRec.createdDay} · {creationRec.createdTime}
+                        </div>
+                      </td>
                       <td className="py-2 px-3 text-right font-mono-tabular font-bold">
                         {formatKes(tx.totalAmount)}
                       </td>
@@ -2596,7 +2685,8 @@ export const OverviewModule: React.FC<{
                         </button>
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -3376,74 +3466,76 @@ export const InventoryModule: React.FC<{
         onToggleKpi={toggleInvKpi}
         onToggleWidget={toggleInvWidget}
         onReset={resetInvPrefs}
+        controlSize="lg"
+        actionLayout="toolbar"
         actions={
           <>
             {canEditProduct && (
               <button
                 type="button"
                 onClick={() => setIsAddProductOpen((v) => !v)}
-                className="min-h-[42px] px-4 py-2 bg-gradient-to-r from-[#0A006E] via-[#15099C] to-[#2315C4] hover:from-[#060046] hover:to-[#2C1ED8] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-sm shadow-[#0A006E]/20 transition"
+                className="min-h-[48px] w-full xl:w-auto xl:flex-1 px-4 sm:px-5 py-2.5 bg-gradient-to-r from-[#0A006E] via-[#15099C] to-[#2315C4] hover:from-[#060046] hover:to-[#2C1ED8] text-[#FFDE00] rounded-xl text-xs sm:text-sm font-montserrat font-black flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap shadow-sm shadow-[#0A006E]/20 transition"
               >
-                <Plus className="w-4 h-4 stroke-[2.5]" />
-                {isAddProductOpen ? 'Close Form' : 'Add Product'}
+                <Plus className="w-4 h-4 stroke-[2.5] shrink-0" />
+                <span>{isAddProductOpen ? 'Close Form' : 'Add Product'}</span>
               </button>
             )}
             {onOpenOnboardItems && (
               <button
                 type="button"
                 onClick={onOpenOnboardItems}
-                className="min-h-[42px] px-4 py-2 bg-gradient-to-r from-[#FFDE00] via-amber-300 to-amber-400 hover:from-amber-300 hover:to-amber-500 border border-amber-400 text-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-sm shadow-amber-500/20 transition"
+                className="min-h-[48px] w-full xl:w-auto xl:flex-1 px-4 sm:px-5 py-2.5 bg-gradient-to-r from-[#FFDE00] via-amber-300 to-amber-400 hover:from-amber-300 hover:to-amber-500 border border-amber-400 text-[#0A006E] rounded-xl text-xs sm:text-sm font-montserrat font-black flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap shadow-sm shadow-amber-500/20 transition"
               >
-                <Barcode className="w-4 h-4 stroke-[2.4]" />
-                Onboard Items
+                <Barcode className="w-4 h-4 stroke-[2.4] shrink-0" />
+                <span>Onboard Items</span>
               </button>
             )}
             {canEditProduct && (
               <button
                 type="button"
                 onClick={() => setIsCsvModalOpen(true)}
-                className="min-h-[42px] px-4 py-2 bg-gradient-to-r from-[#11643C] via-[#1E9E60] to-[#28B873] hover:from-[#0C4F2F] hover:to-[#34D186] text-white rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-sm shadow-emerald-700/20 transition"
+                className="min-h-[48px] w-full xl:w-auto xl:flex-1 px-4 sm:px-5 py-2.5 bg-gradient-to-r from-[#0F5A36] via-[#157A49] to-[#1B8F56] hover:from-[#0B472A] hover:to-[#20A363] text-white rounded-xl text-xs sm:text-sm font-montserrat font-black flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap shadow-sm shadow-emerald-800/20 transition"
               >
-                <Upload className="w-4 h-4 stroke-[2.3]" />
-                CSV Import
+                <Upload className="w-4 h-4 stroke-[2.3] shrink-0" />
+                <span>CSV Import</span>
               </button>
             )}
             <button
               type="button"
               onClick={handleRunDuplicateCheck}
-              className="min-h-[40px] px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+              className="min-h-[48px] w-full xl:w-auto xl:flex-1 px-4 sm:px-5 py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-300 text-slate-800 rounded-xl text-xs sm:text-sm font-montserrat font-bold flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap transition"
             >
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-              Duplicates
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>Duplicates</span>
             </button>
             <button
               type="button"
               onClick={handleExportInventoryPDF}
-              className="min-h-[40px] px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+              className="min-h-[48px] w-full xl:w-auto xl:min-w-[104px] px-4 sm:px-5 py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-300 text-slate-800 rounded-xl text-xs sm:text-sm font-montserrat font-bold flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap transition"
               title="Export PDF Report"
             >
-              <Download className="w-3.5 h-3.5" />
-              PDF
+              <Download className="w-4 h-4 shrink-0" />
+              <span>PDF</span>
             </button>
             <button
               type="button"
               onClick={handleExportInventoryCSV}
-              className="min-h-[40px] px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+              className="min-h-[48px] w-full xl:w-auto xl:min-w-[104px] px-4 sm:px-5 py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-300 text-slate-800 rounded-xl text-xs sm:text-sm font-montserrat font-bold flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap transition"
               title="Export CSV"
             >
-              <Download className="w-3.5 h-3.5" />
-              CSV
+              <Download className="w-4 h-4 shrink-0" />
+              <span>CSV</span>
             </button>
             {onWipeAllProducts && (
-              <div className="relative">
+              <div className="relative col-span-2 sm:col-span-1 w-full xl:w-auto xl:flex-1">
                 <button
                   type="button"
                   onClick={() => setShowAdminMenu((v) => !v)}
-                  className="min-h-[40px] px-3 py-2 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                  className="min-h-[48px] w-full px-4 sm:px-5 py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-800 rounded-xl text-xs sm:text-sm font-montserrat font-bold flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap transition"
                 >
-                  <Sliders className="w-3.5 h-3.5" />
-                  Admin Tools
-                  <ChevronDown className="w-3 h-3" />
+                  <Sliders className="w-4 h-4 shrink-0" />
+                  <span>Admin Tools</span>
+                  <ChevronDown className="w-4 h-4 shrink-0" />
                 </button>
                 {showAdminMenu && (
                   <div className="absolute right-0 mt-1.5 w-56 bg-white border border-slate-200 rounded-xl shadow-xl z-40 py-1.5 text-xs">

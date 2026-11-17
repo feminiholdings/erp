@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   DollarSign,
   TrendingUp,
@@ -42,7 +43,7 @@ import {
   ChequeStatus,
   ChequeDetails,
 } from '../types';
-import { formatKes, exportReportToPDF, exportToCSV, calculateGeoPrice } from '../erpUtils';
+import { formatKes, exportReportToPDF, exportToCSV, calculateGeoPrice, getDocumentCreationRecord } from '../erpUtils';
 import { BarGraph, PieChart as AnalyticsPieChart } from './common/AnalyticsCharts';
 import { KraReturnsPanel } from './KraReturnsExportModal';
 import { KraReturnScheduleType } from '../utils/kraReturnsExport';
@@ -1502,11 +1503,16 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
 
       {/* CLEAN 4-CARD FINANCIAL KPI ROW */}
       {isWidgetVisible('kpi_strip') && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+          className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3"
+        >
           {isKpiVisible('net_revenue') && (
             <div
               onClick={() => setActiveTab('sales')}
-              className="bg-white border border-slate-200 hover:border-[#0A006E] rounded-xl p-3.5 transition cursor-pointer"
+              className="beta-kpi-card rounded-xl p-3.5 cursor-pointer"
             >
               <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
                 Net Revenue
@@ -1523,7 +1529,7 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
           {isKpiVisible('expenses') && (
             <div
               onClick={() => setActiveTab('expenses')}
-              className="bg-white border border-slate-200 hover:border-rose-400 rounded-xl p-3.5 transition cursor-pointer"
+              className="beta-kpi-card rounded-xl p-3.5 cursor-pointer"
             >
               <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
                 Total Expenses
@@ -1538,7 +1544,7 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
           )}
 
           {isKpiVisible('net_profit') && (
-            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+            <div className="beta-kpi-card rounded-xl p-3.5">
               <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
                 {financialSummary.netProfit < 0 ? 'Net Deficit' : 'Net Profit'}
               </div>
@@ -1558,7 +1564,7 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
           {isKpiVisible('pending_ar') && (
             <div
               onClick={() => setActiveTab('cheques')}
-              className="bg-white border border-slate-200 hover:border-amber-400 rounded-xl p-3.5 transition cursor-pointer"
+              className="beta-kpi-card rounded-xl p-3.5 cursor-pointer"
             >
               <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
                 Pending Cheques &amp; A/R
@@ -1575,7 +1581,7 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
           {isKpiVisible('stock_asset') && (
             <div
               onClick={() => setActiveTab('stock')}
-              className="bg-white border border-slate-200 hover:border-emerald-400 rounded-xl p-3.5 transition cursor-pointer"
+              className="beta-kpi-card rounded-xl p-3.5 cursor-pointer"
             >
               <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
                 Stock Valuation
@@ -1588,7 +1594,7 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
               </div>
             </div>
           )}
-        </div>
+        </motion.div>
       )}
 
       {/* CLEAN FINANCE NAVIGATION TABS */}
@@ -1596,97 +1602,160 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
         <button
           type="button"
           onClick={() => setActiveTab('summary')}
-          className={`px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+          className={`beta-action-tile relative px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
             activeTab === 'summary'
-              ? 'bg-[#0A006E] text-[#FFDE00]'
+              ? 'text-[#FFDE00]'
               : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
           }`}
         >
-          <BarChart3 className="w-3.5 h-3.5" />
-          Overview
+          {activeTab === 'summary' && (
+            <motion.span
+              layoutId="accountant-tab-pill"
+              transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+              className="absolute inset-0 bg-[#0A006E] rounded-lg"
+            />
+          )}
+          <span className="relative z-10 flex items-center gap-1.5">
+            <BarChart3 className="w-3.5 h-3.5" />
+            Overview
+          </span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('cheques')}
-          className={`px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+          className={`beta-action-tile relative px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
             activeTab === 'cheques'
-              ? 'bg-[#0A006E] text-[#FFDE00]'
+              ? 'text-[#FFDE00]'
               : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
           }`}
         >
-          <FileCheck2 className="w-3.5 h-3.5" />
-          Cheques &amp; POs ({chequeStats.allChequeDocs.length})
-          {chequeStats.processingDocs.length > 0 && (
-            <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-[#0A006E]">
-              {chequeStats.processingDocs.length}
-            </span>
+          {activeTab === 'cheques' && (
+            <motion.span
+              layoutId="accountant-tab-pill"
+              transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+              className="absolute inset-0 bg-[#0A006E] rounded-lg"
+            />
           )}
+          <span className="relative z-10 flex items-center gap-1.5">
+            <FileCheck2 className="w-3.5 h-3.5" />
+            Cheques &amp; POs ({chequeStats.allChequeDocs.length})
+            {chequeStats.processingDocs.length > 0 && (
+              <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-[#0A006E]">
+                {chequeStats.processingDocs.length}
+              </span>
+            )}
+          </span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('expenses')}
-          className={`px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+          className={`beta-action-tile relative px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
             activeTab === 'expenses'
-              ? 'bg-[#0A006E] text-[#FFDE00]'
+              ? 'text-[#FFDE00]'
               : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
           }`}
         >
-          <Wallet className="w-3.5 h-3.5" />
-          Expenses ({filteredExpenses.length})
+          {activeTab === 'expenses' && (
+            <motion.span
+              layoutId="accountant-tab-pill"
+              transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+              className="absolute inset-0 bg-[#0A006E] rounded-lg"
+            />
+          )}
+          <span className="relative z-10 flex items-center gap-1.5">
+            <Wallet className="w-3.5 h-3.5" />
+            Expenses ({filteredExpenses.length})
+          </span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('sales')}
-          className={`px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+          className={`beta-action-tile relative px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
             activeTab === 'sales'
-              ? 'bg-[#0A006E] text-[#FFDE00]'
+              ? 'text-[#FFDE00]'
               : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
           }`}
         >
-          <DollarSign className="w-3.5 h-3.5" />
-          Sales &amp; Tenders
+          {activeTab === 'sales' && (
+            <motion.span
+              layoutId="accountant-tab-pill"
+              transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+              className="absolute inset-0 bg-[#0A006E] rounded-lg"
+            />
+          )}
+          <span className="relative z-10 flex items-center gap-1.5">
+            <DollarSign className="w-3.5 h-3.5" />
+            Sales &amp; Tenders
+          </span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('stock')}
-          className={`px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+          className={`beta-action-tile relative px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
             activeTab === 'stock'
-              ? 'bg-[#0A006E] text-[#FFDE00]'
+              ? 'text-[#FFDE00]'
               : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
           }`}
         >
-          <Package className="w-3.5 h-3.5" />
-          Stock Valuation
+          {activeTab === 'stock' && (
+            <motion.span
+              layoutId="accountant-tab-pill"
+              transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+              className="absolute inset-0 bg-[#0A006E] rounded-lg"
+            />
+          )}
+          <span className="relative z-10 flex items-center gap-1.5">
+            <Package className="w-3.5 h-3.5" />
+            Stock Valuation
+          </span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('deadstock_damages')}
-          className={`px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+          className={`beta-action-tile relative px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
             activeTab === 'deadstock_damages'
-              ? 'bg-[#0A006E] text-[#FFDE00]'
+              ? 'text-[#FFDE00]'
               : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
           }`}
         >
-          <PackageX className="w-3.5 h-3.5" />
-          Write-Offs
+          {activeTab === 'deadstock_damages' && (
+            <motion.span
+              layoutId="accountant-tab-pill"
+              transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+              className="absolute inset-0 bg-[#0A006E] rounded-lg"
+            />
+          )}
+          <span className="relative z-10 flex items-center gap-1.5">
+            <PackageX className="w-3.5 h-3.5" />
+            Write-Offs
+          </span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('tax_credit')}
-          className={`px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+          className={`beta-action-tile relative px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
             activeTab === 'tax_credit'
-              ? 'bg-[#0A006E] text-[#FFDE00]'
+              ? 'text-[#FFDE00]'
               : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
           }`}
         >
-          <ShieldAlert className="w-3.5 h-3.5" />
-          KRA Tax &amp; A/R
+          {activeTab === 'tax_credit' && (
+            <motion.span
+              layoutId="accountant-tab-pill"
+              transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+              className="absolute inset-0 bg-[#0A006E] rounded-lg"
+            />
+          )}
+          <span className="relative z-10 flex items-center gap-1.5">
+            <ShieldAlert className="w-3.5 h-3.5" />
+            KRA Tax &amp; A/R
+          </span>
         </button>
       </div>
 
@@ -1902,16 +1971,25 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
                         <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-montserrat">
                           <th className="py-2 px-3 font-bold">Doc #</th>
                           <th className="py-2 px-3 font-bold">Customer</th>
+                          <th className="py-2 px-3 font-bold">Created By · Day &amp; Time</th>
                           <th className="py-2 px-3 font-bold">Status</th>
                           <th className="py-2 px-3 font-bold text-right">Amount</th>
                           <th className="py-2 px-3 font-bold text-right">Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {filteredTransactions.slice(0, 8).map((t) => (
+                        {filteredTransactions.slice(0, 8).map((t) => {
+                          const creationRec = getDocumentCreationRecord(t);
+                          return (
                           <tr key={t.id} className="hover:bg-slate-50">
                             <td className="py-2 px-3 font-mono-tabular font-bold text-[#0A006E]">{t.docNumber}</td>
                             <td className="py-2 px-3 text-slate-800">{t.customerName}</td>
+                            <td className="py-2 px-3 whitespace-nowrap">
+                              <div className="font-semibold text-slate-900">{creationRec.createdBy}</div>
+                              <div className="text-[10px] font-mono-tabular text-slate-500">
+                                {creationRec.createdDay} · {creationRec.createdTime}
+                              </div>
+                            </td>
                             <td className="py-2 px-3 text-slate-600">{t.status}</td>
                             <td className="py-2 px-3 text-right font-mono-tabular font-bold">{formatKes(t.totalAmount)}</td>
                             <td className="py-2 px-3 text-right">
@@ -1924,7 +2002,8 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
                               </button>
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -2072,6 +2151,7 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
                   tx.status === 'Paid' || tx.status === 'Rejected' || tx.status === 'Processing'
                     ? tx.status
                     : tx.chequeDetails?.status || 'Processing';
+                const creationRec = getDocumentCreationRecord(tx);
                 return (
                   <div key={tx.id} className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-2.5 text-xs">
                     <div className="flex items-start justify-between gap-2">
@@ -2080,6 +2160,9 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
                           {tx.docNumber} · <span className="text-slate-600">{tx.docType}</span>
                         </div>
                         <div className="font-montserrat font-bold text-slate-900">{tx.customerName}</div>
+                        <div className="text-[10px] font-mono-tabular text-slate-500 mt-0.5">
+                          By {creationRec.createdBy} · {creationRec.createdDay} · {creationRec.createdTime}
+                        </div>
                       </div>
                       <span
                         className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
@@ -2223,6 +2306,7 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
                       tx.status === 'Paid' || tx.status === 'Rejected' || tx.status === 'Processing'
                         ? tx.status
                         : tx.chequeDetails?.status || 'Processing';
+                    const creationRec = getDocumentCreationRecord(tx);
                     return (
                       <React.Fragment key={tx.id}>
                         <tr className="hover:bg-slate-50">
@@ -2240,6 +2324,9 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
                           <td className="py-2.5 px-3">
                             <div className="font-bold text-slate-900">{tx.customerName}</div>
                             <div className="text-[10px] text-slate-500">{tx.branchName}</div>
+                            <div className="text-[10px] font-mono-tabular text-slate-600 mt-0.5">
+                              By {creationRec.createdBy} · {creationRec.createdDay} · {creationRec.createdTime}
+                            </div>
                           </td>
                           <td className="py-2.5 px-3">
                             {tx.chequeDetails ? (

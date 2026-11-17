@@ -1284,11 +1284,11 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
       className={
         isFullWorkspace
           ? 'fixed inset-0 z-50 bg-slate-100 flex flex-col p-2.5 sm:p-5 pb-4 overflow-hidden animate-in fade-in duration-150'
-          : 'h-full flex-1 flex flex-col min-h-0 space-y-2.5 sm:space-y-3'
+          : 'h-full w-full max-w-full min-w-0 flex-1 flex flex-col min-h-0 overflow-hidden space-y-2'
       }
     >
       {/* Top Workspace Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-200 shrink-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1.5 border-b border-slate-200 shrink-0 min-w-0">
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 border-2 border-[#FFDE00]/40 shadow-xs">
             <Inbox className="w-4.5 h-4.5 sm:w-5 sm:h-5 stroke-[2.3]" />
@@ -1305,7 +1305,7 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
                 Full Preview
               </span>
             </div>
-            <p className="hidden sm:block text-[11px] text-slate-600 font-medium">
+            <p className="hidden sm:block text-[11px] text-slate-600 font-medium truncate">
               Inter-department staff communication, live invoice transfers &amp; targeted stock requests.
             </p>
           </div>
@@ -1351,16 +1351,16 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
         </div>
       </div>
 
-      {/* Main Split Inbox Shell - Takes full available height without nested iframe constraints */}
-      <div className="border border-slate-200 rounded-2xl bg-white overflow-hidden grid grid-cols-1 lg:grid-cols-12 flex-1 min-h-0 shadow-xs">
+      {/* Main Split Inbox Shell - Constrained cleanly inside body section */}
+      <div className="w-full max-w-full min-w-0 border border-slate-200 rounded-2xl bg-white overflow-hidden grid grid-cols-1 lg:grid-cols-[270px_minmax(0,1fr)] xl:grid-cols-[310px_minmax(0,1fr)] flex-1 min-h-0 shadow-xs">
         {/* LEFT PANE: Department Channels & Direct People Directory */}
         <aside
-          className={`lg:col-span-4 xl:col-span-4 border-r border-slate-200 bg-slate-50/70 flex flex-col min-h-0 ${
+          className={`lg:border-r border-slate-200 bg-slate-50/70 flex flex-col min-h-0 min-w-0 overflow-hidden ${
             mobileShowConversation ? 'hidden lg:flex' : 'flex'
           }`}
         >
           {/* Search & Segmented Filter */}
-          <div className="p-3.5 bg-white border-b border-slate-200 space-y-2.5 shrink-0">
+          <div className="p-3 sm:p-3.5 bg-white border-b border-slate-200 space-y-2.5 shrink-0 min-w-0">
             <div className="relative">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -1368,11 +1368,11 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
                 value={sidebarSearch}
                 onChange={(e) => setSidebarSearch(e.target.value)}
                 placeholder="Search department or staff name..."
-                className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#0A006E] focus:bg-white text-xs font-montserrat font-semibold text-slate-900 outline-none transition"
+                className="w-full min-w-0 pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#0A006E] focus:bg-white text-xs font-montserrat font-semibold text-slate-900 outline-none transition"
               />
             </div>
 
-            <div className="grid grid-cols-4 gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200">
+            <div className="grid grid-cols-4 gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200 min-w-0">
               {(
                 [
                   { id: 'all', label: 'All' },
@@ -1385,7 +1385,7 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
                   key={tab.id}
                   type="button"
                   onClick={() => setSidebarTab(tab.id)}
-                  className={`py-1.5 px-2 rounded-lg text-[11px] font-montserrat font-bold transition cursor-pointer text-center ${
+                  className={`py-1.5 px-1 sm:px-2 rounded-lg text-[11px] font-montserrat font-bold transition cursor-pointer text-center truncate ${
                     sidebarTab === tab.id
                       ? 'bg-[#0A006E] text-[#FFDE00]'
                       : 'text-slate-600 hover:text-slate-900'
@@ -1398,7 +1398,7 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
           </div>
 
           {/* Thread List */}
-          <div className="flex-1 overflow-y-auto divide-y divide-slate-200/70">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden divide-y divide-slate-200/70 min-w-0">
             {/* Department Channels Section */}
             {visibleChannels.length > 0 && (
               <div className="py-2">
@@ -1612,13 +1612,13 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
 
         {/* RIGHT PANE: Active Conversation & Transfer Action Stream */}
         <section
-          className={`lg:col-span-8 xl:col-span-8 flex flex-col min-h-0 bg-white ${
+          className={`flex flex-col min-h-0 min-w-0 w-full overflow-hidden bg-white ${
             !mobileShowConversation ? 'hidden lg:flex' : 'flex'
           }`}
         >
           {/* App-Style Mobile & Desktop Conversation Header */}
-          <div className="sticky top-0 z-20 px-3.5 py-2.5 border-b border-slate-200 bg-white/95 backdrop-blur-md flex items-center justify-between gap-2 shrink-0 shadow-2xs">
-            <div className="flex items-center gap-2.5 min-w-0">
+          <div className="sticky top-0 z-20 px-3 sm:px-3.5 py-2.5 border-b border-slate-200 bg-white/95 backdrop-blur-md flex items-center justify-between gap-2 shrink-0 min-w-0 shadow-2xs">
+            <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
               <button
                 type="button"
                 onClick={() => setMobileShowConversation(false)}
@@ -1642,8 +1642,8 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
                 )}
               </div>
 
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                   <h2 className="font-montserrat font-black text-sm text-slate-900 truncate">
                     {activeChannelDef
                       ? activeChannelDef.name
@@ -1701,21 +1701,21 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
                 <ArrowRightLeft className="w-4 h-4 stroke-[2.2]" />
               </button>
 
-              <div className="relative hidden sm:block">
+              <div className="relative hidden xl:block">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={threadSearch}
                   onChange={(e) => setThreadSearch(e.target.value)}
                   placeholder="Filter messages..."
-                  className="w-32 lg:w-40 pl-8 pr-2 py-1.5 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#0A006E] text-[11px] font-montserrat text-slate-800 outline-none"
+                  className="w-36 pl-8 pr-2 py-1.5 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#0A006E] text-[11px] font-montserrat text-slate-800 outline-none"
                 />
               </div>
             </div>
           </div>
 
           {/* Message Stream */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/40">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 p-3 sm:p-4 space-y-3.5 bg-slate-50/40">
             {displayedMessages.length === 0 ? (
               <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-center p-6">
                 <div className="w-12 h-12 rounded-2xl bg-[#0A006E]/10 text-[#0A006E] flex items-center justify-center mb-3">
@@ -1775,10 +1775,10 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
                 return (
                   <div
                     key={msg.id}
-                    className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}
+                    className={`w-full min-w-0 flex flex-col ${isMine ? 'items-end' : 'items-start'}`}
                   >
                     {/* Sender & Timestamp Meta */}
-                    <div className="flex items-center gap-2 px-1 mb-1 text-[11px]">
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 px-1 mb-1 text-[11px] max-w-full">
                       <span className="font-montserrat font-black text-slate-800">
                         {isMine ? 'You' : msg.senderName}
                       </span>
@@ -1805,12 +1805,12 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
 
                     {/* Message Body / Interactive Card */}
                     <div
-                      className={`max-w-full sm:max-w-[86%] rounded-2xl border p-3.5 space-y-2.5 ${
+                      className={`min-w-0 overflow-hidden rounded-2xl border p-3 sm:p-3.5 space-y-2.5 [overflow-wrap:anywhere] ${
                         msg.messageType !== 'TEXT'
-                          ? 'bg-white border-slate-300 w-full sm:w-[540px]'
+                          ? 'bg-white border-slate-300 w-full max-w-[480px]'
                           : isMine
-                            ? 'bg-[#0A006E] text-white border-[#0A006E]'
-                            : 'bg-white text-slate-900 border-slate-200'
+                            ? 'max-w-[92%] sm:max-w-[84%] bg-[#0A006E] text-white border-[#0A006E]'
+                            : 'max-w-[92%] sm:max-w-[84%] bg-white text-slate-900 border-slate-200'
                       }`}
                     >
                       {/* 1. INVOICE TRANSFER INTERACTIVE CARD */}
@@ -2238,11 +2238,11 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
           {/* App-Style Composer Footer */}
           <form
             onSubmit={handleSendText}
-            className="sticky bottom-0 z-20 p-2.5 sm:p-3 border-t border-slate-200 bg-white/95 backdrop-blur-md space-y-2 shrink-0 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]"
+            className="sticky bottom-0 z-20 p-2.5 sm:p-3 border-t border-slate-200 bg-white/95 backdrop-blur-md space-y-2 shrink-0 min-w-0 w-full shadow-[0_-4px_12px_rgba(0,0,0,0.05)]"
           >
             {/* Quick Attachment Pills */}
-            <div className="flex flex-wrap items-center justify-between gap-1.5 px-0.5">
-              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
+            <div className="flex flex-wrap items-center justify-between gap-1.5 px-0.5 min-w-0">
+              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5 min-w-0 flex-1">
                 <button
                   type="button"
                   onClick={openInvoiceTransferModal}
@@ -2267,7 +2267,7 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
                     value={taggedStaffId}
                     onChange={(e) => setTaggedStaffId(e.target.value)}
                     aria-label="Direct to specific person in channel"
-                    className="px-2 py-1 rounded-full bg-slate-100 border border-slate-200 text-[11px] font-montserrat font-semibold text-slate-700 outline-none focus:border-[#0A006E] shrink-0 max-w-[165px]"
+                    className="px-2 py-1 rounded-full bg-slate-100 border border-slate-200 text-[11px] font-montserrat font-semibold text-slate-700 outline-none focus:border-[#0A006E] shrink-0 max-w-[155px]"
                   >
                     <option value="">@ Everyone</option>
                     {activeColleagues.map((s) => (
@@ -2294,7 +2294,7 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
             </div>
 
             {/* Pill Text Input + Circular Send Button */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0 w-full">
               <input
                 type="text"
                 value={messageText}
@@ -2315,7 +2315,7 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
                     ? `Message ${activeDirectPeer.name}...`
                     : `Write to ${activeChannelDef?.shortLabel || 'department'}...`
                 }
-                className="flex-1 rounded-full bg-slate-100 focus:bg-white border-2 border-slate-200 focus:border-[#0A006E] px-4 py-2.5 text-xs sm:text-sm font-montserrat text-slate-900 outline-none transition shadow-2xs"
+                className="min-w-0 flex-1 rounded-full bg-slate-100 focus:bg-white border-2 border-slate-200 focus:border-[#0A006E] px-4 py-2.5 text-xs sm:text-sm font-montserrat text-slate-900 outline-none transition shadow-2xs"
               />
               <button
                 type="submit"

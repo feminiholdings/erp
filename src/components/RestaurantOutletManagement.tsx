@@ -29,6 +29,7 @@ import {
   Cigarette,
   Warehouse,
   ShoppingBag,
+  ChevronRight,
 } from 'lucide-react';
 import {
   BusinessUnit,
@@ -591,127 +592,218 @@ export const RestaurantOutletManagement: React.FC<RestaurantOutletManagementProp
   };
 
   return (
-    <div className="space-y-6">
-      {/* 1. Header Banner & Outlets Overview */}
-      <div className="bg-[#0A006E] text-white border-2 border-[#FFDE00] rounded-2xl p-5 sm:p-6 relative overflow-hidden shadow-xl">
-        <div className="silent-scanner-beam" />
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 relative z-10">
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black font-montserrat uppercase tracking-wider bg-[#FFDE00] text-[#0A006E]">
-                Commercial Outlets &amp; Hospitality Division
-              </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-[#FFDE00] border border-white/20">
-                Multi-Branch Sub-Businesses
-              </span>
+    <div className="space-y-4">
+      {/* 1. Compact Header & Summary Strip */}
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div className="px-4 py-3.5 sm:px-5 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-xs font-montserrat font-semibold text-slate-500">
+              Commercial Outlets <span aria-hidden="true">·</span> <span className="text-[#0A006E]">Sub-Businesses</span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-montserrat font-black italic text-white mt-2">
-              Branch Outlets, Restaurant/Club Menus &amp; Merchant Shops
+            <h2 className="text-lg sm:text-xl font-montserrat font-bold text-slate-900 mt-0.5 tracking-tight">
+              Outlets, Menus &amp; Merchant Shops
             </h2>
-            <p className="text-xs text-white/80 max-w-2xl mt-1">
-              Create sub-businesses under any branch (e.g., a Restaurant/Club that sells food or a Merchant Liquor Supermarket). Run separate kitchen inventories with custom categories, set your own food pricing, and enable live liquor, cigar (&quot;sigger&quot;), and shisha topups in POS.
-            </p>
           </div>
-
-          <div className="flex items-center gap-3 shrink-0 flex-wrap">
-            <button
-              type="button"
-              onClick={() => setIsCreateOutletModalOpen(true)}
-              className="px-4 py-2.5 bg-[#FFDE00] hover:bg-amber-400 active:bg-amber-500 text-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-2 cursor-pointer shadow-md transition active:scale-95 whitespace-nowrap"
-            >
-              <Plus className="w-4 h-4 stroke-[3]" />
-              <span>Create Sub-Business Under Branch</span>
-            </button>
-          </div>
+          {activeBusinessUnit && (
+            <div className="text-xs font-montserrat font-semibold text-slate-600 truncate">
+              Selected: <span className="text-[#0A006E] font-bold">{activeBusinessUnit.name}</span>
+            </div>
+          )}
         </div>
 
-        {/* Global Outlets Metric Bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-5 mt-5 border-t border-white/15 text-white relative z-10">
-          <div>
-            <div className="text-[11px] text-white/70 font-montserrat font-bold">Total Facilities &amp; Outlets</div>
-            <div className="text-xl sm:text-2xl font-black font-montserrat text-[#FFDE00] mt-0.5">
+        <div className="grid grid-cols-2 sm:grid-cols-5 border-t border-slate-100 divide-y sm:divide-y-0 sm:divide-x divide-slate-100 bg-slate-50/50">
+          <div className="px-4 py-2.5">
+            <div className="text-[11px] text-slate-500 font-medium">Total Outlets</div>
+            <div className="text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular">
               {businessUnits.length}
             </div>
           </div>
-          <div>
-            <div className="text-[11px] text-white/70 font-montserrat font-bold">Stores &amp; Supermarkets</div>
-            <div className="text-xl sm:text-2xl font-black font-montserrat text-emerald-300 mt-0.5">
+          <div className="px-4 py-2.5">
+            <div className="text-[11px] text-slate-500 font-medium">Stores</div>
+            <div className="text-lg font-montserrat font-black text-slate-900 font-mono-tabular">
               {businessUnits.filter((u) => u.unitType === 'store' || u.unitType === 'retail_store').length}
             </div>
           </div>
-          <div>
-            <div className="text-[11px] text-white/70 font-montserrat font-bold">Retail Shops</div>
-            <div className="text-xl sm:text-2xl font-black font-montserrat text-purple-300 mt-0.5">
+          <div className="px-4 py-2.5">
+            <div className="text-[11px] text-slate-500 font-medium">Retail Shops</div>
+            <div className="text-lg font-montserrat font-black text-slate-900 font-mono-tabular">
               {businessUnits.filter((u) => u.unitType === 'shop' || u.unitType === 'merchant_shop').length}
             </div>
           </div>
-          <div>
-            <div className="text-[11px] text-white/70 font-montserrat font-bold">Bonded Warehouses</div>
-            <div className="text-xl sm:text-2xl font-black font-montserrat text-blue-300 mt-0.5">
+          <div className="px-4 py-2.5">
+            <div className="text-[11px] text-slate-500 font-medium">Warehouses</div>
+            <div className="text-lg font-montserrat font-black text-slate-900 font-mono-tabular">
               {businessUnits.filter((u) => u.unitType === 'warehouse').length}
             </div>
           </div>
-          <div>
-            <div className="text-[11px] text-white/70 font-montserrat font-bold">Hospitality &amp; Clubs</div>
-            <div className="text-xl sm:text-2xl font-black font-montserrat text-amber-300 mt-0.5">
+          <div className="px-4 py-2.5 col-span-2 sm:col-span-1">
+            <div className="text-[11px] text-slate-500 font-medium">Hospitality &amp; Clubs</div>
+            <div className="text-lg font-montserrat font-black text-slate-900 font-mono-tabular">
               {businessUnits.filter((u) => u.unitType === 'restaurant_club' || u.unitType === 'bar_lounge').length}
             </div>
           </div>
         </div>
       </div>
 
-      {/* 2. Main Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b-2 border-slate-200 pb-2 overflow-x-auto">
+      {/* Prominent Inventory-Style Gradient Quick Access Action Buttons */}
+      <div
+        className={`grid grid-cols-1 sm:grid-cols-2 ${
+          activeBusinessUnit && onNavigateToPos
+            ? 'xl:grid-cols-4'
+            : activeBusinessUnit || onNavigateToPos
+            ? 'xl:grid-cols-3'
+            : 'sm:grid-cols-2'
+        } gap-3.5`}
+      >
+        <button
+          type="button"
+          onClick={() => handleOpenCreateOutletModal('restaurant_club')}
+          className="group min-h-[72px] sm:min-h-[78px] w-full px-5 py-4 rounded-2xl bg-gradient-to-r from-[#0A006E] via-[#15099C] to-[#2518CC] hover:from-[#070052] hover:to-[#2E20E0] text-white border border-[#FFDE00]/35 shadow-lg shadow-[#0A006E]/20 flex items-center justify-between gap-4 cursor-pointer transition-all hover:-translate-y-0.5 active:scale-[0.99] text-left"
+        >
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#FFDE00] to-amber-400 text-[#0A006E] flex items-center justify-center shrink-0 shadow-md group-hover:scale-105 transition-transform">
+              <Plus className="w-6 h-6 stroke-[2.6]" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-base sm:text-lg font-montserrat font-black tracking-tight text-white leading-tight truncate">
+                New Restaurant / Club
+              </div>
+              <div className="text-xs font-montserrat font-medium text-indigo-100/90 mt-0.5 truncate">
+                Kitchen, bar &amp; lounge
+              </div>
+            </div>
+          </div>
+          <div className="w-9 h-9 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0 group-hover:translate-x-0.5 transition-transform">
+            <ChevronRight className="w-5 h-5 text-[#FFDE00] stroke-[2.5]" />
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleOpenCreateOutletModal('store')}
+          className="group min-h-[72px] sm:min-h-[78px] w-full px-5 py-4 rounded-2xl bg-gradient-to-r from-[#0C5E37] via-[#157E4C] to-[#21A165] hover:from-[#094A2B] hover:to-[#27B874] text-white border border-emerald-300/35 shadow-lg shadow-emerald-900/20 flex items-center justify-between gap-4 cursor-pointer transition-all hover:-translate-y-0.5 active:scale-[0.99] text-left"
+        >
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-white/25 to-white/10 text-white border border-white/25 flex items-center justify-center shrink-0 shadow-md group-hover:scale-105 transition-transform">
+              <Store className="w-6 h-6 stroke-[2.3]" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-base sm:text-lg font-montserrat font-black tracking-tight text-white leading-tight truncate">
+                New Store / Shop
+              </div>
+              <div className="text-xs font-montserrat font-medium text-emerald-50/90 mt-0.5 truncate">
+                Retail counter or depot
+              </div>
+            </div>
+          </div>
+          <div className="w-9 h-9 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0 group-hover:translate-x-0.5 transition-transform">
+            <ChevronRight className="w-5 h-5 text-white stroke-[2.5]" />
+          </div>
+        </button>
+
+        {activeBusinessUnit && (
+          <button
+            type="button"
+            onClick={handleOpenAddItemModal}
+            className="group min-h-[72px] sm:min-h-[78px] w-full px-5 py-4 rounded-2xl bg-gradient-to-r from-[#FFDE00] via-amber-300 to-amber-400 hover:from-amber-300 hover:to-amber-500 text-[#0A006E] border border-amber-400 shadow-lg shadow-amber-500/20 flex items-center justify-between gap-4 cursor-pointer transition-all hover:-translate-y-0.5 active:scale-[0.99] text-left"
+          >
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#0A006E] to-[#1D10B3] text-[#FFDE00] flex items-center justify-center shrink-0 shadow-md group-hover:scale-105 transition-transform">
+                <ChefHat className="w-6 h-6 stroke-[2.3]" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-base sm:text-lg font-montserrat font-black tracking-tight text-[#0A006E] leading-tight truncate">
+                  Add Dish
+                </div>
+                <div className="text-xs font-montserrat font-semibold text-[#0A006E]/80 mt-0.5 truncate">
+                  Menu item &amp; price
+                </div>
+              </div>
+            </div>
+            <div className="w-9 h-9 rounded-xl bg-[#0A006E]/10 border border-[#0A006E]/15 flex items-center justify-center shrink-0 group-hover:translate-x-0.5 transition-transform">
+              <ChevronRight className="w-5 h-5 text-[#0A006E] stroke-[2.5]" />
+            </div>
+          </button>
+        )}
+
+        {onNavigateToPos && activeBusinessUnit && (
+          <button
+            type="button"
+            onClick={() => onNavigateToPos(activeBusinessUnit.id)}
+            className="group min-h-[72px] sm:min-h-[78px] w-full px-5 py-4 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-[#0A006E] hover:from-slate-800 hover:to-[#15099C] text-white border border-slate-700 shadow-lg shadow-slate-900/20 flex items-center justify-between gap-4 cursor-pointer transition-all hover:-translate-y-0.5 active:scale-[0.99] text-left"
+          >
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md group-hover:scale-105 transition-transform">
+                <ArrowRight className="w-6 h-6 stroke-[2.5]" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-base sm:text-lg font-montserrat font-black tracking-tight text-white leading-tight truncate">
+                  Open POS
+                </div>
+                <div className="text-xs font-montserrat font-medium text-slate-200 mt-0.5 truncate">
+                  Sell food &amp; topups
+                </div>
+              </div>
+            </div>
+            <div className="w-9 h-9 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0 group-hover:translate-x-0.5 transition-transform">
+              <ChevronRight className="w-5 h-5 text-[#FFDE00] stroke-[2.5]" />
+            </div>
+          </button>
+        )}
+      </div>
+
+      {/* 2. Quick Access Navigation Tabs */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         <button
           type="button"
           onClick={() => setActiveTab('outlets')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-montserrat font-black flex items-center gap-2 transition cursor-pointer whitespace-nowrap ${
+          className={`min-h-[54px] px-5 py-3.5 rounded-xl text-sm font-montserrat font-black flex items-center justify-center gap-2.5 transition cursor-pointer whitespace-nowrap ${
             activeTab === 'outlets'
-              ? 'bg-[#0A006E] text-[#FFDE00] shadow-md'
-              : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+              ? 'bg-[#0A006E] text-[#FFDE00] shadow-sm'
+              : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
           }`}
         >
-          <Building2 className="w-4 h-4 stroke-[2.2]" />
-          <span>1. Outlets Directory ({businessUnits.length})</span>
+          <Building2 className="w-5 h-5 shrink-0" />
+          <span>Outlets ({businessUnits.length})</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('food_menu')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-montserrat font-black flex items-center gap-2 transition cursor-pointer whitespace-nowrap ${
+          className={`min-h-[54px] px-5 py-3.5 rounded-xl text-sm font-montserrat font-black flex items-center justify-center gap-2.5 transition cursor-pointer whitespace-nowrap ${
             activeTab === 'food_menu'
-              ? 'bg-[#0A006E] text-[#FFDE00] shadow-md'
-              : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+              ? 'bg-[#0A006E] text-[#FFDE00] shadow-sm'
+              : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
           }`}
         >
-          <UtensilsCrossed className="w-4 h-4 stroke-[2.2]" />
-          <span>2. Food Categories &amp; Pricing</span>
+          <UtensilsCrossed className="w-5 h-5 shrink-0" />
+          <span>Menu &amp; Pricing</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('inventory')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-montserrat font-black flex items-center gap-2 transition cursor-pointer whitespace-nowrap ${
+          className={`min-h-[54px] px-5 py-3.5 rounded-xl text-sm font-montserrat font-black flex items-center justify-center gap-2.5 transition cursor-pointer whitespace-nowrap ${
             activeTab === 'inventory'
-              ? 'bg-[#0A006E] text-[#FFDE00] shadow-md'
-              : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+              ? 'bg-[#0A006E] text-[#FFDE00] shadow-sm'
+              : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
           }`}
         >
-          <Package className="w-4 h-4 stroke-[2.2]" />
-          <span>3. Separate Kitchen Inventory</span>
+          <Package className="w-5 h-5 shrink-0" />
+          <span>Kitchen Stock</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('topups')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-montserrat font-black flex items-center gap-2 transition cursor-pointer whitespace-nowrap ${
+          className={`min-h-[54px] px-5 py-3.5 rounded-xl text-sm font-montserrat font-black flex items-center justify-center gap-2.5 transition cursor-pointer whitespace-nowrap ${
             activeTab === 'topups'
-              ? 'bg-[#0A006E] text-[#FFDE00] shadow-md'
-              : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+              ? 'bg-[#0A006E] text-[#FFDE00] shadow-sm'
+              : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
           }`}
         >
-          <Flame className="w-4 h-4 stroke-[2.2]" />
-          <span>4. Club Topups (Liquor, Cigars, Shisha)</span>
+          <Flame className="w-5 h-5 shrink-0" />
+          <span>Club Topups</span>
         </button>
       </div>
 
@@ -719,15 +811,15 @@ export const RestaurantOutletManagement: React.FC<RestaurantOutletManagementProp
           TAB 1: OUTLETS DIRECTORY & CREATION
          ========================================================================= */}
       {activeTab === 'outlets' && (
-        <div className="space-y-5">
-          {/* Filter Bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+        <div className="space-y-4">
+          {/* Filter & Quick Create Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-slate-200">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-montserrat font-bold text-slate-600">Filter by Parent Branch:</span>
+              <span className="text-xs font-montserrat font-bold text-slate-600">Branch:</span>
               <select
                 value={selectedBranchFilter}
                 onChange={(e) => setSelectedBranchFilter(e.target.value)}
-                className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 cursor-pointer"
+                className="min-h-[46px] px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold text-slate-800 cursor-pointer"
               >
                 <option value="ALL">All Branches ({branches.length})</option>
                 {branches.map((b) => (
@@ -740,44 +832,39 @@ export const RestaurantOutletManagement: React.FC<RestaurantOutletManagementProp
 
             <button
               type="button"
-              onClick={handleOpenCreateOutletModal}
-              className="px-3.5 py-2 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+              onClick={() => handleOpenCreateOutletModal()}
+              className="min-h-[48px] px-5 py-2.5 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl text-sm font-montserrat font-black flex items-center justify-center gap-2 cursor-pointer transition"
             >
-              <Plus className="w-4 h-4 stroke-[3]" />
-              <span>New Branch Outlet</span>
+              <Plus className="w-5 h-5 stroke-[2.5]" />
+              <span>New Sub-Business</span>
             </button>
           </div>
 
           {/* Outlets Grid or Empty State */}
           {filteredUnits.length === 0 ? (
-            <div className="bg-white border-2 border-dashed border-slate-300 rounded-3xl p-8 sm:p-12 text-center space-y-5 shadow-xs">
-              <div className="w-16 h-16 rounded-2xl bg-amber-50 border-2 border-amber-200 text-amber-700 flex items-center justify-center mx-auto shadow-sm">
-                <UtensilsCrossed className="w-8 h-8 stroke-[2.2]" />
+            <div className="bg-white border border-dashed border-slate-300 rounded-xl p-8 text-center space-y-4">
+              <div className="w-12 h-12 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center mx-auto">
+                <UtensilsCrossed className="w-6 h-6" />
               </div>
-              <div className="max-w-md mx-auto space-y-2">
-                <h3 className="font-montserrat font-black text-lg sm:text-xl text-slate-900">
-                  No Outlets or Facilities Found
-                </h3>
-                <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
-                  All demo and mock hospitality records have been removed. You can now build your real operations by creating your first restaurant, bar lounge, or merchant shop.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+              <h3 className="font-montserrat font-bold text-base text-slate-900">
+                No Outlets Yet
+              </h3>
+              <div className="flex flex-wrap items-center justify-center gap-3">
                 <button
                   type="button"
                   onClick={() => handleOpenCreateOutletModal('restaurant_club')}
-                  className="px-5 py-2.5 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-2 cursor-pointer shadow-md transition active:scale-95"
+                  className="min-h-[52px] px-6 py-3 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl text-sm font-montserrat font-black flex items-center gap-2 cursor-pointer"
                 >
-                  <Plus className="w-4 h-4 stroke-[3]" />
-                  <span>Create Hospitality / Kitchen Outlet</span>
+                  <Plus className="w-5 h-5 stroke-[2.5]" />
+                  <span>Add Restaurant / Club</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleOpenCreateOutletModal('store')}
-                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer transition"
+                  className="min-h-[52px] px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-sm font-montserrat font-bold flex items-center gap-2 cursor-pointer"
                 >
-                  <Building2 className="w-4 h-4" />
-                  <span>Create Retail Store / Shop</span>
+                  <Building2 className="w-5 h-5" />
+                  <span>Add Store / Shop</span>
                 </button>
               </div>
             </div>
@@ -795,152 +882,103 @@ export const RestaurantOutletManagement: React.FC<RestaurantOutletManagementProp
               return (
                 <div
                   key={unit.id}
-                  className={`bg-white border-2 rounded-2xl p-5 space-y-4 shadow-sm hover:shadow-md transition-all flex flex-col justify-between ${
+                  className={`bg-white border rounded-xl p-4 space-y-3.5 flex flex-col justify-between transition ${
                     selectedUnitId === unit.id
-                      ? 'border-[#0A006E] ring-2 ring-[#0A006E]/20'
-                      : 'border-slate-200 hover:border-slate-400'
+                      ? 'border-[#0A006E] ring-1 ring-[#0A006E]/20'
+                      : 'border-slate-200 hover:border-slate-300'
                   }`}
                 >
                   <div className="space-y-3">
-                    {/* Header Pill & Status */}
-                    <div className="flex items-center justify-between gap-2">
-                      <span
-                        className={`px-2.5 py-1 rounded-xl text-[10px] font-black font-montserrat uppercase tracking-wider flex items-center gap-1.5 ${
-                          unit.unitType === 'warehouse'
-                            ? 'bg-blue-100 text-blue-900 border border-blue-300'
-                            : unit.unitType === 'store' || unit.unitType === 'retail_store'
-                            ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                            : unit.unitType === 'shop' || unit.unitType === 'merchant_shop'
-                            ? 'bg-purple-100 text-purple-900 border border-purple-300'
-                            : unit.unitType === 'restaurant_club'
-                            ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                            : 'bg-rose-100 text-rose-900 border border-rose-300'
-                        }`}
-                      >
-                        {unit.unitType === 'warehouse' && <Warehouse className="w-3.5 h-3.5 text-blue-700" />}
-                        {(unit.unitType === 'store' || unit.unitType === 'retail_store') && <Store className="w-3.5 h-3.5 text-emerald-700" />}
-                        {(unit.unitType === 'shop' || unit.unitType === 'merchant_shop') && <ShoppingBag className="w-3.5 h-3.5 text-purple-700" />}
-                        {unit.unitType === 'restaurant_club' && <UtensilsCrossed className="w-3.5 h-3.5 text-amber-700" />}
-                        {unit.unitType === 'bar_lounge' && <Wine className="w-3.5 h-3.5 text-rose-700" />}
+                    {/* Top Metadata & Quick Icon Actions */}
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-1.5 font-montserrat font-semibold text-slate-600 truncate">
                         <span>
                           {unit.unitType === 'warehouse'
-                            ? 'Bonded Warehouse'
+                            ? 'Warehouse'
                             : unit.unitType === 'store' || unit.unitType === 'retail_store'
-                            ? 'Commercial Store'
+                            ? 'Store'
                             : unit.unitType === 'shop' || unit.unitType === 'merchant_shop'
                             ? 'Retail Shop'
                             : unit.unitType === 'restaurant_club'
                             ? 'Restaurant & Club'
                             : 'Bar & Lounge'}
                         </span>
-                      </span>
-
-                      <div className="flex items-center gap-1.5">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                            unit.status === 'Active'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-slate-100 text-slate-600 border-slate-300'
-                          }`}
-                        >
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full ${
-                              unit.status === 'Active' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
-                            }`}
-                          />
+                        <span aria-hidden="true">·</span>
+                        <span className={unit.status === 'Active' ? 'text-emerald-700 font-bold' : 'text-slate-400'}>
                           {unit.status}
                         </span>
+                      </div>
 
-                        {/* Quick Edit Sub-Business */}
+                      <div className="flex items-center gap-1 shrink-0">
                         <button
                           type="button"
                           onClick={() => handleOpenEditOutletModal(unit)}
                           className="p-1.5 text-slate-500 hover:text-[#0A006E] hover:bg-slate-100 rounded-lg transition cursor-pointer"
-                          title="Edit Sub-Business"
+                          title="Edit Outlet"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
-
-                        {/* Instant Delete Sub-Business */}
                         <button
                           type="button"
                           onClick={() => setConfirmDeleteUnit(unit)}
                           className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                          title="Instant Delete Sub-Business"
+                          title="Delete Outlet"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
 
-                    {/* Outlet Title */}
+                    {/* Title + Single-Line Location */}
                     <div>
-                      <div className="text-xs font-mono font-bold text-slate-400">{unit.code}</div>
-                      <h3 className="text-base sm:text-lg font-montserrat font-black text-slate-900 leading-tight mt-0.5">
+                      <h3 className="text-base font-montserrat font-bold text-slate-900 leading-tight truncate">
                         {unit.name}
                       </h3>
-                      <p className="text-xs text-slate-500 mt-1 line-clamp-2">{unit.description}</p>
+                      <div className="text-xs text-slate-500 mt-0.5 truncate">
+                        <span className="font-mono-tabular">{unit.code}</span>
+                        <span aria-hidden="true"> · </span>
+                        <span>{unit.branchName}</span>
+                        {unit.managerName ? (
+                          <>
+                            <span aria-hidden="true"> · </span>
+                            <span>{unit.managerName}</span>
+                          </>
+                        ) : null}
+                      </div>
                     </div>
 
-                    {/* Details Box */}
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1.5 text-xs">
-                      <div className="flex items-center justify-between text-slate-600">
-                        <span className="font-medium">Parent Branch:</span>
-                        <span className="font-bold text-slate-900 truncate max-w-[170px]">{unit.branchName}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-slate-600">
-                        <span className="font-medium">Manager:</span>
-                        <span className="font-bold text-slate-900 truncate max-w-[170px]">
-                          {unit.managerName || 'Assigned Branch Lead'}
-                        </span>
-                      </div>
-                      {isRestaurant && (
-                        <div className="flex items-center justify-between text-slate-600">
-                          <span className="font-medium">Dining Capacity:</span>
-                          <span className="font-bold text-[#0A006E]">{unit.tableCount || 20} Tables / VIP Booths</span>
+                    {/* Compact 3-Metric Strip */}
+                    <div className="grid grid-cols-3 border border-slate-100 rounded-lg divide-x divide-slate-100 bg-slate-50/60 text-center">
+                      <div className="py-2 px-1">
+                        <div className="text-[10px] text-slate-500">Dishes</div>
+                        <div className="text-sm font-montserrat font-black text-slate-900 font-mono-tabular">
+                          {unitItems.length}
                         </div>
-                      )}
-                      <div className="flex items-center justify-between text-slate-600">
-                        <span className="font-medium">Liquor &amp; Cigar Topup:</span>
-                        <span
-                          className={`font-bold ${
-                            unit.allowLiquorTopup ? 'text-emerald-700' : 'text-slate-400'
-                          }`}
-                        >
-                          {unit.allowLiquorTopup ? 'Enabled (Bonded Stock)' : 'Disabled'}
-                        </span>
                       </div>
-                      <div className="flex items-center justify-between text-slate-600">
-                        <span className="font-medium">Separate Food Items:</span>
-                        <span className="font-bold text-slate-900">{unitItems.length} Dishes</span>
+                      <div className="py-2 px-1">
+                        <div className="text-[10px] text-slate-500">{isRestaurant ? 'Tables' : 'Topups'}</div>
+                        <div className="text-sm font-montserrat font-black text-slate-900 font-mono-tabular">
+                          {isRestaurant ? (unit.tableCount || 20) : unit.allowLiquorTopup ? 'On' : 'Off'}
+                        </div>
+                      </div>
+                      <div className="py-2 px-1">
+                        <div className="text-[10px] text-slate-500">Staff</div>
+                        <div className="text-sm font-montserrat font-black text-[#0A006E] font-mono-tabular">
+                          {assignedStaff.length}
+                        </div>
                       </div>
                     </div>
 
-                    {/* Assigned Staff Box (Separate Inventory is only visible to these users) */}
-                    <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 space-y-2 text-xs">
-                      <div className="flex items-center justify-between text-amber-950 font-montserrat font-bold">
-                        <span className="flex items-center gap-1.5">
-                          <Users className="w-3.5 h-3.5 text-amber-700" />
-                          Assigned Staff ({assignedStaff.length})
-                        </span>
-                        <span className="text-[10px] text-amber-800 font-semibold">
-                          Restricted Kitchen Access
-                        </span>
-                      </div>
-
-                      <div className="flex flex-wrap gap-1.5">
-                        {assignedStaff.length === 0 ? (
-                          <span className="text-slate-400 italic text-[11px]">
-                            No staff assigned yet (only Branch Manager/Admin can view)
-                          </span>
-                        ) : (
-                          assignedStaff.map((st) => (
+                    {/* Compact Staff Assignment */}
+                    <div className="space-y-1.5 text-xs">
+                      {assignedStaff.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {assignedStaff.map((st) => (
                             <span
                               key={st.id}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white border border-amber-300 text-slate-800 text-[11px] font-semibold shadow-2xs"
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 text-[11px] font-semibold"
                             >
                               <span>{st.name}</span>
-                              <span className="text-[9px] text-amber-800 font-mono">({st.role})</span>
                               {onUpdateStaff && (
                                 <button
                                   type="button"
@@ -950,58 +988,54 @@ export const RestaurantOutletManagement: React.FC<RestaurantOutletManagementProp
                                       businessUnitName: '',
                                     })
                                   }
-                                  className="text-slate-400 hover:text-rose-600 font-black ml-0.5 cursor-pointer"
-                                  title="Unassign from outlet"
+                                  className="text-slate-400 hover:text-rose-600 font-bold cursor-pointer"
+                                  title="Unassign"
                                 >
                                   ×
                                 </button>
                               )}
                             </span>
-                          ))
-                        )}
-                      </div>
-
-                      {onUpdateStaff && (
-                        <div className="pt-1">
-                          <select
-                            defaultValue=""
-                            onChange={(e) => {
-                              if (e.target.value) {
-                                onUpdateStaff(e.target.value, {
-                                  businessUnitId: unit.id,
-                                  businessUnitName: unit.name,
-                                });
-                                e.target.value = '';
-                              }
-                            }}
-                            className="text-[11px] bg-white border border-amber-300 rounded-lg px-2 py-1 text-slate-700 w-full cursor-pointer focus:outline-none"
-                          >
-                            <option value="" disabled>
-                              + Assign staff to {unit.name}...
-                            </option>
-                            {unassignedStaff.map((st) => (
-                              <option key={st.id} value={st.id}>
-                                {st.name} ({st.role} — {st.branchName})
-                              </option>
-                            ))}
-                          </select>
+                          ))}
                         </div>
+                      )}
+                      {onUpdateStaff && unassignedStaff.length > 0 && (
+                        <select
+                          defaultValue=""
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              onUpdateStaff(e.target.value, {
+                                businessUnitId: unit.id,
+                                businessUnitName: unit.name,
+                              });
+                              e.target.value = '';
+                            }
+                          }}
+                          className="text-[11px] bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 w-full cursor-pointer"
+                        >
+                          <option value="" disabled>
+                            + Assign staff...
+                          </option>
+                          {unassignedStaff.map((st) => (
+                            <option key={st.id} value={st.id}>
+                              {st.name} ({st.role})
+                            </option>
+                          ))}
+                        </select>
                       )}
                     </div>
                   </div>
 
-                  {/* Actions Row */}
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-1.5 flex-wrap">
+                  {/* Quick Access Buttons */}
+                  <div className="pt-2.5 border-t border-slate-100 grid grid-cols-2 gap-2.5">
                     <button
                       type="button"
                       onClick={() => {
                         setSelectedUnitId(unit.id);
                         setActiveTab('food_menu');
                       }}
-                      className="flex-1 min-w-[90px] py-2 px-2 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl text-xs font-montserrat font-bold flex items-center justify-center gap-1 cursor-pointer shadow-xs active:scale-95 transition"
-                      title="Manage Menu"
+                      className="min-h-[48px] px-4 py-3 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl text-sm font-montserrat font-black flex items-center justify-center gap-2 cursor-pointer transition"
                     >
-                      <ChefHat className="w-3.5 h-3.5" />
+                      <ChefHat className="w-4 h-4 shrink-0" />
                       <span>Menu</span>
                     </button>
 
@@ -1011,43 +1045,20 @@ export const RestaurantOutletManagement: React.FC<RestaurantOutletManagementProp
                         setSelectedUnitId(unit.id);
                         setActiveTab('inventory');
                       }}
-                      className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-montserrat font-bold flex items-center justify-center gap-1 cursor-pointer transition"
-                      title="View Separate Kitchen Inventory"
+                      className="min-h-[48px] px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-sm font-montserrat font-bold flex items-center justify-center gap-2 cursor-pointer transition"
                     >
-                      <Package className="w-3.5 h-3.5" />
-                      <span>Inventory</span>
-                    </button>
-
-                    {/* Edit button */}
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEditOutletModal(unit)}
-                      className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-[#0A006E] rounded-xl text-xs font-montserrat font-bold flex items-center justify-center gap-1 cursor-pointer transition"
-                      title="Edit Sub-Business Details"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                      <span>Edit</span>
-                    </button>
-
-                    {/* Instant Delete button */}
-                    <button
-                      type="button"
-                      onClick={() => setConfirmDeleteUnit(unit)}
-                      className="py-2 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-montserrat font-bold flex items-center justify-center gap-1 cursor-pointer transition"
-                      title="Instant Delete Sub-Business"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Delete</span>
+                      <Package className="w-4 h-4 shrink-0" />
+                      <span>Stock</span>
                     </button>
 
                     {onNavigateToPos && (
                       <button
                         type="button"
                         onClick={() => onNavigateToPos(unit.id)}
-                        className="py-2 px-2.5 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center justify-center gap-1 cursor-pointer shadow-xs active:scale-95 transition"
-                        title="Launch Outlet in POS"
+                        className="col-span-2 min-h-[48px] px-4 py-3 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-xl text-sm font-montserrat font-black flex items-center justify-center gap-2 cursor-pointer transition"
                       >
-                        <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
+                        <span>Open POS</span>
+                        <ArrowRight className="w-4 h-4 stroke-[2.5]" />
                       </button>
                     )}
                   </div>
@@ -1065,78 +1076,76 @@ export const RestaurantOutletManagement: React.FC<RestaurantOutletManagementProp
       {activeTab === 'food_menu' && (
         <div className="space-y-6">
           {/* Active Outlet Selector Header */}
-          <div className="bg-white border-2 border-[#0A006E]/20 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 shadow-md">
-                <ChefHat className="w-6 h-6 stroke-[2.2]" />
-              </div>
-              <div>
-                <span className="text-[10px] font-black font-montserrat uppercase tracking-wider text-[#0A006E] bg-[#FFDE00]/30 px-2 py-0.5 rounded-md">
-                  Active Outlet Food &amp; Beverage Control
-                </span>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <select
-                    value={selectedUnitId}
-                    onChange={(e) => setSelectedUnitId(e.target.value)}
-                    className="px-3 py-1.5 bg-slate-50 border-2 border-[#0A006E] rounded-xl text-sm font-montserrat font-black text-[#0A006E] cursor-pointer"
-                  >
-                    {businessUnits.length === 0 ? (
-                      <option value="">No outlets available yet</option>
-                    ) : (
-                      businessUnits.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.name} ({u.branchName}) — {u.unitType === 'restaurant_club' ? 'Restaurant & Club' : u.unitType === 'bar_lounge' ? 'Bar & Lounge' : 'Merchant Shop'}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                  {businessUnits.length === 0 && (
-                    <button
-                      type="button"
-                      onClick={() => handleOpenCreateOutletModal('restaurant_club')}
-                      className="px-3 py-1.5 bg-[#FFDE00] text-[#0A006E] rounded-xl text-xs font-montserrat font-black hover:bg-amber-400 cursor-pointer shadow-xs inline-flex items-center gap-1"
-                    >
-                      <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                      <span>+ New Outlet</span>
-                    </button>
-                  )}
-                </div>
-              </div>
+          <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <ChefHat className="w-5 h-5 text-[#0A006E] shrink-0" />
+              <select
+                value={selectedUnitId}
+                onChange={(e) => setSelectedUnitId(e.target.value)}
+                className="min-h-[42px] px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-montserrat font-bold text-[#0A006E] cursor-pointer"
+              >
+                {businessUnits.length === 0 ? (
+                  <option value="">No outlets yet</option>
+                ) : (
+                  businessUnits.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.branchName})
+                    </option>
+                  ))
+                )}
+              </select>
+              {businessUnits.length === 0 && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenCreateOutletModal('restaurant_club')}
+                  className="min-h-[42px] px-4 py-2 bg-[#FFDE00] text-[#0A006E] rounded-xl text-xs font-montserrat font-black hover:bg-amber-400 cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4 stroke-[2.5]" />
+                  <span>New Outlet</span>
+                </button>
+              )}
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <button
+                type="button"
+                onClick={handleOpenAddItemModal}
+                className="min-h-[48px] px-5 py-2.5 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl text-sm font-montserrat font-black flex items-center gap-2 cursor-pointer transition"
+              >
+                <Plus className="w-5 h-5 stroke-[2.5]" />
+                <span>Add Dish</span>
+              </button>
+              {activeBusinessUnit && onNavigateToPos && (
+                <button
+                  type="button"
+                  onClick={() => onNavigateToPos(activeBusinessUnit.id)}
+                  className="min-h-[48px] px-5 py-2.5 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-xl text-sm font-montserrat font-black flex items-center gap-2 cursor-pointer transition"
+                >
+                  <span>Open POS</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
               {activeBusinessUnit && (
                 <>
                   <button
                     type="button"
                     onClick={() => handleOpenEditOutletModal(activeBusinessUnit)}
-                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-[#0A006E] rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer transition"
-                    title="Edit Active Sub-Business"
+                    className="min-h-[48px] px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-[#0A006E] rounded-xl text-sm font-montserrat font-bold flex items-center gap-2 cursor-pointer transition"
                   >
-                    <Edit2 className="w-3.5 h-3.5" />
-                    <span>Edit Outlet</span>
+                    <Edit2 className="w-4 h-4" />
+                    <span>Edit</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setConfirmDeleteUnit(activeBusinessUnit)}
-                    className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer transition"
-                    title="Instant Delete Active Sub-Business"
+                    className="min-h-[48px] px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-sm font-montserrat font-bold flex items-center gap-2 cursor-pointer transition"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-4 h-4" />
                     <span>Delete</span>
                   </button>
                 </>
               )}
-
-              <button
-                type="button"
-                onClick={handleOpenAddItemModal}
-                className="px-4 py-2 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-md transition active:scale-95"
-              >
-                <Plus className="w-4 h-4 stroke-[3]" />
-                <span>Add Food or Drink Dish</span>
-              </button>
             </div>
           </div>
 
@@ -1145,13 +1154,10 @@ export const RestaurantOutletManagement: React.FC<RestaurantOutletManagementProp
               {/* Left Column: Category Management */}
               <div className="lg:col-span-1 space-y-5">
                 {/* Food Categories Card */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xs">
+                <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-montserrat font-black text-sm text-[#0A006E]">Food Categories</h4>
-                      <p className="text-[11px] text-slate-500">Custom menu classifications</p>
-                    </div>
-                    <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg">
+                    <h4 className="font-montserrat font-bold text-sm text-[#0A006E]">Food Categories</h4>
+                    <span className="text-xs font-mono-tabular font-bold text-slate-600">
                       {activeBusinessUnit.foodCategories?.length || 0}
                     </span>
                   </div>
@@ -1160,13 +1166,13 @@ export const RestaurantOutletManagement: React.FC<RestaurantOutletManagementProp
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
-                      placeholder="e.g. Swahili Seafood"
+                      placeholder="New category..."
                       value={categoryTypeToAdd === 'food' ? newCategoryInput : ''}
                       onChange={(e) => {
                         setCategoryTypeToAdd('food');
                         setNewCategoryInput(e.target.value);
                       }}
-                      className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900"
+                      className="flex-1 min-h-[38px] px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900"
                     />
                     <button
                       type="button"
@@ -1175,18 +1181,18 @@ export const RestaurantOutletManagement: React.FC<RestaurantOutletManagementProp
                         handleAddCategory();
                       }}
                       disabled={!newCategoryInput.trim() || categoryTypeToAdd !== 'food'}
-                      className="px-3 py-1.5 bg-[#0A006E] disabled:opacity-40 text-[#FFDE00] rounded-xl text-xs font-montserrat font-bold cursor-pointer"
+                      className="min-h-[38px] px-3.5 py-1.5 bg-[#0A006E] disabled:opacity-40 text-[#FFDE00] rounded-xl text-xs font-montserrat font-bold cursor-pointer"
                     >
                       Add
                     </button>
                   </div>
 
-                  {/* Category Pills List */}
+                  {/* Category List */}
                   <div className="flex flex-wrap gap-1.5">
                     {(activeBusinessUnit.foodCategories || []).map((cat) => (
                       <span
                         key={cat}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-200 group"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-800"
                       >
                         <span>{cat}</span>
                         <button
@@ -1202,27 +1208,22 @@ export const RestaurantOutletManagement: React.FC<RestaurantOutletManagementProp
                   </div>
 
                   {(!activeBusinessUnit.foodCategories || activeBusinessUnit.foodCategories.length === 0) && (
-                    <div className="pt-1">
-                      <button
-                        type="button"
-                        onClick={handleLoadDefaultFoodCategories}
-                        className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition w-full justify-center"
-                      >
-                        <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                        <span>Load Standard Food Categories</span>
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={handleLoadDefaultFoodCategories}
+                      className="min-h-[40px] px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition w-full justify-center"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Load Defaults</span>
+                    </button>
                   )}
                 </div>
 
                 {/* Beverage Categories Card */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xs">
+                <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-montserrat font-black text-sm text-[#0A006E]">Beverage Categories</h4>
-                      <p className="text-[11px] text-slate-500">Non-alcoholic &amp; cocktail groups</p>
-                    </div>
-                    <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg">
+                    <h4 className="font-montserrat font-bold text-sm text-[#0A006E]">Beverage Categories</h4>
+                    <span className="text-xs font-mono-tabular font-bold text-slate-600">
                       {activeBusinessUnit.beverageCategories?.length || 0}
                     </span>
                   </div>
@@ -1231,13 +1232,13 @@ export const RestaurantOutletManagement: React.FC<RestaurantOutletManagementProp
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
-                      placeholder="e.g. Signature Mocktails"
+                      placeholder="New drink group..."
                       value={categoryTypeToAdd === 'beverage' ? newCategoryInput : ''}
                       onChange={(e) => {
                         setCategoryTypeToAdd('beverage');
                         setNewCategoryInput(e.target.value);
                       }}
-                      className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900"
+                      className="flex-1 min-h-[38px] px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900"
                     />
                     <button
                       type="button"
@@ -1246,18 +1247,18 @@ export const RestaurantOutletManagement: React.FC<RestaurantOutletManagementProp
                         handleAddCategory();
                       }}
                       disabled={!newCategoryInput.trim() || categoryTypeToAdd !== 'beverage'}
-                      className="px-3 py-1.5 bg-[#0A006E] disabled:opacity-40 text-[#FFDE00] rounded-xl text-xs font-montserrat font-bold cursor-pointer"
+                      className="min-h-[38px] px-3.5 py-1.5 bg-[#0A006E] disabled:opacity-40 text-[#FFDE00] rounded-xl text-xs font-montserrat font-bold cursor-pointer"
                     >
                       Add
                     </button>
                   </div>
 
-                  {/* Category Pills List */}
+                  {/* Category List */}
                   <div className="flex flex-wrap gap-1.5">
                     {(activeBusinessUnit.beverageCategories || []).map((cat) => (
                       <span
                         key={cat}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold bg-blue-50 text-blue-900 border border-blue-200 group"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-900"
                       >
                         <span>{cat}</span>
                         <button
@@ -1273,48 +1274,43 @@ export const RestaurantOutletManagement: React.FC<RestaurantOutletManagementProp
                   </div>
 
                   {(!activeBusinessUnit.beverageCategories || activeBusinessUnit.beverageCategories.length === 0) && (
-                    <div className="pt-1">
-                      <button
-                        type="button"
-                        onClick={handleLoadDefaultBeverageCategories}
-                        className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 rounded-xl text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition w-full justify-center"
-                      >
-                        <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-                        <span>Load Standard Beverage Categories</span>
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={handleLoadDefaultBeverageCategories}
+                      className="min-h-[40px] px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition w-full justify-center"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Load Defaults</span>
+                    </button>
                   )}
                 </div>
               </div>
 
-              {/* Right Column: Menu Dishes & Custom Pricing Table/Grid */}
-              <div className="lg:col-span-2 space-y-4">
+              {/* Right Column: Menu Dishes & Custom Pricing */}
+              <div className="lg:col-span-2 space-y-3.5">
                 <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h3 className="font-montserrat font-black text-base text-slate-900">
-                      Dishes &amp; Food Prices for {activeBusinessUnit.name}
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Each restaurant sets its own selling price and runs an independent kitchen portion stock.
-                    </p>
-                  </div>
+                  <h3 className="font-montserrat font-bold text-base text-slate-900">
+                    Menu ({activeUnitInventory.length})
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={handleOpenAddItemModal}
+                    className="min-h-[38px] px-3.5 py-1.5 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl text-xs font-montserrat font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>New Dish</span>
+                  </button>
                 </div>
 
                 {activeUnitInventory.length === 0 ? (
-                  <div className="bg-white border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center space-y-3">
-                    <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto">
-                      <ChefHat className="w-6 h-6 stroke-[2]" />
-                    </div>
+                  <div className="bg-white border border-dashed border-slate-300 rounded-xl p-8 text-center space-y-3">
                     <div className="font-montserrat font-bold text-slate-800 text-sm">
-                      No menu items created yet for {activeBusinessUnit.name}
+                      No dishes yet for {activeBusinessUnit.name}
                     </div>
-                    <p className="text-xs text-slate-500 max-w-md mx-auto">
-                      Start building the food &amp; beverage catalog. Add steaks, platters, burgers, cocktails, and desserts with your own custom prices.
-                    </p>
                     <button
                       type="button"
                       onClick={handleOpenAddItemModal}
-                      className="px-4 py-2 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-bold cursor-pointer inline-flex items-center gap-1.5"
+                      className="min-h-[42px] px-5 py-2 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-bold cursor-pointer inline-flex items-center gap-1.5"
                     >
                       <Plus className="w-4 h-4" />
                       <span>Add First Dish</span>
@@ -1331,53 +1327,47 @@ export const RestaurantOutletManagement: React.FC<RestaurantOutletManagementProp
                       return (
                         <div
                           key={item.id}
-                          className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-2xs hover:shadow-xs transition"
+                          className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 transition hover:border-slate-300"
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <span className="text-[10px] font-bold font-montserrat uppercase px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
-                                {item.category}
-                              </span>
-                              <h4 className="font-montserrat font-black text-sm text-slate-900 mt-1 truncate">
+                              <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
+                                <span>{item.category}</span>
+                                <span aria-hidden="true"> · </span>
+                                <span>{item.portionUnit}</span>
+                              </div>
+                              <h4 className="font-montserrat font-bold text-sm text-slate-900 mt-0.5 truncate">
                                 {item.name}
                               </h4>
-                              <span className="text-[11px] text-slate-500 font-medium">
-                                Unit: <strong className="text-slate-800">{item.portionUnit}</strong>
-                                {item.prepTimeMinutes ? ` · ${item.prepTimeMinutes}m prep` : ''}
-                              </span>
                             </div>
 
                             <button
                               type="button"
                               onClick={() => handleOpenEditItemModal(item)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-[#0A006E] hover:bg-slate-100 cursor-pointer"
-                              title="Edit item"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-[#0A006E] hover:bg-slate-100 cursor-pointer shrink-0"
+                              title="Edit dish"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
 
-                          {item.description && (
-                            <p className="text-xs text-slate-600 line-clamp-2">{item.description}</p>
-                          )}
-
-                          {/* Pricing & Margin Box */}
-                          <div className="bg-[#F0F2F0] rounded-xl p-2.5 flex items-center justify-between text-xs">
+                          {/* Pricing & Margin */}
+                          <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 flex items-center justify-between text-xs">
                             <div>
-                              <span className="text-[10px] text-slate-500 block">Food Menu Price</span>
+                              <span className="text-[10px] text-slate-500 block">Menu Price</span>
                               {quickPriceItemId === item.id ? (
                                 <div className="flex items-center gap-1 mt-0.5">
                                   <input
                                     type="number"
                                     value={quickPriceValue}
                                     onChange={(e) => setQuickPriceValue(Number(e.target.value))}
-                                    className="w-20 px-2 py-1 bg-white border border-slate-300 rounded-lg text-xs font-bold font-mono"
+                                    className="w-20 px-2 py-1 bg-white border border-slate-300 rounded-lg text-xs font-bold font-mono-tabular"
                                     autoFocus
                                   />
                                   <button
                                     type="button"
                                     onClick={() => handleSaveQuickPrice(item)}
-                                    className="p-1 bg-[#0A006E] text-[#FFDE00] rounded-lg"
+                                    className="p-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg cursor-pointer"
                                   >
                                     <Check className="w-3.5 h-3.5" />
                                   </button>
@@ -1389,8 +1379,8 @@ export const RestaurantOutletManagement: React.FC<RestaurantOutletManagementProp
                                     setQuickPriceItemId(item.id);
                                     setQuickPriceValue(item.sellingPriceKes);
                                   }}
-                                  className="font-montserrat font-black text-sm text-[#0A006E] hover:underline cursor-pointer flex items-center gap-1"
-                                  title="Click to edit selling price"
+                                  className="font-montserrat font-black text-sm text-[#0A006E] font-mono-tabular hover:underline cursor-pointer flex items-center gap-1"
+                                  title="Click to edit price"
                                 >
                                   <span>KES {item.sellingPriceKes.toLocaleString()}</span>
                                   <Edit2 className="w-3 h-3 text-slate-400" />
@@ -1398,9 +1388,9 @@ export const RestaurantOutletManagement: React.FC<RestaurantOutletManagementProp
                               )}
                             </div>
 
-                            <div className="text-right">
+                            <div className="text-right font-mono-tabular">
                               <span className="text-[10px] text-slate-500 block">
-                                Cost: KES {item.costPriceKes.toLocaleString()}
+                                Cost KES {item.costPriceKes.toLocaleString()}
                               </span>
                               <span className="font-montserrat font-bold text-[11px] text-emerald-700">
                                 {grossMarginPct}% Margin
@@ -1408,39 +1398,36 @@ export const RestaurantOutletManagement: React.FC<RestaurantOutletManagementProp
                             </div>
                           </div>
 
-                          {/* Stock Status Bar */}
-                          <div className="flex items-center justify-between pt-1 text-xs">
+                          {/* Stock & Quick Restock */}
+                          <div className="flex items-center justify-between gap-2 pt-1 text-xs">
                             <span
-                              className={`inline-flex items-center gap-1 font-bold ${
+                              className={`font-bold font-mono-tabular ${
                                 item.portionsAvailable <= 0
                                   ? 'text-rose-600'
                                   : item.portionsAvailable <= (item.minStockAlert || 5)
-                                  ? 'text-amber-600'
+                                  ? 'text-amber-700'
                                   : 'text-emerald-700'
                               }`}
                             >
-                              <span
-                                className={`w-2 h-2 rounded-full ${
-                                  item.portionsAvailable <= 0
-                                    ? 'bg-rose-500'
-                                    : item.portionsAvailable <= (item.minStockAlert || 5)
-                                    ? 'bg-amber-500'
-                                    : 'bg-emerald-500'
-                                }`}
-                              />
                               {item.portionsAvailable <= 0
                                 ? 'Sold Out'
-                                : `${item.portionsAvailable} ${item.portionUnit}s Ready`}
+                                : `${item.portionsAvailable} ${item.portionUnit}s`}
                             </span>
 
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-2">
                               <button
                                 type="button"
                                 onClick={() => handleQuickRestock(item, 10)}
-                                className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-[11px] font-bold cursor-pointer"
-                                title="Add 10 portions to kitchen inventory"
+                                className="min-h-[42px] px-4 py-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-xl text-xs sm:text-sm font-montserrat font-bold cursor-pointer transition"
                               >
-                                +10 stock
+                                +10 Stock
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditItemModal(item)}
+                                className="min-h-[42px] px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs sm:text-sm font-montserrat font-bold cursor-pointer transition"
+                              >
+                                Edit
                               </button>
                             </div>
                           </div>
@@ -1452,23 +1439,17 @@ export const RestaurantOutletManagement: React.FC<RestaurantOutletManagementProp
               </div>
             </div>
           ) : (
-            <div className="bg-white border-2 border-dashed border-slate-300 rounded-3xl p-8 sm:p-12 text-center space-y-4 shadow-xs">
-              <div className="w-16 h-16 rounded-2xl bg-amber-50 border-2 border-amber-200 text-amber-700 flex items-center justify-center mx-auto shadow-sm">
-                <ChefHat className="w-8 h-8 stroke-[2.2]" />
-              </div>
-              <h3 className="font-montserrat font-black text-lg text-slate-900">
-                No Active Hospitality Outlet Selected
+            <div className="bg-white border border-dashed border-slate-300 rounded-xl p-8 text-center space-y-3">
+              <h3 className="font-montserrat font-bold text-base text-slate-900">
+                No Outlet Selected
               </h3>
-              <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
-                Before configuring food categories and dish menus, create or select an active restaurant, bar lounge, or dining outlet.
-              </p>
               <button
                 type="button"
                 onClick={() => handleOpenCreateOutletModal('restaurant_club')}
-                className="px-5 py-2.5 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black inline-flex items-center gap-2 cursor-pointer shadow-md transition active:scale-95"
+                className="min-h-[44px] px-5 py-2.5 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl text-xs sm:text-sm font-montserrat font-bold inline-flex items-center gap-2 cursor-pointer"
               >
-                <Plus className="w-4 h-4 stroke-[3]" />
-                <span>Create Hospitality / Kitchen Outlet</span>
+                <Plus className="w-4 h-4 stroke-[2.5]" />
+                <span>Create Outlet</span>
               </button>
             </div>
           )}
@@ -1479,29 +1460,18 @@ export const RestaurantOutletManagement: React.FC<RestaurantOutletManagementProp
           TAB 3: SEPARATE KITCHEN & PANTRY INVENTORY
          ========================================================================= */}
       {activeTab === 'inventory' && (
-        <div className="space-y-5">
-          {/* Outlet Selection Header */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
-            <div>
-              <span className="text-[10px] font-black font-montserrat uppercase tracking-wider text-[#0A006E] bg-emerald-100 px-2 py-0.5 rounded-md">
-                Dedicated Kitchen &amp; Pantry Inventory
-              </span>
-              <h3 className="text-base sm:text-lg font-montserrat font-black text-slate-900 mt-1">
-                {activeBusinessUnit?.name || 'Restaurant Outlet'} Kitchen Stocks
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Segregated from central bonded warehouse stocks. Only accessible to staff assigned to this outlet.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 flex-wrap">
+        <div className="space-y-4">
+          {/* Outlet Selection & Quick Access Bar */}
+          <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <Package className="w-5 h-5 text-[#0A006E] shrink-0" />
               <select
                 value={selectedUnitId}
                 onChange={(e) => setSelectedUnitId(e.target.value)}
-                className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 cursor-pointer"
+                className="min-h-[42px] px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-montserrat font-bold text-[#0A006E] cursor-pointer"
               >
                 {businessUnits.length === 0 ? (
-                  <option value="">No outlets available yet</option>
+                  <option value="">No outlets yet</option>
                 ) : (
                   businessUnits.map((u) => (
                     <option key={u.id} value={u.id}>
@@ -1510,69 +1480,63 @@ export const RestaurantOutletManagement: React.FC<RestaurantOutletManagementProp
                   ))
                 )}
               </select>
+            </div>
+
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <button
+                type="button"
+                onClick={handleOpenAddItemModal}
+                className="min-h-[48px] px-5 py-2.5 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl text-sm font-montserrat font-black flex items-center gap-2 cursor-pointer"
+              >
+                <Plus className="w-5 h-5 stroke-[2.5]" />
+                <span>New Item</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExportKitchenInventoryCSV}
+                className="min-h-[48px] px-4 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl text-sm font-montserrat font-bold flex items-center gap-2 cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                <span>CSV</span>
+              </button>
 
               {activeBusinessUnit && (
                 <>
                   <button
                     type="button"
                     onClick={() => handleOpenEditOutletModal(activeBusinessUnit)}
-                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-[#0A006E] rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer transition"
-                    title="Edit Sub-Business details"
+                    className="min-h-[48px] px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-[#0A006E] rounded-xl text-sm font-montserrat font-bold flex items-center gap-2 cursor-pointer"
                   >
-                    <Edit2 className="w-3.5 h-3.5" />
-                    <span>Edit Outlet</span>
+                    <Edit2 className="w-4 h-4" />
+                    <span>Edit</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setConfirmDeleteUnit(activeBusinessUnit)}
-                    className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer transition"
-                    title="Instant Delete Sub-Business"
+                    className="min-h-[48px] px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-sm font-montserrat font-bold flex items-center gap-2 cursor-pointer"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-4 h-4" />
                     <span>Delete</span>
                   </button>
                 </>
               )}
-
-              <button
-                type="button"
-                onClick={handleExportKitchenInventoryCSV}
-                className="px-3.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Export Inventory CSV</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleOpenAddItemModal}
-                className="px-3.5 py-1.5 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-xs"
-              >
-                <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                <span>New Item</span>
-              </button>
             </div>
           </div>
 
           {!activeBusinessUnit ? (
-            <div className="bg-white border-2 border-dashed border-slate-300 rounded-3xl p-8 sm:p-12 text-center space-y-4 shadow-xs">
-              <div className="w-16 h-16 rounded-2xl bg-emerald-50 border-2 border-emerald-200 text-emerald-700 flex items-center justify-center mx-auto shadow-sm">
-                <UtensilsCrossed className="w-8 h-8 stroke-[2.2]" />
-              </div>
-              <h3 className="font-montserrat font-black text-lg text-slate-900">
-                No Dedicated Kitchen or Outlet Selected
+            <div className="bg-white border border-dashed border-slate-300 rounded-xl p-8 text-center space-y-3">
+              <h3 className="font-montserrat font-bold text-base text-slate-900">
+                No Outlet Selected
               </h3>
-              <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
-                Create a restaurant or bar outlet first to track its segregated kitchen portion stock and inventory alerts.
-              </p>
               <button
                 type="button"
                 onClick={() => handleOpenCreateOutletModal('restaurant_club')}
-                className="px-5 py-2.5 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black inline-flex items-center gap-2 cursor-pointer shadow-md transition active:scale-95"
+                className="min-h-[44px] px-5 py-2.5 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl text-xs sm:text-sm font-montserrat font-bold inline-flex items-center gap-2 cursor-pointer"
               >
-                <Plus className="w-4 h-4 stroke-[3]" />
-                <span>Create Hospitality Outlet</span>
+                <Plus className="w-4 h-4 stroke-[2.5]" />
+                <span>Create Outlet</span>
               </button>
             </div>
           ) : (
@@ -1661,27 +1625,19 @@ export const RestaurantOutletManagement: React.FC<RestaurantOutletManagementProp
                 <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
                   {displayedInventory.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-500">
-                        <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-2">
-                          <Package className="w-5 h-5" />
-                        </div>
+                      <td colSpan={8} className="py-10 text-center text-slate-500">
                         <div className="font-montserrat font-bold text-sm text-slate-700">
-                          No Kitchen Inventory Items Found
-                        </div>
-                        <div className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
-                          {inventorySearch.trim() || inventoryCategoryFilter !== 'ALL'
-                            ? 'No kitchen items match your current filter criteria.'
-                            : 'This kitchen currently has no stock or food portions logged. Add dishes to track kitchen portion stock and stock alerts.'}
+                          No Kitchen Items Found
                         </div>
                         {!inventorySearch.trim() && inventoryCategoryFilter === 'ALL' && activeBusinessUnit && (
                           <div className="mt-3">
                             <button
                               type="button"
                               onClick={handleOpenAddItemModal}
-                              className="px-4 py-2 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl text-xs font-montserrat font-bold inline-flex items-center gap-1.5 shadow-xs transition active:scale-95"
+                              className="min-h-[42px] px-4 py-2 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl text-xs font-montserrat font-bold inline-flex items-center gap-1.5 cursor-pointer"
                             >
-                              <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                              <span>Add First Kitchen Portion / Dish</span>
+                              <Plus className="w-4 h-4" />
+                              <span>Add First Item</span>
                             </button>
                           </div>
                         )}
@@ -1761,116 +1717,84 @@ export const RestaurantOutletManagement: React.FC<RestaurantOutletManagementProp
           TAB 4: CLUB TOPUPS (LIQUOR, CIGARS/SIGGER, SHISHA)
          ========================================================================= */}
       {activeTab === 'topups' && (
-        <div className="space-y-6">
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 shadow-xs">
-            <div className="flex items-center gap-2">
-              <span className="p-2 rounded-xl bg-amber-100 text-amber-900">
-                <Flame className="w-5 h-5 stroke-[2.2]" />
-              </span>
-              <div>
-                <h3 className="font-montserrat font-black text-base text-slate-900">
-                  Club Topup Requisition Architecture
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Because this is a Club &amp; Restaurant, waitstaff taking food orders can seamlessly top up premium Liquor from the branch&apos;s bonded store, premium Cigars (&quot;Sigger&quot;), and Hookah/Shisha heads.
-                </p>
+        <div className="space-y-4">
+          <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-4 flex-wrap text-xs">
+              <div className="flex items-center gap-1.5 font-montserrat font-bold text-[#0A006E]">
+                <Wine className="w-4 h-4" />
+                <span>Bonded Liquor: {products.length} SKUs</span>
+              </div>
+              <span className="text-slate-300" aria-hidden="true">·</span>
+              <div className="flex items-center gap-1.5 font-montserrat font-bold text-amber-800">
+                <Cigarette className="w-4 h-4" />
+                <span>Cigars: {PRESET_SIGGER_ITEMS.length}</span>
+              </div>
+              <span className="text-slate-300" aria-hidden="true">·</span>
+              <div className="flex items-center gap-1.5 font-montserrat font-bold text-indigo-800">
+                <Flame className="w-4 h-4" />
+                <span>Shisha: {PRESET_SHISHA_ITEMS.length}</span>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2">
-                <div className="flex items-center gap-2 text-[#0A006E] font-montserrat font-bold text-xs">
-                  <Wine className="w-4 h-4 text-[#0A006E]" />
-                  <span>1. Central Bonded Liquor</span>
-                </div>
-                <p className="text-[11px] text-slate-600">
-                  Drawn dynamically from the parent branch&apos;s {products.length}+ bonded bottles (Whiskies, Vodkas, Gins, Cognacs, Champagnes, and Beers). Deducts bottle count from branch warehouse.
-                </p>
-              </div>
-
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2">
-                <div className="flex items-center gap-2 text-amber-800 font-montserrat font-bold text-xs">
-                  <Cigarette className="w-4 h-4 text-amber-700" />
-                  <span>2. Cigars &amp; Tobacco (&quot;Sigger&quot;)</span>
-                </div>
-                <p className="text-[11px] text-slate-600">
-                  Hand-rolled Cuban Cohiba, Montecristo, Romeo y Julieta sticks, Dunhill Switch and luxury Russian Sobranie packs served at tables or VIP lounges.
-                </p>
-              </div>
-
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2">
-                <div className="flex items-center gap-2 text-indigo-900 font-montserrat font-bold text-xs">
-                  <Flame className="w-4 h-4 text-indigo-700" />
-                  <span>3. Hookah &amp; Shisha Cloud</span>
-                </div>
-                <p className="text-[11px] text-slate-600">
-                  Al Fakher Double Apple, Grape Mint Ice, Blueberry Freeze, Fresh Pineapple fruit head upgrades, ice hose freeze wands, and organic coconut coals refills.
-                </p>
-              </div>
-            </div>
+            {onNavigateToPos && activeBusinessUnit && (
+              <button
+                type="button"
+                onClick={() => onNavigateToPos(activeBusinessUnit.id)}
+                className="min-h-[50px] px-5 py-3 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl text-sm font-montserrat font-black flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap shadow-sm"
+              >
+                <span>Launch Topups in POS</span>
+                <ArrowRight className="w-5 h-5" />
+              </button>
+            )}
           </div>
 
-          {/* Topup Catalogs Preview */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Cigars ("Sigger") Catalog */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
-              <div className="flex items-center justify-between">
+          {/* Topup Catalogs */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                 <div className="flex items-center gap-2">
-                  <Cigarette className="w-5 h-5 text-amber-700" />
-                  <h4 className="font-montserrat font-black text-sm text-slate-900">
-                    Cigars &amp; Cigarettes (&quot;Sigger&quot;) Menu
+                  <Cigarette className="w-4 h-4 text-amber-700" />
+                  <h4 className="font-montserrat font-bold text-sm text-slate-900">
+                    Cigars &amp; Cigarettes
                   </h4>
                 </div>
-                <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg">
-                  {PRESET_SIGGER_ITEMS.length} Options
+                <span className="text-xs font-mono-tabular font-semibold text-slate-500">
+                  {PRESET_SIGGER_ITEMS.length}
                 </span>
               </div>
 
               <div className="divide-y divide-slate-100">
                 {PRESET_SIGGER_ITEMS.map((item) => (
-                  <div key={item.id} className="py-2.5 flex items-center justify-between text-xs">
-                    <div>
-                      <div className="font-montserrat font-black text-slate-900">{item.name}</div>
-                      <div className="text-[11px] text-slate-500">{item.description}</div>
-                    </div>
-                    <div className="text-right shrink-0 ml-3">
-                      <div className="font-mono font-black text-[#0A006E] text-sm">
-                        KES {item.priceKes.toLocaleString()}
-                      </div>
-                      <div className="text-[10px] text-slate-400">per {item.portionUnit}</div>
-                    </div>
+                  <div key={item.id} className="py-2 flex items-center justify-between text-xs">
+                    <span className="font-montserrat font-bold text-slate-900 truncate">{item.name}</span>
+                    <span className="font-mono-tabular font-black text-[#0A006E] text-sm shrink-0 ml-3">
+                      KES {item.priceKes.toLocaleString()} <span className="text-[10px] font-normal text-slate-400">/ {item.portionUnit}</span>
+                    </span>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Shisha / Hookah Catalog */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
-              <div className="flex items-center justify-between">
+            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                 <div className="flex items-center gap-2">
-                  <Flame className="w-5 h-5 text-indigo-700" />
-                  <h4 className="font-montserrat font-black text-sm text-slate-900">
-                    Hookah &amp; Shisha Flavors &amp; Upgrades
+                  <Flame className="w-4 h-4 text-indigo-700" />
+                  <h4 className="font-montserrat font-bold text-sm text-slate-900">
+                    Hookah &amp; Shisha
                   </h4>
                 </div>
-                <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg">
-                  {PRESET_SHISHA_ITEMS.length} Flavors
+                <span className="text-xs font-mono-tabular font-semibold text-slate-500">
+                  {PRESET_SHISHA_ITEMS.length}
                 </span>
               </div>
 
               <div className="divide-y divide-slate-100">
                 {PRESET_SHISHA_ITEMS.map((item) => (
-                  <div key={item.id} className="py-2.5 flex items-center justify-between text-xs">
-                    <div>
-                      <div className="font-montserrat font-black text-slate-900">{item.name}</div>
-                      <div className="text-[11px] text-slate-500">{item.description}</div>
-                    </div>
-                    <div className="text-right shrink-0 ml-3">
-                      <div className="font-mono font-black text-[#0A006E] text-sm">
-                        KES {item.priceKes.toLocaleString()}
-                      </div>
-                      <div className="text-[10px] text-slate-400">per {item.portionUnit}</div>
-                    </div>
+                  <div key={item.id} className="py-2 flex items-center justify-between text-xs">
+                    <span className="font-montserrat font-bold text-slate-900 truncate">{item.name}</span>
+                    <span className="font-mono-tabular font-black text-[#0A006E] text-sm shrink-0 ml-3">
+                      KES {item.priceKes.toLocaleString()} <span className="text-[10px] font-normal text-slate-400">/ {item.portionUnit}</span>
+                    </span>
                   </div>
                 ))}
               </div>

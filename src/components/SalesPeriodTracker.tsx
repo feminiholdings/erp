@@ -101,6 +101,7 @@ export const SalesPeriodTracker: React.FC<SalesPeriodTrackerProps> = ({
     };
 
     periodTxs.forEach((tx) => {
+      if (tx.status === 'Rejected') return;
       const isSale =
         tx.docType === 'Receipt' ||
         tx.docType === 'Invoice' ||

@@ -59,6 +59,7 @@ const ALL_MODULES: { id: ERPModuleId; label: string }[] = [
   { id: 'retail_pos', label: 'Retail Counter POS' },
   { id: 'sales_pos', label: 'Wholesale B2B POS' },
   { id: 'inventory', label: 'Inventory & Auto-SKU' },
+  { id: 'onboard_items', label: 'Onboard Items & Stock Activation' },
   { id: 'branches_transfers', label: 'Branches & Transfers' },
   { id: 'geo_pricing', label: 'Geo-Pricing Multipliers' },
   { id: 'partners', label: 'Suppliers & Logistics' },

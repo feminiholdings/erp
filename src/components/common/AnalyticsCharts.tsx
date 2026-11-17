@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   BarChart3,
   PieChart as PieChartIcon,
@@ -103,7 +104,12 @@ export const BarGraph: React.FC<BarGraphProps> = ({
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-5 shadow-xs space-y-3 flex flex-col justify-between">
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+      className="beta-kpi-card rounded-2xl p-3.5 sm:p-5 space-y-3 flex flex-col justify-between"
+    >
       {/* Header */}
       <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2.5 flex-wrap">
         <div>
@@ -200,8 +206,8 @@ export const BarGraph: React.FC<BarGraphProps> = ({
                   />
                 )}
 
-                {/* The Bar */}
-                <rect
+                {/* The Bar (Animated Spring Entrance) */}
+                <motion.rect
                   x={xPos}
                   y={yPos}
                   width={barWidth}
@@ -213,7 +219,16 @@ export const BarGraph: React.FC<BarGraphProps> = ({
                   stroke={isHovered ? '#0A006E' : isNegative ? '#9F1239' : 'none'}
                   strokeWidth={isHovered ? '2' : isNegative ? '1.5' : '0'}
                   strokeDasharray={isNegative ? '4 2' : undefined}
-                  className="transition-all duration-200"
+                  style={{
+                    transformOrigin: `${xPos + barWidth / 2}px ${chartPadding.top + usableHeight}px`,
+                  }}
+                  initial={{ scaleY: 0, opacity: 0.3 }}
+                  animate={{ scaleY: 1, opacity: 1 }}
+                  transition={{
+                    duration: 0.48,
+                    delay: idx * 0.045,
+                    ease: [0.16, 1, 0.3, 1],
+                  }}
                 />
 
                 {/* Top value badge when hovered or if primary */}
@@ -292,7 +307,7 @@ export const BarGraph: React.FC<BarGraphProps> = ({
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 };
 
@@ -434,7 +449,12 @@ export const PieChart: React.FC<PieChartProps> = ({
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-5 shadow-xs space-y-3 flex flex-col justify-between">
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1] }}
+      className="beta-kpi-card rounded-2xl p-3.5 sm:p-5 space-y-3 flex flex-col justify-between"
+    >
       {/* Header */}
       <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2.5 flex-wrap">
         <div>
@@ -473,17 +493,26 @@ export const PieChart: React.FC<PieChartProps> = ({
             {slices.map((slice) => {
               const isHovered = hoveredIdx === slice.index;
               return (
-                <path
+                <motion.path
                   key={slice.index}
                   d={slice.pathD}
                   fill={slice.color}
                   stroke="#FFFFFF"
                   strokeWidth="2.5"
-                  className="cursor-pointer transition-all duration-200 hover:opacity-90"
+                  className="cursor-pointer"
+                  initial={{ opacity: 0, scale: 0.88 }}
+                  animate={{
+                    opacity: isHovered ? 0.94 : 1,
+                    scale: isHovered ? 1.045 : 1,
+                  }}
+                  transition={{
+                    duration: 0.35,
+                    delay: slice.index * 0.04,
+                    ease: [0.16, 1, 0.3, 1],
+                  }}
                   style={{
                     transformOrigin: `${center}px ${center}px`,
-                    transform: isHovered ? 'scale(1.04)' : 'scale(1)',
-                    filter: isHovered ? 'drop-shadow(0 4px 6px rgba(10,0,110,0.25))' : 'none',
+                    filter: isHovered ? 'drop-shadow(0 6px 10px rgba(10,0,110,0.28))' : 'none',
                   }}
                   onMouseEnter={() => setHoveredIdx(slice.index)}
                   onMouseLeave={() => setHoveredIdx(null)}
@@ -494,21 +523,30 @@ export const PieChart: React.FC<PieChartProps> = ({
 
           {/* Center metric inside Donut Hole */}
           {innerRadiusRatio > 0 && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-4">
-              <span className="text-[10px] font-montserrat font-bold text-slate-500 uppercase leading-tight line-clamp-1">
-                {activeSlice ? activeSlice.label : centerMetricLabel}
-              </span>
-              <span className="text-sm sm:text-base font-montserrat font-black text-[#0A006E] font-mono-tabular leading-tight mt-0.5">
-                {activeSlice
-                  ? valueFormatter(activeSlice.value)
-                  : valueFormatter(total)}
-              </span>
-              <span className="text-[10px] font-mono-tabular font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded-full mt-0.5">
-                {activeSlice
-                  ? `${activeSlice.pct.toFixed(1)}%`
-                  : '100%'}
-              </span>
-            </div>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeSlice ? activeSlice.label : 'total'}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.16 }}
+                className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-4"
+              >
+                <span className="text-[10px] font-montserrat font-bold text-slate-500 uppercase leading-tight line-clamp-1">
+                  {activeSlice ? activeSlice.label : centerMetricLabel}
+                </span>
+                <span className="text-sm sm:text-base font-montserrat font-black text-[#0A006E] font-mono-tabular leading-tight mt-0.5">
+                  {activeSlice
+                    ? valueFormatter(activeSlice.value)
+                    : valueFormatter(total)}
+                </span>
+                <span className="text-[10px] font-mono-tabular font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded-full mt-0.5">
+                  {activeSlice
+                    ? `${activeSlice.pct.toFixed(1)}%`
+                    : '100%'}
+                </span>
+              </motion.div>
+            </AnimatePresence>
           )}
         </div>
 
@@ -584,7 +622,7 @@ export const PieChart: React.FC<PieChartProps> = ({
           {valueFormatter(total)} Total
         </span>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
@@ -608,7 +646,12 @@ export const ExecutiveVisualAnalytics: React.FC<ExecutiveVisualAnalyticsProps> =
   const [activeTab, setActiveTab] = useState<'all' | 'commercial' | 'inventory'>('all');
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 space-y-4">
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1] }}
+      className="bg-white/95 border border-slate-200/90 rounded-2xl p-4 sm:p-5 space-y-4 shadow-sm"
+    >
       {/* Visual Analytics Header & Tab Switcher */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
         <div>
@@ -617,120 +660,136 @@ export const ExecutiveVisualAnalytics: React.FC<ExecutiveVisualAnalyticsProps> =
             <h2 className="text-sm sm:text-base font-montserrat font-bold text-slate-900">
               Executive Performance Charts &amp; Analytics
             </h2>
+            <span className="beta-badge">Live</span>
           </div>
           <p className="text-[11px] text-slate-500 mt-0.5">
             Live branch revenue bar graphs, sales channel mix, asset allocation &amp; top SKU velocity pie/bar charts.
           </p>
         </div>
 
-        {/* Tab switch buttons */}
-        <div className="inline-flex flex-wrap items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 max-w-full self-start sm:self-auto">
-          <button
-            type="button"
-            onClick={() => setActiveTab('all')}
-            className={`px-2.5 py-1 rounded-md font-montserrat font-bold text-[11px] flex items-center gap-1 cursor-pointer transition ${
-              activeTab === 'all'
-                ? 'bg-[#0A006E] text-[#FFDE00]'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Layers className="w-3 h-3" />
-            All Charts (4)
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('commercial')}
-            className={`px-2.5 py-1 rounded-md font-montserrat font-bold text-[11px] flex items-center gap-1 cursor-pointer transition ${
-              activeTab === 'commercial'
-                ? 'bg-[#0A006E] text-[#FFDE00]'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <BarChart3 className="w-3 h-3" />
-            Sales &amp; Channels
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('inventory')}
-            className={`px-2.5 py-1 rounded-md font-montserrat font-bold text-[11px] flex items-center gap-1 cursor-pointer transition ${
-              activeTab === 'inventory'
-                ? 'bg-[#0A006E] text-[#FFDE00]'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <PieChartIcon className="w-3 h-3" />
-            Assets &amp; SKUs
-          </button>
+        {/* Animated Tab switch buttons */}
+        <div className="inline-flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 max-w-full self-start sm:self-auto">
+          {[
+            { id: 'all' as const, label: 'All Charts (4)', icon: Layers },
+            { id: 'commercial' as const, label: 'Sales & Channels', icon: BarChart3 },
+            { id: 'inventory' as const, label: 'Assets & SKUs', icon: PieChartIcon },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`relative px-3 py-1.5 rounded-lg font-montserrat font-bold text-[11px] flex items-center gap-1.5 cursor-pointer transition ${
+                  isActive ? 'text-[#FFDE00]' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {isActive && (
+                  <motion.span
+                    layoutId="analytics-tab-pill"
+                    transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+                    className="absolute inset-0 bg-[#0A006E] rounded-lg shadow-xs"
+                  />
+                )}
+                <Icon className="w-3 h-3 relative z-10" />
+                <span className="relative z-10">{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Grid of Bar Graphs & Pie Charts */}
-      {activeTab === 'all' ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <BarGraph
-            title="Regional Branch Revenue Comparison"
-            subtitle="Commercial sales performance across active depots & branches"
-            data={branchData}
-            badge="Bar Graph"
-            activeColor="#0A006E"
-          />
-          <PieChart
-            title="Sales Channel Revenue Contribution"
-            subtitle="Proportional split between Retail POS, B2B Wholesale & Online Store"
-            data={channelData}
-            badge="Pie Chart"
-            centerMetricLabel="Gross Turnover"
-          />
-          <PieChart
-            title="Balance Sheet Asset Allocation"
-            subtitle="Working capital split across Bonded Stock, A/R, and Reserves"
-            data={assetData}
-            badge="Asset Pie"
-            centerMetricLabel="Total Assets"
-          />
-          <BarGraph
-            title="Top Velocity SKU Revenue"
-            subtitle="Leading liquor and beverage products by logged turnover"
-            data={topSkusData}
-            badge="SKU Bar"
-            activeColor="#34D186"
-          />
-        </div>
-      ) : activeTab === 'commercial' ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <BarGraph
-            title="Regional Branch Revenue Comparison"
-            subtitle="Commercial sales performance across active depots & branches"
-            data={branchData}
-            badge="Live Bar Graph"
-            activeColor="#0A006E"
-          />
-          <PieChart
-            title="Sales Channel Revenue Contribution"
-            subtitle="Proportional split between Retail Counter POS, B2B, and Online Store"
-            data={channelData}
-            badge="Live Pie Chart"
-            centerMetricLabel="Gross Turnover"
-          />
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <PieChart
-            title="Balance Sheet Asset Allocation"
-            subtitle="Working capital split across Bonded Stock, A/R, and Reserves"
-            data={assetData}
-            badge="Asset Pie Chart"
-            centerMetricLabel="Total Assets"
-          />
-          <BarGraph
-            title="Top Velocity SKU Revenue"
-            subtitle="Leading liquor and beverage products by logged turnover"
-            data={topSkusData}
-            badge="Top Products Bar"
-            activeColor="#34D186"
-          />
-        </div>
-      )}
-    </div>
+      {/* Animated Grid of Bar Graphs & Pie Charts */}
+      <AnimatePresence mode="wait">
+        {activeTab === 'all' ? (
+          <motion.div
+            key="all"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.2 }}
+            className="grid grid-cols-1 lg:grid-cols-2 gap-4"
+          >
+            <BarGraph
+              title="Regional Branch Revenue Comparison"
+              subtitle="Commercial sales performance across active depots & branches"
+              data={branchData}
+              badge="Bar Graph"
+              activeColor="#0A006E"
+            />
+            <PieChart
+              title="Sales Channel Revenue Contribution"
+              subtitle="Proportional split between Retail POS, B2B Wholesale & Online Store"
+              data={channelData}
+              badge="Pie Chart"
+              centerMetricLabel="Gross Turnover"
+            />
+            <PieChart
+              title="Balance Sheet Asset Allocation"
+              subtitle="Working capital split across Bonded Stock, A/R, and Reserves"
+              data={assetData}
+              badge="Asset Pie"
+              centerMetricLabel="Total Assets"
+            />
+            <BarGraph
+              title="Top Velocity SKU Revenue"
+              subtitle="Leading liquor and beverage products by logged turnover"
+              data={topSkusData}
+              badge="SKU Bar"
+              activeColor="#34D186"
+            />
+          </motion.div>
+        ) : activeTab === 'commercial' ? (
+          <motion.div
+            key="commercial"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.2 }}
+            className="grid grid-cols-1 lg:grid-cols-2 gap-4"
+          >
+            <BarGraph
+              title="Regional Branch Revenue Comparison"
+              subtitle="Commercial sales performance across active depots & branches"
+              data={branchData}
+              badge="Live Bar Graph"
+              activeColor="#0A006E"
+            />
+            <PieChart
+              title="Sales Channel Revenue Contribution"
+              subtitle="Proportional split between Retail Counter POS, B2B, and Online Store"
+              data={channelData}
+              badge="Live Pie Chart"
+              centerMetricLabel="Gross Turnover"
+            />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="inventory"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.2 }}
+            className="grid grid-cols-1 lg:grid-cols-2 gap-4"
+          >
+            <PieChart
+              title="Balance Sheet Asset Allocation"
+              subtitle="Working capital split across Bonded Stock, A/R, and Reserves"
+              data={assetData}
+              badge="Asset Pie Chart"
+              centerMetricLabel="Total Assets"
+            />
+            <BarGraph
+              title="Top Velocity SKU Revenue"
+              subtitle="Leading liquor and beverage products by logged turnover"
+              data={topSkusData}
+              badge="Top Products Bar"
+              activeColor="#34D186"
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 };

@@ -5,6 +5,7 @@ import { TransactionDoc } from '../types';
 import {
   exportCommercialDocumentPDF,
   formatKes,
+  getDocumentCreationRecord,
   normalizeDocumentLineItems,
   NormalizedDocumentLineItem,
 } from '../erpUtils';
@@ -20,6 +21,29 @@ const DocumentSheetCanvas: React.FC<{
   forPrint?: boolean;
 }> = ({ docData, items, forPrint = false }) => {
   const isLogisticsOnly = docData.docType === 'Packing List' || docData.docType === 'Delivery Note';
+  const creationRec = getDocumentCreationRecord(docData);
+  const cheque = docData.chequeDetails;
+  const effectiveStatus = cheque?.status && docData.status !== 'Credited' ? docData.status : docData.status;
+  const isPaid = effectiveStatus === 'Paid';
+  const isProcessing = effectiveStatus === 'Processing';
+  const isRejected = effectiveStatus === 'Rejected';
+
+  const statusTextColor = isRejected
+    ? 'text-rose-700'
+    : isProcessing
+    ? 'text-amber-700'
+    : 'text-emerald-700';
+
+  const statusDisplayLabel =
+    cheque || docData.paymentMethod === 'Cheque'
+      ? isPaid
+        ? 'Paid (Cheque Cleared)'
+        : isProcessing
+        ? 'Processing (Not Matured)'
+        : isRejected
+        ? 'Rejected (Cheque Returned)'
+        : docData.status
+      : docData.status;
 
   return (
     <div
@@ -64,8 +88,8 @@ const DocumentSheetCanvas: React.FC<{
             <span className="font-bold text-slate-900">{docData.branchName}</span> ({docData.regionName})
           </p>
           <p className="text-xs text-slate-500 mt-0.5">
-            Channel: <span className="font-semibold text-slate-800">{docData.channel}</span> · Issued By:{' '}
-            <span className="font-semibold text-slate-800">{docData.createdBy} ({docData.createdByRole})</span>
+            Channel: <span className="font-semibold text-slate-800">{docData.channel}</span> · Created By:{' '}
+            <span className="font-semibold text-slate-800">{creationRec.createdBy} ({creationRec.createdByRole})</span>
           </p>
         </div>
 
@@ -76,7 +100,13 @@ const DocumentSheetCanvas: React.FC<{
         >
           <div className="text-sm font-black text-[#0A006E]">{docData.docNumber}</div>
           <div className="text-xs text-slate-600 mt-1">
-            Issued: {new Date(docData.createdAt).toLocaleString()}
+            Day: <span className="font-semibold text-slate-800">{creationRec.createdDay}</span>
+          </div>
+          <div className="text-xs text-slate-600 mt-0.5">
+            Time: <span className="font-semibold text-slate-800">{creationRec.createdTime}</span>
+          </div>
+          <div className="text-xs text-slate-600 mt-0.5">
+            Created By: <span className="font-semibold text-slate-900">{creationRec.createdBy}</span>
           </div>
           {docData.validUntil && (
             <div className="text-xs text-amber-800 mt-0.5 font-bold">
@@ -84,12 +114,12 @@ const DocumentSheetCanvas: React.FC<{
             </div>
           )}
           <div
-            className={`text-xs text-emerald-700 mt-1 font-bold flex items-center gap-1 ${
+            className={`text-xs ${statusTextColor} mt-1 font-bold flex items-center gap-1 ${
               forPrint ? 'justify-end' : 'sm:justify-end'
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-            <span>Status: {docData.status} · {docData.paymentMethod}</span>
+            <span>Status: {statusDisplayLabel} · {docData.paymentMethod}</span>
           </div>
         </div>
       </div>
@@ -146,6 +176,83 @@ const DocumentSheetCanvas: React.FC<{
           )}
         </div>
       </div>
+
+      {/* Cheque Clearing & Maturity Details Strip (shown for Cheque POs, Invoices, and Receipts) */}
+      {(cheque || docData.paymentMethod === 'Cheque') && (
+        <div
+          className={`p-4 rounded-xl border-2 text-xs space-y-2.5 break-inside-avoid ${
+            isRejected
+              ? 'bg-rose-50 border-rose-300'
+              : isProcessing
+              ? 'bg-amber-50 border-amber-300'
+              : 'bg-emerald-50 border-emerald-300'
+          }`}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-[10px] font-montserrat font-black uppercase tracking-wider text-[#0A006E]">
+              Cheque Payment &amp; Clearing Verification
+            </div>
+            <span
+              className={`px-2.5 py-0.5 rounded-full text-[10px] font-montserrat font-black uppercase border ${
+                isRejected
+                  ? 'bg-rose-600 text-white border-rose-700'
+                  : isProcessing
+                  ? 'bg-amber-500 text-slate-950 border-amber-600'
+                  : 'bg-emerald-600 text-white border-emerald-700'
+              }`}
+            >
+              {isRejected
+                ? 'REJECTED · UNSUCCESSFUL'
+                : isProcessing
+                ? 'PROCESSING · NOT MATURED'
+                : 'PAID · CHEQUE CLEARED'}
+            </span>
+          </div>
+
+          {cheque && (
+            <div className={`grid gap-3 font-mono-tabular ${forPrint ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-3'}`}>
+              <div>
+                <div className="text-[10px] text-slate-500 font-montserrat font-bold">Cheque Number</div>
+                <div className="font-black text-[#0A006E]">{cheque.chequeNumber}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-slate-500 font-montserrat font-bold">Drawer Bank &amp; Branch</div>
+                <div className="font-bold text-slate-900">
+                  {cheque.drawerBank}
+                  {cheque.branchName ? ` (${cheque.branchName})` : ''}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] text-slate-500 font-montserrat font-bold">Drawer / Account Name</div>
+                <div className="font-bold text-slate-900">{cheque.drawerName}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-slate-500 font-montserrat font-bold">Cheque Issue Date</div>
+                <div className="font-semibold text-slate-800">{cheque.chequeDate}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-slate-500 font-montserrat font-bold">Maturity / Value Date</div>
+                <div className="font-bold text-slate-900">{cheque.maturityDate}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-slate-500 font-montserrat font-bold">Cheque Face Amount</div>
+                <div className="font-black text-[#0A006E]">{formatKes(cheque.amountKes || docData.totalAmount)}</div>
+              </div>
+            </div>
+          )}
+
+          {isRejected && (
+            <div className="text-[11px] font-bold text-rose-800 bg-white/80 px-3 py-1.5 rounded-lg border border-rose-200">
+              Clearance Outcome: Cheque rejected / unsuccessful.{cheque?.rejectionReason ? ` Reason: ${cheque.rejectionReason}` : ''}
+            </div>
+          )}
+          {isProcessing && (
+            <div className="text-[11px] font-bold text-amber-900 bg-white/80 px-3 py-1.5 rounded-lg border border-amber-200">
+              Clearance Notice: Document currently marked Processing pending cheque maturity and bank settlement{cheque?.maturityDate ? ` (${cheque.maturityDate})` : ''}.
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Line Items Table */}
       <div className={`${forPrint ? 'overflow-visible' : 'overflow-x-auto'} border border-slate-200 rounded-xl shadow-2xs`}>
