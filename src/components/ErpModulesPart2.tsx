@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { motion } from 'motion/react';
 import {
   UserPlus,
   Download,
@@ -37,6 +38,7 @@ import {
   FileCheck2,
   Clock,
   User,
+  Sparkles,
 } from 'lucide-react';
 import {
   StaffMember,
@@ -2322,37 +2324,41 @@ export const DocumentsAndCreditNotesModule: React.FC<{
 
       {/* Document Filter, Ledger & Creation Record */}
       {isDocWidgetVisible('docs_ledger') && (
-      <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-200 pb-3">
-          <div className="flex items-center gap-2 flex-wrap">
+      <div className="beta-kpi-card rounded-2xl p-4 sm:p-5 space-y-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 pb-3">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="beta-badge shrink-0">
+              <Sparkles className="w-2.5 h-2.5" />
+              <span>Beta</span>
+            </span>
             <button
               type="button"
               onClick={() => setLedgerView('ledger')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer transition ${
+              className={`beta-action-tile px-4 py-2 rounded-xl text-xs font-montserrat font-black flex items-center gap-2 cursor-pointer ${
                 ledgerView === 'ledger'
-                  ? 'bg-[#0A006E] text-[#FFDE00] shadow-xs'
+                  ? 'bg-[#0A006E] text-[#FFDE00] shadow-md ring-2 ring-[#0A006E]/20'
                   : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
               }`}
             >
-              <FileText className="w-3.5 h-3.5" />
+              <FileText className="w-3.5 h-3.5 shrink-0" />
               <span>Commercial Documents ({visibleDocs.length})</span>
             </button>
             <button
               type="button"
               onClick={() => setLedgerView('creation_record')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer transition ${
+              className={`beta-action-tile px-4 py-2 rounded-xl text-xs font-montserrat font-black flex items-center gap-2 cursor-pointer ${
                 ledgerView === 'creation_record'
-                  ? 'bg-[#0A006E] text-[#FFDE00] shadow-xs'
+                  ? 'bg-[#0A006E] text-[#FFDE00] shadow-md ring-2 ring-[#0A006E]/20'
                   : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
               }`}
             >
-              <History className="w-3.5 h-3.5" />
+              <History className="w-3.5 h-3.5 shrink-0" />
               <span>Document Creation Record ({creationRecordEntries.length})</span>
             </button>
           </div>
 
           {ledgerView === 'creation_record' && (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() =>
@@ -2373,9 +2379,9 @@ export const DocumentsAndCreditNotesModule: React.FC<{
                     'Vaairo_Document_Creation_Record'
                   )
                 }
-                className="px-2.5 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer"
+                className="beta-action-tile px-3 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
-                <Download className="w-3.5 h-3.5" />
+                <Download className="w-3.5 h-3.5 shrink-0" />
                 Export Record PDF
               </button>
               <button
@@ -2401,17 +2407,17 @@ export const DocumentsAndCreditNotesModule: React.FC<{
                     ])
                   )
                 }
-                className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer"
+                className="beta-action-tile px-3 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
-                <Download className="w-3.5 h-3.5" />
+                <Download className="w-3.5 h-3.5 shrink-0" />
                 CSV
               </button>
             </div>
           )}
         </div>
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-1">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             {[
               'All',
               'Purchase Order',
@@ -2426,10 +2432,10 @@ export const DocumentsAndCreditNotesModule: React.FC<{
                 <button
                   key={dt}
                   onClick={() => setFilterDocType(dt)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-montserrat font-black cursor-pointer ${
+                  className={`beta-action-tile px-3.5 py-2 rounded-xl text-xs font-montserrat font-black cursor-pointer ${
                     filterDocType === dt
-                      ? 'bg-[#0A006E] text-[#FFDE00]'
-                      : 'bg-white text-slate-700 border border-slate-200'
+                      ? 'bg-[#0A006E] text-[#FFDE00] shadow-md ring-2 ring-[#0A006E]/20'
+                      : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
                   }`}
                 >
                   {dt}
