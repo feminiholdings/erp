@@ -92,19 +92,36 @@ service cloud.firestore {
              data.createdAt is string && data.createdAt.size() <= 64;
     }
 
+    function isValidChequeDetails(c) {
+      return c is map &&
+             c.keys().hasAll(['chequeNumber', 'drawerBank', 'drawerName', 'chequeDate', 'maturityDate', 'amountKes', 'status']) &&
+             c.chequeNumber is string && c.chequeNumber.size() <= 64 &&
+             c.drawerBank is string && c.drawerBank.size() <= 120 &&
+             c.drawerName is string && c.drawerName.size() <= 160 &&
+             c.chequeDate is string && c.chequeDate.size() <= 32 &&
+             c.maturityDate is string && c.maturityDate.size() <= 32 &&
+             c.amountKes is number &&
+             c.status in ['Processing', 'Paid', 'Rejected'] &&
+             (!c.keys().hasAny(['branchName']) || (c.branchName is string && c.branchName.size() <= 120)) &&
+             (!c.keys().hasAny(['rejectionReason']) || (c.rejectionReason is string && c.rejectionReason.size() <= 300)) &&
+             (!c.keys().hasAny(['updatedBy']) || (c.updatedBy is string && c.updatedBy.size() <= 120)) &&
+             (!c.keys().hasAny(['updatedAt']) || (c.updatedAt is string && c.updatedAt.size() <= 64));
+    }
+
     function isValidTransaction(data) {
       return data.keys().hasAll(['docNumber', 'docType', 'channel', 'branchName', 'regionName', 'customerName', 'itemsSummary', 'totalAmount', 'status', 'createdBy', 'createdAt']) &&
              data.docNumber is string && data.docNumber.size() <= 48 &&
-             data.docType in ['Receipt', 'Invoice', 'Quote', 'Packing List', 'Delivery Note', 'Credit Note', 'Online Order'] &&
+             data.docType in ['Receipt', 'Invoice', 'Purchase Order', 'Quote', 'Packing List', 'Delivery Note', 'Credit Note', 'Online Order'] &&
              data.channel in ['Retail Counter POS', 'B2B Wholesale POS', 'Customer Online Portal', 'Affiliate Rep', 'Restaurant & Club POS', 'Merchant Shop POS'] &&
              data.branchName is string && data.branchName.size() <= 120 &&
              data.regionName is string && data.regionName.size() <= 120 &&
              data.customerName is string && data.customerName.size() <= 160 &&
              data.itemsSummary is string && data.itemsSummary.size() <= 4000 &&
              data.totalAmount is number &&
-             data.status in ['Paid', 'Issued', 'Approved', 'Fulfilled', 'Credited', 'Pending Verification'] &&
+             data.status in ['Paid', 'Issued', 'Approved', 'Fulfilled', 'Credited', 'Pending Verification', 'Processing', 'Rejected'] &&
              data.createdBy is string && data.createdBy.size() <= 120 &&
-             data.createdAt is string && data.createdAt.size() <= 64;
+             data.createdAt is string && data.createdAt.size() <= 64 &&
+             (!data.keys().hasAny(['chequeDetails']) || data.chequeDetails == null || isValidChequeDetails(data.chequeDetails));
     }
 
     function isValidBusinessUnit(data) {

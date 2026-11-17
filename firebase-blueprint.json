@@ -212,11 +212,11 @@
     },
     "TransactionDoc": {
       "title": "TransactionDoc",
-      "description": "Commercial ERP document: Receipt, Invoice, Quote, Packing List, Delivery Note, Credit Note, or Online Order",
+      "description": "Commercial ERP document: Receipt, Invoice, Purchase Order, Quote, Packing List, Delivery Note, Credit Note, or Online Order",
       "type": "object",
       "properties": {
         "docNumber": { "type": "string", "maxLength": 48 },
-        "docType": { "type": "string", "enum": ["Receipt", "Invoice", "Quote", "Packing List", "Delivery Note", "Credit Note", "Online Order"] },
+        "docType": { "type": "string", "enum": ["Receipt", "Invoice", "Purchase Order", "Quote", "Packing List", "Delivery Note", "Credit Note", "Online Order"] },
         "channel": { "type": "string", "enum": ["Retail Counter POS", "B2B Wholesale POS", "Customer Online Portal", "Affiliate Rep", "Restaurant & Club POS", "Merchant Shop POS"] },
         "orderCategory": { "type": "string", "enum": ["POS_SALE", "WAREHOUSE_PURCHASE", "FACILITY_DOCUMENT"] },
         "branchId": { "type": "string", "maxLength": 128 },
@@ -244,7 +244,23 @@
         "exciseAndTax": { "type": "number" },
         "totalAmount": { "type": "number" },
         "paymentMethod": { "type": "string", "maxLength": 60 },
-        "status": { "type": "string", "enum": ["Paid", "Issued", "Approved", "Fulfilled", "Credited", "Pending Verification"] },
+        "status": { "type": "string", "enum": ["Paid", "Issued", "Approved", "Fulfilled", "Credited", "Pending Verification", "Processing", "Rejected"] },
+        "chequeDetails": {
+          "type": "object",
+          "properties": {
+            "chequeNumber": { "type": "string", "maxLength": 64 },
+            "drawerBank": { "type": "string", "maxLength": 120 },
+            "branchName": { "type": "string", "maxLength": 120 },
+            "drawerName": { "type": "string", "maxLength": 160 },
+            "chequeDate": { "type": "string", "maxLength": 32 },
+            "maturityDate": { "type": "string", "maxLength": 32 },
+            "amountKes": { "type": "number" },
+            "status": { "type": "string", "enum": ["Processing", "Paid", "Rejected"] },
+            "rejectionReason": { "type": "string", "maxLength": 300 },
+            "updatedBy": { "type": "string", "maxLength": 120 },
+            "updatedAt": { "type": "string", "maxLength": 64 }
+          }
+        },
         "relatedInvoiceNo": { "type": "string", "maxLength": 48 },
         "linkedTransferId": { "type": "string", "maxLength": 128 },
         "linkedTransferNo": { "type": "string", "maxLength": 48 },
@@ -254,7 +270,10 @@
         "createdBy": { "type": "string", "maxLength": 120 },
         "createdByRole": { "type": "string", "maxLength": 80 },
         "affiliateCode": { "type": "string", "maxLength": 48 },
-        "createdAt": { "type": "string", "maxLength": 64 }
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "createdDay": { "type": "string", "maxLength": 64 },
+        "createdDate": { "type": "string", "maxLength": 32 },
+        "createdTime": { "type": "string", "maxLength": 32 }
       },
       "required": ["docNumber", "docType", "channel", "branchName", "regionName", "customerName", "itemsSummary", "totalAmount", "status", "createdBy", "createdAt"]
     },
@@ -291,7 +310,10 @@
         "deviceFingerprint": { "type": "string", "maxLength": 240 },
         "branchName": { "type": "string", "maxLength": 120 },
         "severity": { "type": "string", "enum": ["Info", "Security", "Financial", "Critical"] },
-        "createdAt": { "type": "string", "maxLength": 64 }
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "createdDay": { "type": "string", "maxLength": 64 },
+        "createdDate": { "type": "string", "maxLength": 32 },
+        "createdTime": { "type": "string", "maxLength": 32 }
       },
       "required": ["actorName", "actorRole", "action", "module", "details", "deviceFingerprint", "severity", "createdAt"]
     },
