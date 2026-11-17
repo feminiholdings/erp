@@ -426,6 +426,143 @@ div.bg-white.rounded-xl:not(.fixed *):hover,
   z-index: 20;
 }
 
+/* ==========================================================================
+   BETA DASHBOARD SURFACES, MOTION & INTERACTIVE EFFECTS
+   ========================================================================== */
+
+@keyframes betaGradientFlow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes betaBadgeSheen {
+  0% { transform: translateX(-140%) skewX(-20deg); }
+  45%, 100% { transform: translateX(220%) skewX(-20deg); }
+}
+
+.beta-shell-surface {
+  background-color: #fafbfe;
+  background-image:
+    radial-gradient(at 15% 0%, rgba(10, 0, 110, 0.045) 0px, transparent 50%),
+    radial-gradient(at 85% 0%, rgba(52, 209, 134, 0.045) 0px, transparent 45%),
+    radial-gradient(#cbd5e1 0.7px, transparent 0.7px);
+  background-size: 100% 100%, 100% 100%, 22px 22px;
+}
+
+.beta-header-bar {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(203, 213, 225, 0.85);
+  box-shadow: 0 8px 24px -12px rgba(10, 0, 110, 0.14), 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+.beta-header-bar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #0A006E, #4F46E5, #34D186, #FFDE00, #0A006E);
+  background-size: 240% 100%;
+  animation: betaGradientFlow 8s ease infinite;
+  pointer-events: none;
+}
+
+.beta-badge {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #0A006E 0%, #2416B8 100%);
+  color: #FFDE00;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  box-shadow: 0 2px 8px -2px rgba(10, 0, 110, 0.45);
+}
+
+.beta-badge::after {
+  content: '';
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: 0;
+  width: 45%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  animation: betaBadgeSheen 4.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.beta-kpi-card {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, #ffffff 0%, #fcfdff 100%);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+
+.beta-kpi-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(10, 0, 110, 0.75), rgba(52, 209, 134, 0.75));
+  opacity: 0;
+  transform: scaleX(0.35);
+  transition: opacity 0.22s ease, transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+
+.beta-kpi-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(10, 0, 110, 0.28);
+  box-shadow: 0 12px 24px -12px rgba(10, 0, 110, 0.18), 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+.beta-kpi-card:hover::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+.beta-action-tile {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, background-color 0.18s ease;
+}
+
+.beta-action-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px -12px rgba(10, 0, 110, 0.22), 0 2px 6px rgba(15, 23, 42, 0.05);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .beta-header-bar::before,
+  .beta-badge::after,
+  .silent-scanner-beam,
+  .silent-scanner-beam-fast,
+  .silent-scanner-beam-dark,
+  .center-scan-btn,
+  .center-laser-line {
+    animation: none !important;
+  }
+  .beta-kpi-card,
+  .beta-action-tile,
+  button:not(:disabled) {
+    transition: none !important;
+  }
+}
+
 /* Print optimization for receipts, invoices, packing lists, delivery notes, quotes, and credit notes */
 @media print {
   @page {

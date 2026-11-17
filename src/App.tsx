@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   collection,
   doc,
@@ -92,6 +93,7 @@ import {
   isSampleSkuRecord,
   formatKes,
   getEffectiveUserModules,
+  buildDocumentCreationMetadata,
 } from './erpUtils';
 import {
   ensureOperationalFoundationSeeded,
@@ -119,7 +121,7 @@ import { DocumentPrintModal } from './components/DocumentPrintModal';
 import { CustomerOrderDetailsModal } from './components/CustomerOrderDetailsModal';
 import { ExternalCustomersModule } from './components/ExternalCustomersModule';
 import { ThermalPayslipModal } from './components/ThermalPayslipModal';
-import { OnboardItemsModal } from './components/OnboardItemsModal';
+import { OnboardItemsWorkspace } from './components/OnboardItemsModal';
 import { AccessModelMatrixModal } from './components/AccessModelMatrixModal';
 import { UserFeatureAccessModal } from './components/UserFeatureAccessModal';
 import { StatusFeedbackToast } from './components/AnimatedFeedback';
@@ -159,6 +161,7 @@ const MODULE_META: Record<
   retail_pos: { label: 'Retail Counter POS', shortMobileLabel: 'Retail POS', oneWordLabel: 'Retail', icon: Store },
   sales_pos: { label: 'B2B Wholesale & Sales POS', shortMobileLabel: 'Sales POS', oneWordLabel: 'Wholesale', icon: Briefcase },
   inventory: { label: 'Inventory & Auto-SKU', shortMobileLabel: 'Inventory', oneWordLabel: 'Inventory', icon: Package },
+  onboard_items: { label: 'Onboard Items & Activation', shortMobileLabel: 'Onboard', oneWordLabel: 'Onboard', icon: Barcode },
   branches_transfers: { label: 'Branches & Transfers', shortMobileLabel: 'Branches', oneWordLabel: 'Branches', icon: Building2 },
   geo_pricing: { label: 'Geo-Location Pricing', shortMobileLabel: 'Geo-Price', oneWordLabel: 'Pricing', icon: MapPin },
   partners: { label: 'Suppliers, Retailers & Logistics', shortMobileLabel: 'Partners', oneWordLabel: 'Partners', icon: Users },
@@ -201,7 +204,7 @@ const ERP_DEPARTMENTS: {
     title: 'Inventory, Depots & Logistics',
     oneWordTitle: 'Inventory',
     icon: Package,
-    modules: ['inventory', 'branches_transfers', 'partners', 'delivery_management'],
+    modules: ['inventory', 'onboard_items', 'branches_transfers', 'partners', 'delivery_management'],
   },
   {
     id: 'hospitality',
@@ -786,7 +789,7 @@ export default function App() {
   const [inspectingOrderTx, setInspectingOrderTx] = useState<TransactionDoc | null>(null);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
-  const [isOnboardModalOpen, setIsOnboardModalOpen] = useState(false);
+  const [returnFromOnboardModule, setReturnFromOnboardModule] = useState<ERPModuleId>('inventory');
   const [isAccessMatrixOpen, setIsAccessMatrixOpen] = useState(false);
   const [isKraReturnsModalOpen, setIsKraReturnsModalOpen] = useState(false);
   const [kraReturnsDefaultTab, setKraReturnsDefaultTab] = useState<KraReturnScheduleType>('VAT3_SALES_SEC_B');
@@ -1401,6 +1404,7 @@ export default function App() {
     severity: AuditLog['severity'] = 'Info'
   ) => {
     const logId = `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const meta = buildDocumentCreationMetadata();
     const entry: AuditLog = cleanFirestoreData({
       id: logId,
       actorName: actorName || 'System Actor',
@@ -1412,7 +1416,10 @@ export default function App() {
       deviceFingerprint: getDeviceFingerprint(),
       branchName: branchName || 'Headquarters',
       severity,
-      createdAt: new Date().toISOString(),
+      createdAt: meta.createdAt,
+      createdDay: meta.createdDay,
+      createdDate: meta.createdDate,
+      createdTime: meta.createdTime,
     });
     // Optimistic local state update + backup
     setAuditLogs((prev) => {
@@ -2166,8 +2173,22 @@ export default function App() {
     if (modId !== 'hr_rbac') {
       setHrRequestedTab(undefined);
     }
+    if (modId === 'onboard_items' && activeModule !== 'onboard_items') {
+      setReturnFromOnboardModule(activeModule);
+    }
     setActiveModule(modId);
     setMobileDrawerOpen(false);
+  };
+
+  const handleOpenOnboardItems = () => {
+    if (activeModule !== 'onboard_items') {
+      setReturnFromOnboardModule(activeModule);
+    }
+    setActiveModule('onboard_items');
+    setMobileDrawerOpen(false);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const handleOpenHrLeaveTab = () => {
@@ -2276,10 +2297,18 @@ export default function App() {
     updatedProducts: { productId: string; newTotal: number; newBranchStockJson: string }[]
   ): Promise<TransactionDoc | null> => {
     const id = `tx-${Date.now()}`;
+    const creationMeta = buildDocumentCreationMetadata();
+    const creatorName = (txDraft.createdBy || currentUser?.name || 'System Operator').trim();
+    const creatorRole = (txDraft.createdByRole || currentUser?.role || 'Staff').trim();
     const fullTx: TransactionDoc = cleanFirestoreData({
       ...txDraft,
       id,
-      createdAt: new Date().toISOString(),
+      createdBy: creatorName,
+      createdByRole: creatorRole,
+      createdAt: creationMeta.createdAt,
+      createdDay: creationMeta.createdDay,
+      createdDate: creationMeta.createdDate,
+      createdTime: creationMeta.createdTime,
     });
 
     // Optimistic local state update + persistent backup
@@ -2308,15 +2337,15 @@ export default function App() {
     triggerToast(
       'success',
       `${txDraft.docType} ${txDraft.docNumber} Committed`,
-      `${txDraft.customerName} · ${formatKes(txDraft.totalAmount)} recorded.`
+      `${txDraft.customerName} · ${formatKes(txDraft.totalAmount)} recorded by ${creatorName}.`
     );
     await recordAuditLog(
-      txDraft.createdBy,
-      txDraft.createdByRole,
+      creatorName,
+      creatorRole,
       currentUser?.email || 'POS-Terminal',
-      `Issued ${txDraft.docType} ${txDraft.docNumber}`,
-      txDraft.channel,
-      `${txDraft.docType} for ${txDraft.customerName} in ${txDraft.regionName} totaling ${formatKes(txDraft.totalAmount)}`,
+      `Created ${txDraft.docType} ${txDraft.docNumber}`,
+      'Document Creation Record',
+      `Created by ${creatorName} (${creatorRole}) on ${creationMeta.createdDay} at ${creationMeta.createdTime} · ${txDraft.channel} · Customer: ${txDraft.customerName} · ${formatKes(txDraft.totalAmount)}`,
       txDraft.branchName,
       'Financial'
     );
@@ -2486,22 +2515,37 @@ export default function App() {
 
   const handleUpdateProduct = async (productId: string, updates: Partial<Product>) => {
     try {
+      const existingProd = products.find((p) => p.id === productId);
+      const isPriceUpdate =
+        updates.retailPriceKes !== undefined ||
+        updates.wholesalePriceKes !== undefined ||
+        updates.warehouseCostKes !== undefined ||
+        updates.baseRetailPrice !== undefined ||
+        updates.baseWholesalePrice !== undefined ||
+        updates.baseLandedCost !== undefined;
+
       await persistProductState(productId, updates);
       triggerToast(
         'success',
-        'Product Updated',
-        `Updated "${updates.name || 'product'}" specifications & barcode.`
+        isPriceUpdate ? 'Product Price Updated' : 'Product Updated',
+        isPriceUpdate
+          ? `Updated pricing for "${updates.name || existingProd?.name || productId}".`
+          : `Updated "${updates.name || existingProd?.name || 'product'}" specifications & barcode.`
       );
       if (currentUser) {
         await recordAuditLog(
           currentUser.name,
           currentUser.role,
           currentUser.email,
-          `Updated Product ${updates.name || productId}`,
-          'Inventory & Auto-SKU',
-          `Edited product specs & barcode for ${productId}`,
+          isPriceUpdate
+            ? `Updated Pricing for ${updates.name || existingProd?.sku || productId}`
+            : `Updated Product ${updates.name || productId}`,
+          isPriceUpdate ? 'Geo-Location Pricing' : 'Inventory & Auto-SKU',
+          isPriceUpdate
+            ? `Updated cost/wholesale/retail prices for ${existingProd?.sku || productId}`
+            : `Edited product specs & barcode for ${productId}`,
           currentUser.branchName || 'Headquarters',
-          'Info'
+          isPriceUpdate ? 'Financial' : 'Info'
         );
       }
     } catch (error) {
@@ -2983,7 +3027,8 @@ export default function App() {
       dispatchImmediately,
     } = payload;
 
-    const nowIso = new Date().toISOString();
+    const creationMeta = buildDocumentCreationMetadata();
+    const nowIso = creationMeta.createdAt;
     const suffix = Date.now().toString().slice(-6);
     const batchNo = `WPO-${suffix}`;
     const invoiceNo = `INV-${batchNo}`;
@@ -3044,6 +3089,9 @@ export default function App() {
       createdBy: currentUser.name,
       createdByRole: currentUser.role,
       createdAt: nowIso,
+      createdDay: creationMeta.createdDay,
+      createdDate: creationMeta.createdDate,
+      createdTime: creationMeta.createdTime,
     });
 
     let deliveryNoteDoc: TransactionDoc | null = null;
@@ -3077,6 +3125,9 @@ export default function App() {
         createdBy: currentUser.name,
         createdByRole: currentUser.role,
         createdAt: nowIso,
+        createdDay: creationMeta.createdDay,
+        createdDate: creationMeta.createdDate,
+        createdTime: creationMeta.createdTime,
       });
     }
 
@@ -3182,9 +3233,9 @@ export default function App() {
       currentUser.name,
       currentUser.role,
       currentUser.email,
-      `Warehouse Purchase Order ${batchNo}`,
-      'Branches & Transfers',
-      `${toBranch.name} requested/purchased ${items.length} SKU(s) totaling ${formatKes(totalAmount)} from ${fromBranch.name} (Invoice ${invoiceNo})`,
+      `Created Invoice ${invoiceNo}${deliveryNoteDoc ? ` & Delivery Note ${dnNo}` : ''}`,
+      'Document Creation Record',
+      `Created by ${currentUser.name} (${currentUser.role}) on ${creationMeta.createdDay} at ${creationMeta.createdTime} · Warehouse Purchase ${batchNo} (${fromBranch.name} → ${toBranch.name}) totaling ${formatKes(totalAmount)}`,
       toBranch.name,
       'Financial'
     );
@@ -3243,7 +3294,8 @@ export default function App() {
     const reg =
       regions.find((r) => r.id === fromBr?.regionId || r.name === fromBr?.regionName) || regions[0];
 
-    const nowIso = new Date().toISOString();
+    const settlementMeta = buildDocumentCreationMetadata();
+    const nowIso = settlementMeta.createdAt;
     const receiptId = `tx-${Date.now()}-rcp`;
     const receiptNo = `RCP-${batchKey}`;
     const receiptDoc: TransactionDoc = cleanFirestoreData({
@@ -3274,6 +3326,9 @@ export default function App() {
       createdBy: currentUser.name,
       createdByRole: currentUser.role,
       createdAt: nowIso,
+      createdDay: settlementMeta.createdDay,
+      createdDate: settlementMeta.createdDate,
+      createdTime: settlementMeta.createdTime,
     });
 
     setTransactions((prev) => {
@@ -3327,6 +3382,17 @@ export default function App() {
         );
       } catch {}
     }
+
+    await recordAuditLog(
+      currentUser.name,
+      currentUser.role,
+      currentUser.email,
+      `Created Receipt ${receiptNo}`,
+      'Document Creation Record',
+      `Created by ${currentUser.name} (${currentUser.role}) on ${settlementMeta.createdDay} at ${settlementMeta.createdTime} · Settlement Receipt for Warehouse Purchase ${batchKey} · ${formatKes(totalBatchAmount)}`,
+      tr.fromBranchName,
+      'Financial'
+    );
 
     triggerToast(
       'success',
@@ -3614,6 +3680,7 @@ export default function App() {
         ];
         const subtotal = lineItems.reduce((s, li) => s + li.lineTotal, 0);
         const dnId = `tx-${Date.now()}-dn`;
+        const dnMeta = buildDocumentCreationMetadata(nowIso);
         createdDeliveryNote = cleanFirestoreData({
           id: dnId,
           docNumber: `DN-${tr.transferNo.slice(0, 14)}`,
@@ -3642,6 +3709,9 @@ export default function App() {
           createdBy: currentUser.name,
           createdByRole: currentUser.role,
           createdAt: nowIso,
+          createdDay: dnMeta.createdDay,
+          createdDate: dnMeta.createdDate,
+          createdTime: dnMeta.createdTime,
         });
 
         setTransactions((prev) => {
@@ -3657,6 +3727,17 @@ export default function App() {
         } catch (err) {
           console.warn('[Firestore] Delivery Note saved locally:', err);
         }
+
+        await recordAuditLog(
+          currentUser.name,
+          currentUser.role,
+          currentUser.email,
+          `Created Delivery Note ${createdDeliveryNote.docNumber}`,
+          'Document Creation Record',
+          `Created by ${currentUser.name} (${currentUser.role}) on ${dnMeta.createdDay} at ${dnMeta.createdTime} · Delivery Note for transfer ${tr.transferNo}`,
+          tr.fromBranchName,
+          'Financial'
+        );
       } else {
         createdDeliveryNote = existingDn;
       }
@@ -3874,6 +3955,120 @@ export default function App() {
     }
   };
 
+  const handleUpdateRegion = async (
+    regionId: string,
+    updates: Partial<Omit<GeoRegion, 'id' | 'createdAt'>>
+  ) => {
+    const existing = regions.find((r) => r.id === regionId);
+    if (!existing) return;
+    const updatedReg: GeoRegion = cleanFirestoreData({
+      ...existing,
+      ...updates,
+      id: regionId,
+      createdAt: existing.createdAt,
+    });
+
+    setRegions((prev) => {
+      const next = prev.map((r) => (r.id === regionId ? updatedReg : r));
+      try {
+        localStorage.setItem('erp_regions_backup', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    try {
+      await setDoc(doc(db, 'geo_regions', regionId), updatedReg, { merge: true });
+    } catch (error) {
+      console.warn('[Firestore] Geo-Zone update saved locally, cloud sync pending:', error);
+    }
+
+    triggerToast(
+      'success',
+      `Geo-Zone Updated`,
+      `${updatedReg.name}: Wholesale ×${updatedReg.wholesaleMultiplier} · Retail ×${updatedReg.retailMultiplier}.`
+    );
+    if (currentUser) {
+      await recordAuditLog(
+        currentUser.name,
+        currentUser.role,
+        currentUser.email,
+        `Updated Geo-Pricing Zone ${updatedReg.code}`,
+        'Geo-Location Pricing',
+        `Updated ${updatedReg.name}: Wholesale ×${updatedReg.wholesaleMultiplier}, Retail ×${updatedReg.retailMultiplier}, Freight KES ${updatedReg.freightLevyPerCase}`,
+        currentUser.branchName,
+        'Financial'
+      );
+    }
+  };
+
+  const handleBulkUpdateProductPrices = async (
+    items: Array<{ productId: string; updates: Partial<Product> }>,
+    summaryLabel: string
+  ) => {
+    if (!items || items.length === 0) return;
+    const updatesMap = new Map(items.map((item) => [item.productId, item.updates]));
+    const updatedDocs: Product[] = [];
+
+    const existingMap = new Map<string, Product>();
+    products.forEach((p) => existingMap.set(p.id, p));
+    firestoreProducts.forEach((p) => existingMap.set(p.id, p));
+
+    for (const [productId, patch] of updatesMap.entries()) {
+      const baseProd = existingMap.get(productId);
+      if (!baseProd) continue;
+      updatedDocs.push(
+        cleanFirestoreData({
+          ...baseProd,
+          ...patch,
+          id: productId,
+        })
+      );
+    }
+
+    setFirestoreProducts((prev) => {
+      const prevMap = new Map(prev.map((p) => [p.id, p]));
+      updatedDocs.forEach((d) => prevMap.set(d.id, d));
+      const next = Array.from(prevMap.values());
+      try {
+        localStorage.setItem('erp_products_local_override', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    // Persist in chunks to Firestore
+    const CHUNK_SIZE = 200;
+    for (let i = 0; i < updatedDocs.length; i += CHUNK_SIZE) {
+      const chunk = updatedDocs.slice(i, i + CHUNK_SIZE);
+      try {
+        const batch = writeBatch(db);
+        chunk.forEach((prodDoc) => {
+          batch.set(doc(db, 'products', prodDoc.id), prodDoc, { merge: true });
+        });
+        await batch.commit();
+      } catch (error) {
+        console.warn('[Firestore] Bulk pricing chunk sync note:', error);
+      }
+    }
+
+    triggerToast(
+      'success',
+      `Updated ${updatedDocs.length} SKU Prices`,
+      summaryLabel
+    );
+    if (currentUser) {
+      await recordAuditLog(
+        currentUser.name,
+        currentUser.role,
+        currentUser.email,
+        `Bulk Price Adjustment (${updatedDocs.length} SKUs)`,
+        'Geo-Location Pricing',
+        summaryLabel,
+        currentUser.branchName || 'Headquarters',
+        'Financial'
+      );
+    }
+  };
+
   const handleUpdateProductGeoOverride = async (
     productId: string,
     regionId: string,
@@ -3890,24 +4085,34 @@ export default function App() {
     } catch {
       overrides = {};
     }
-    overrides[regionId] = { wholesale: wholesalePrice, retail: retailPrice };
+
+    const isClearing = wholesalePrice <= 0 && retailPrice <= 0;
+    if (isClearing) {
+      delete overrides[regionId];
+    } else {
+      overrides[regionId] = { wholesale: wholesalePrice, retail: retailPrice };
+    }
 
     await persistProductState(productId, {
       geoPriceOverrides: JSON.stringify(overrides),
     });
     triggerToast(
       'success',
-      `Geo-Tariff Override Saved`,
-      `${prod.sku} in ${reg.name}: Wholesale ${formatKes(wholesalePrice)} · Retail ${formatKes(retailPrice)}.`
+      isClearing ? 'Geo-Tariff Override Reset' : 'Geo-Tariff Override Saved',
+      isClearing
+        ? `${prod.sku} in ${reg.name} reverted to automatic zone multiplier.`
+        : `${prod.sku} in ${reg.name}: Wholesale ${formatKes(wholesalePrice)} · Retail ${formatKes(retailPrice)}.`
     );
     if (currentUser) {
       await recordAuditLog(
         currentUser.name,
         currentUser.role,
         currentUser.email,
-        `Geo-Tariff Override on ${prod.sku}`,
+        isClearing ? `Reset Geo-Tariff on ${prod.sku}` : `Geo-Tariff Override on ${prod.sku}`,
         'Geo-Location Pricing',
-        `Set ${reg.name} price for ${prod.sku} to Wholesale ${formatKes(wholesalePrice)}/btl, Retail ${formatKes(retailPrice)}/btl`,
+        isClearing
+          ? `Reset ${reg.name} custom price override for ${prod.sku} back to zone multiplier`
+          : `Set ${reg.name} price for ${prod.sku} to Wholesale ${formatKes(wholesalePrice)}/btl, Retail ${formatKes(retailPrice)}/btl`,
         currentUser.branchName,
         'Financial'
       );
@@ -5368,10 +5573,7 @@ export default function App() {
             {(currentUser.role === 'Branch Manager' || currentUser.role === 'Admin' || currentUser.role === 'Inventory Controller') && (
               <button
                 type="button"
-                onClick={() => {
-                  setMobileDrawerOpen(false);
-                  setIsOnboardModalOpen(true);
-                }}
+                onClick={handleOpenOnboardItems}
                 className="w-full p-3 rounded-2xl bg-[#34D186] hover:bg-[#28B873] active:bg-[#209A5F] text-[#0A006E] border-2 border-[#0A006E] flex items-center justify-between cursor-pointer shadow-md transition active:scale-98"
               >
                 <div className="flex items-center gap-3">
@@ -5643,7 +5845,7 @@ export default function App() {
       )}
 
       {/* Workspace Body: VAAIRO Desktop Left Sidebar + Main Content Canvas */}
-      <div className="flex-1 flex">
+      <div className="flex-1 flex min-w-0 overflow-x-clip">
         {/* Desktop Sidebar Navigation */}
         <aside className="hidden md:flex w-64 shrink-0 bg-[#F8FAFC] text-slate-900 flex-col justify-between p-3.5 border-r border-slate-200 relative overflow-y-auto">
           <div className="space-y-3 relative z-10">
@@ -5787,10 +5989,19 @@ export default function App() {
         <main
           className={
             activeModule === 'internal_inbox'
-              ? 'flex-1 bg-slate-100/70 p-2 sm:p-4 pb-24 md:pb-4 flex flex-col h-[calc(100dvh-4.25rem)] max-w-full overflow-hidden w-full'
-              : 'flex-1 bg-white p-3.5 sm:p-5 lg:p-6 pb-28 md:pb-14 overflow-y-auto max-w-7xl mx-auto w-full'
+              ? 'flex-1 min-w-0 bg-white p-3 sm:p-4 lg:p-5 pb-24 md:pb-14 flex flex-col h-[calc(100dvh-4.5rem)] md:h-[calc(100dvh-13.5rem)] md:max-h-[680px] md:min-h-[420px] overflow-hidden max-w-7xl mx-auto w-full'
+              : 'beta-shell-surface flex-1 min-w-0 p-3.5 sm:p-5 lg:p-6 pb-28 md:pb-14 overflow-y-auto max-w-7xl mx-auto w-full'
           }
         >
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeModule}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              className={activeModule === 'internal_inbox' ? 'flex-1 min-h-0 flex flex-col' : undefined}
+            >
           {activeModule === 'overview' && (
             <OverviewModule
               currentUser={currentUser}
@@ -5816,10 +6027,12 @@ export default function App() {
               onInspectOrder={(d) => setInspectingOrderTx(d)}
               onAuthorizeStockTransfer={handleAuthorizeStockTransfer}
               onRejectStockTransfer={handleRejectStockTransfer}
-              onOpenOnboardItems={() => setIsOnboardModalOpen(true)}
+              onOpenOnboardItems={handleOpenOnboardItems}
               onOpenKraReturns={handleOpenKraReturns}
               onTriggerToast={triggerToast}
               onNavigateModule={handleSelectModule}
+              onUpdateTransaction={handleUpdateTransaction}
+              onCreateTransaction={handleCommitTransaction}
             />
           )}
 
@@ -5892,8 +6105,30 @@ export default function App() {
               onWipeAllProducts={handleWipeAllProducts}
               onWipeInventoryToZero={handleWipeInventoryToZero}
               onLogStockIncident={handleLogStockIncident}
-              onOpenOnboardItems={() => setIsOnboardModalOpen(true)}
+              onOpenOnboardItems={handleOpenOnboardItems}
               transfers={transfers}
+            />
+          )}
+
+          {activeModule === 'onboard_items' && currentUser && (
+            <OnboardItemsWorkspace
+              isOpen
+              onBack={() =>
+                handleSelectModule(
+                  returnFromOnboardModule && returnFromOnboardModule !== 'onboard_items'
+                    ? returnFromOnboardModule
+                    : 'inventory'
+                )
+              }
+              backLabel={
+                returnFromOnboardModule === 'overview' ? 'Back to Overview' : 'Back to Inventory'
+              }
+              currentUser={currentUser}
+              products={products}
+              branches={scopedBranches}
+              onActivateProductStock={handleActivateProductStock}
+              onShowSuccessFeedback={(title, msg) => triggerToast('success', title, msg)}
+              onShowErrorFeedback={(title, msg) => triggerToast('error', title, msg)}
             />
           )}
 
@@ -5927,6 +6162,9 @@ export default function App() {
               regions={scopedRegions}
               products={products}
               onCreateRegion={handleCreateRegion}
+              onUpdateRegion={handleUpdateRegion}
+              onUpdateProduct={handleUpdateProduct}
+              onBulkUpdateProductPrices={handleBulkUpdateProductPrices}
               onUpdateProductGeoOverride={handleUpdateProductGeoOverride}
             />
           )}
@@ -5946,6 +6184,7 @@ export default function App() {
             <DocumentsAndCreditNotesModule
               currentUser={currentUser}
               transactions={scopedTransactions}
+              auditLogs={scopedAuditLogs}
               branches={scopedBranches}
               allBranches={branches}
               regions={scopedRegions}
@@ -6094,6 +6333,8 @@ export default function App() {
               onTriggerToast={triggerToast}
             />
           )}
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
 
@@ -6121,7 +6362,7 @@ export default function App() {
         products={products}
         transactions={scopedTransactions}
         onOpenAccessMatrix={() => setIsAccessMatrixOpen(true)}
-        onOpenOnboardItems={() => setIsOnboardModalOpen(true)}
+        onOpenOnboardItems={handleOpenOnboardItems}
         onOpenPhoneScanner={() => {
           setPhoneScannerSession({
             isOpen: true,
@@ -6169,20 +6410,6 @@ export default function App() {
         <ThermalPayslipModal
           record={viewingPayslipRecord}
           onClose={() => setViewingPayslipRecord(null)}
-        />
-      )}
-
-      {/* Branch Onboarding & Stock Activation Modal */}
-      {isOnboardModalOpen && currentUser && (
-        <OnboardItemsModal
-          isOpen={isOnboardModalOpen}
-          onClose={() => setIsOnboardModalOpen(false)}
-          currentUser={currentUser}
-          products={products}
-          branches={scopedBranches}
-          onActivateProductStock={handleActivateProductStock}
-          onShowSuccessFeedback={(title, msg) => triggerToast('success', title, msg)}
-          onShowErrorFeedback={(title, msg) => triggerToast('error', title, msg)}
         />
       )}
 

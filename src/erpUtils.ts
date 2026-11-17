@@ -90,6 +90,62 @@ export function getDeviceFingerprint(): string {
   return `${isMobile ? 'MobileApp' : 'Desktop'} · ${browser} (${platform}) · ${screenRes}`;
 }
 
+export interface DocumentCreationMetadata {
+  createdAt: string;
+  createdDay: string;
+  createdDate: string;
+  createdTime: string;
+}
+
+export interface ResolvedDocumentCreationRecord extends DocumentCreationMetadata {
+  createdBy: string;
+  createdByRole: string;
+}
+
+export function buildDocumentCreationMetadata(isoTimestamp?: string): DocumentCreationMetadata {
+  const rawDate = isoTimestamp ? new Date(isoTimestamp) : new Date();
+  const safeDate = Number.isNaN(rawDate.getTime()) ? new Date() : rawDate;
+  const yyyy = safeDate.getFullYear();
+  const mm = String(safeDate.getMonth() + 1).padStart(2, '0');
+  const dd = String(safeDate.getDate()).padStart(2, '0');
+
+  return {
+    createdAt: safeDate.toISOString(),
+    createdDay: safeDate.toLocaleDateString('en-GB', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }),
+    createdDate: `${yyyy}-${mm}-${dd}`,
+    createdTime: safeDate.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    }),
+  };
+}
+
+export function getDocumentCreationRecord(doc: {
+  createdBy?: string;
+  createdByRole?: string;
+  createdAt?: string;
+  createdDay?: string;
+  createdDate?: string;
+  createdTime?: string;
+}): ResolvedDocumentCreationRecord {
+  const derived = buildDocumentCreationMetadata(doc.createdAt);
+  return {
+    createdBy: (doc.createdBy || 'System Operator').trim(),
+    createdByRole: (doc.createdByRole || 'Staff').trim(),
+    createdAt: doc.createdAt || derived.createdAt,
+    createdDay: doc.createdDay || derived.createdDay,
+    createdDate: doc.createdDate || derived.createdDate,
+    createdTime: doc.createdTime || derived.createdTime,
+  };
+}
+
 export function normalizeCatalogProduct(raw: Product, index: number): Product {
   const packSize = raw.packSize || raw.bottlesPerCase || 12;
   const abv = raw.alcoholPercentage ?? raw.abv ?? 40;
@@ -410,6 +466,23 @@ export const TARGET_ACCESS_MATRIX: ModuleAccessItem[] = [
     },
   },
   {
+    moduleName: 'Onboard items & stock activation',
+    moduleId: 'onboard_items',
+    description: 'Scan item barcodes, match master catalog SKUs, and activate branch inventory stock assets.',
+    permissions: {
+      Admin: 'Full',
+      Accountant: 'None',
+      HR: 'None',
+      'Sales Manager': 'None',
+      'Branch Manager': 'Branch scope',
+      'Inventory Controller': 'Manage',
+      'Counter Cashier': 'None',
+      'Affiliate Sales Representative': 'None',
+      'Delivery Manager': 'None',
+      'Delivery Rider': 'None',
+    },
+  },
+  {
     moduleName: 'Transfers',
     moduleId: 'branches_transfers',
     description: 'Bonded inter-branch stock transfers, dispatch permits, transit logistics, and receiving.',
@@ -429,14 +502,14 @@ export const TARGET_ACCESS_MATRIX: ModuleAccessItem[] = [
   {
     moduleName: 'Pricing',
     moduleId: 'geo_pricing',
-    description: 'Geo-regional pricing multipliers, wholesale margins, freight levies, and price tiers.',
+    description: 'Product base cost, wholesale/retail pricing, geo-regional multipliers, freight levies, and zone overrides.',
     permissions: {
       Admin: 'Full',
       Accountant: 'None',
       HR: 'None',
       'Sales Manager': 'Manage',
       'Branch Manager': 'Branch scope',
-      'Inventory Controller': 'Cost / stock',
+      'Inventory Controller': 'Manage',
       'Counter Cashier': 'None',
       'Affiliate Sales Representative': 'Assigned prices',
       'Delivery Manager': 'None',
@@ -655,6 +728,7 @@ export const ROLE_PERMISSIONS: Record<
       'retail_pos',
       'sales_pos',
       'inventory',
+      'onboard_items',
       'branches_transfers',
       'geo_pricing',
       'partners',
@@ -732,6 +806,7 @@ export const ROLE_PERMISSIONS: Record<
       'retail_pos',
       'sales_pos',
       'inventory',
+      'onboard_items',
       'branches_transfers',
       'geo_pricing',
       'partners',
@@ -753,6 +828,7 @@ export const ROLE_PERMISSIONS: Record<
     allowedModules: [
       'overview',
       'inventory',
+      'onboard_items',
       'branches_transfers',
       'geo_pricing',
       'partners',
@@ -846,6 +922,14 @@ export const ERP_FEATURE_CATALOG: GranularFeatureDefinition[] = [
     description: 'Master liquor catalog, barcode assignment, physical count reconciliation, and batch tracking.',
     isModule: true,
     moduleId: 'inventory',
+  },
+  {
+    key: 'onboard_items',
+    label: 'Onboard Items & Stock Activation',
+    category: 'Inventory & Stock Governance',
+    description: 'Scan product barcodes, select brand SKUs, and activate branch stock assets.',
+    isModule: true,
+    moduleId: 'onboard_items',
   },
   {
     key: 'branches_transfers',
@@ -1032,6 +1116,17 @@ export function getEffectiveUserModules(
     !(staff.strippedFeatures && staff.strippedFeatures.includes('internal_inbox'))
   ) {
     effective.push('internal_inbox');
+  }
+
+  // Ensure onboard_items body module is available to authorized stock onboarding roles unless explicitly stripped
+  if (
+    (staff.role === 'Admin' ||
+      staff.role === 'Branch Manager' ||
+      staff.role === 'Inventory Controller') &&
+    !effective.includes('onboard_items') &&
+    !(staff.strippedFeatures && staff.strippedFeatures.includes('onboard_items'))
+  ) {
+    effective.push('onboard_items');
   }
 
   // Logged-in ERP users must never switch into the standalone customer portal
@@ -1412,27 +1507,53 @@ export function exportCommercialDocumentPDF(tx: TransactionDoc): void {
     leftY += 11;
   });
 
-  // Channel & Issued By Line
+  const creationRec = getDocumentCreationRecord(tx);
+
+  // Channel & Created By Line
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(100, 116, 139);
-  const channelText = `Channel: ${tx.channel} · Issued By: ${tx.createdBy} (${tx.createdByRole})`;
+  const channelText = `Channel: ${tx.channel} · Created By: ${creationRec.createdBy} (${creationRec.createdByRole})`;
   const channelLines = doc.splitTextToSize(channelText, leftMaxWidth) as string[];
   channelLines.forEach((line) => {
     doc.text(line, marginX, leftY);
     leftY += 10.5;
   });
 
-  // Right Metadata Box (#F8FAFC card with #E2E8F0 border)
-  const metaBoxW = 196;
+  const cheque = tx.chequeDetails;
+  const isProcessing = tx.status === 'Processing';
+  const isRejected = tx.status === 'Rejected';
+  const isPaid = tx.status === 'Paid';
+  const statusDisplayLabel =
+    cheque || tx.paymentMethod === 'Cheque'
+      ? isPaid
+        ? 'Paid (Cheque Cleared)'
+        : isProcessing
+        ? 'Processing (Not Matured)'
+        : isRejected
+        ? 'Rejected (Cheque Returned)'
+        : tx.status
+      : tx.status;
+
+  const statusRgb: [number, number, number] = isRejected
+    ? [190, 18, 60]
+    : isProcessing
+    ? [180, 83, 9]
+    : [4, 120, 87];
+
+  const metaBoxW = 212;
   const metaBoxX = pageWidth - marginX - metaBoxW;
   const metaBoxY = 34;
-  const issuedStr = `Issued: ${new Date(tx.createdAt).toLocaleString()}`;
-  const statusStr = `Status: ${tx.status} · ${tx.paymentMethod}`;
+  const dayStr = `Day: ${creationRec.createdDay}`;
+  const timeStr = `Time: ${creationRec.createdTime}`;
+  const creatorStr = `Created By: ${creationRec.createdBy}`;
+  const statusStr = `Status: ${statusDisplayLabel} · ${tx.paymentMethod}`;
   const statusLines = doc.splitTextToSize(statusStr, metaBoxW - 34) as string[];
   const metaBoxH =
     18 + // top pad + docNumber
-    14 + // issued
+    12 + // day
+    11.5 + // time
+    11.5 + // creator
     (tx.validUntil ? 12 : 0) +
     statusLines.length * 10.5 +
     12; // bottom pad
@@ -1449,11 +1570,19 @@ export function exportCommercialDocumentPDF(tx: TransactionDoc): void {
   doc.setTextColor(10, 0, 110);
   doc.text(tx.docNumber, metaRightX, metaCursorY, { align: 'right' });
 
-  metaCursorY += 13;
+  metaCursorY += 12.5;
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.8);
+  doc.setFontSize(7.6);
   doc.setTextColor(71, 85, 105);
-  doc.text(issuedStr, metaRightX, metaCursorY, { align: 'right' });
+  doc.text(dayStr, metaRightX, metaCursorY, { align: 'right' });
+
+  metaCursorY += 11;
+  doc.text(timeStr, metaRightX, metaCursorY, { align: 'right' });
+
+  metaCursorY += 11;
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text(creatorStr, metaRightX, metaCursorY, { align: 'right' });
 
   if (tx.validUntil) {
     metaCursorY += 11.5;
@@ -1465,9 +1594,9 @@ export function exportCommercialDocumentPDF(tx: TransactionDoc): void {
   metaCursorY += 12.5;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.8);
-  doc.setTextColor(4, 120, 87); // emerald-700
+  doc.setTextColor(statusRgb[0], statusRgb[1], statusRgb[2]);
   const firstStatusWidth = doc.getTextWidth(statusLines[0] || '');
-  drawShieldBadge(doc, metaRightX - firstStatusWidth - 8, metaCursorY - 2.5, 7.5, [4, 120, 87]);
+  drawShieldBadge(doc, metaRightX - firstStatusWidth - 8, metaCursorY - 2.5, 7.5, statusRgb);
   statusLines.forEach((line) => {
     doc.text(line, metaRightX, metaCursorY, { align: 'right' });
     metaCursorY += 10.5;
@@ -1630,8 +1759,119 @@ export function exportCommercialDocumentPDF(tx: TransactionDoc): void {
     });
   }
 
+  // ---- 2B. CHEQUE CLEARING & MATURITY CARD (when paid by Cheque) ----
+  let currentYAfterInfo = infoBoxY + infoBoxH;
+  if (cheque || tx.paymentMethod === 'Cheque') {
+    const chqBoxY = currentYAfterInfo + 12;
+    const noticeMsg = isRejected
+      ? `Clearance Outcome: Cheque rejected / unsuccessful.${cheque?.rejectionReason ? ` Reason: ${cheque.rejectionReason}` : ''}`
+      : isProcessing
+      ? `Clearance Notice: Document currently marked Processing pending cheque maturity and bank settlement${cheque?.maturityDate ? ` (${cheque.maturityDate})` : ''}.`
+      : '';
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.8);
+    const noticeWrapped = noticeMsg ? (doc.splitTextToSize(noticeMsg, contentWidth - 28) as string[]) : [];
+    const chqBoxH = (cheque ? 72 : 30) + (noticeWrapped.length > 0 ? 12 + noticeWrapped.length * 10 : 6);
+
+    const chqFill: [number, number, number] = isRejected
+      ? [255, 241, 242]
+      : isProcessing
+      ? [255, 251, 235]
+      : [236, 253, 245];
+    const chqBorder: [number, number, number] = isRejected
+      ? [253, 164, 175]
+      : isProcessing
+      ? [252, 211, 77]
+      : [110, 231, 183];
+
+    doc.setFillColor(chqFill[0], chqFill[1], chqFill[2]);
+    doc.setDrawColor(chqBorder[0], chqBorder[1], chqBorder[2]);
+    doc.setLineWidth(1.2);
+    doc.roundedRect(marginX, chqBoxY, contentWidth, chqBoxH, 7, 7, 'FD');
+
+    let cy = chqBoxY + 16;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.2);
+    doc.setTextColor(10, 0, 110);
+    doc.text('CHEQUE PAYMENT & CLEARING VERIFICATION', marginX + 14, cy);
+
+    const pillText = isRejected
+      ? 'REJECTED · UNSUCCESSFUL'
+      : isProcessing
+      ? 'PROCESSING · NOT MATURED'
+      : 'PAID · CHEQUE CLEARED';
+    doc.setFontSize(7);
+    const pillW = doc.getTextWidth(pillText) + 14;
+    const pillFill: [number, number, number] = isRejected
+      ? [225, 29, 72]
+      : isProcessing
+      ? [245, 158, 11]
+      : [5, 150, 105];
+    doc.setFillColor(pillFill[0], pillFill[1], pillFill[2]);
+    doc.roundedRect(pageWidth - marginX - 14 - pillW, cy - 9, pillW, 13, 6, 6, 'F');
+    doc.setTextColor(isProcessing ? 15 : 255, isProcessing ? 23 : 255, isProcessing ? 42 : 255);
+    doc.text(pillText, pageWidth - marginX - 14 - pillW / 2, cy, { align: 'center' });
+
+    if (cheque) {
+      const cColW = (contentWidth - 28) / 3;
+      const c1 = marginX + 14;
+      const c2 = c1 + cColW;
+      const c3 = c2 + cColW;
+
+      cy += 16;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(100, 116, 139);
+      doc.text('Cheque Number', c1, cy);
+      doc.text('Drawer Bank & Branch', c2, cy);
+      doc.text('Drawer / Account Name', c3, cy);
+
+      cy += 10;
+      doc.setFont('courier', 'bold');
+      doc.setFontSize(8.2);
+      doc.setTextColor(15, 23, 42);
+      doc.text(cheque.chequeNumber, c1, cy);
+      doc.text(
+        `${cheque.drawerBank}${cheque.branchName ? ` (${cheque.branchName})` : ''}`.slice(0, 32),
+        c2,
+        cy
+      );
+      doc.text((cheque.drawerName || '').slice(0, 32), c3, cy);
+
+      cy += 15;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(100, 116, 139);
+      doc.text('Cheque Issue Date', c1, cy);
+      doc.text('Maturity / Value Date', c2, cy);
+      doc.text('Cheque Face Amount', c3, cy);
+
+      cy += 10;
+      doc.setFont('courier', 'bold');
+      doc.setFontSize(8.2);
+      doc.setTextColor(15, 23, 42);
+      doc.text(cheque.chequeDate, c1, cy);
+      doc.text(cheque.maturityDate, c2, cy);
+      doc.setTextColor(10, 0, 110);
+      doc.text(formatKes(cheque.amountKes || tx.totalAmount), c3, cy);
+    }
+
+    if (noticeWrapped.length > 0) {
+      cy += 14;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.6);
+      doc.setTextColor(statusRgb[0], statusRgb[1], statusRgb[2]);
+      noticeWrapped.forEach((line) => {
+        doc.text(line, marginX + 14, cy);
+        cy += 10;
+      });
+    }
+
+    currentYAfterInfo = chqBoxY + chqBoxH;
+  }
+
   // ---- 3. LINE ITEMS TABLE (Matches #0A006E Header + #FFDE00 Gold Text) ----
-  const tableStartY = infoBoxY + infoBoxH + 16;
+  const tableStartY = currentYAfterInfo + 16;
 
   const tableHeaders = isLogisticsOnly
     ? ['SKU', 'Product Description', 'Pack Mode', 'Qty', 'Total Btls', 'Excise Stamp Verification']

@@ -511,9 +511,26 @@ export interface StockTransfer {
   createdAt: string;
 }
 
+export type ChequeStatus = 'Processing' | 'Paid' | 'Rejected';
+
+export interface ChequeDetails {
+  chequeNumber: string;
+  drawerBank: string;
+  branchName?: string;
+  drawerName: string;
+  chequeDate: string; // Issue date (YYYY-MM-DD)
+  maturityDate: string; // Maturity / Value date (YYYY-MM-DD)
+  amountKes: number;
+  status: ChequeStatus;
+  rejectionReason?: string;
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
 export type DocType =
   | 'Receipt'
   | 'Invoice'
+  | 'Purchase Order'
   | 'Quote'
   | 'Packing List'
   | 'Delivery Note'
@@ -583,7 +600,8 @@ export interface TransactionDoc {
   exciseAndTax: number;
   totalAmount: number;
   paymentMethod: string;
-  status: 'Paid' | 'Issued' | 'Approved' | 'Fulfilled' | 'Credited' | 'Pending Verification';
+  status: 'Paid' | 'Issued' | 'Approved' | 'Fulfilled' | 'Credited' | 'Pending Verification' | 'Processing' | 'Rejected';
+  chequeDetails?: ChequeDetails;
   relatedInvoiceNo?: string;
   linkedTransferId?: string;
   linkedTransferNo?: string;
@@ -594,6 +612,9 @@ export interface TransactionDoc {
   createdByRole: string;
   affiliateCode?: string;
   createdAt: string;
+  createdDay?: string;
+  createdDate?: string;
+  createdTime?: string;
 }
 
 export interface ComplianceRecord {
@@ -623,6 +644,9 @@ export interface AuditLog {
   branchName: string;
   severity: 'Info' | 'Security' | 'Financial' | 'Critical';
   createdAt: string;
+  createdDay?: string;
+  createdDate?: string;
+  createdTime?: string;
 }
 
 export type ERPModuleId =
@@ -630,6 +654,7 @@ export type ERPModuleId =
   | 'retail_pos'
   | 'sales_pos'
   | 'inventory'
+  | 'onboard_items'
   | 'branches_transfers'
   | 'geo_pricing'
   | 'partners'

@@ -448,6 +448,7 @@ export function buildKraReturnsDataset(params: {
   let excisableLitresSold = 0;
 
   periodTx.forEach((tx) => {
+    if (tx.status === 'Rejected' || tx.status === 'Processing') return;
     const isSaleDoc =
       tx.docType === 'Invoice' || tx.docType === 'Receipt' || tx.docType === 'Online Order';
     const isCreditNote = tx.docType === 'Credit Note';
