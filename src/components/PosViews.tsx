@@ -1926,12 +1926,12 @@ export const PosViews: React.FC<PosViewsProps> = ({
         {/* Right 5 Columns: Active Order Register */}
         {mode === 'retail' ? (
           <div
-            className={`lg:col-span-5 bg-white border border-slate-200 rounded-2xl flex-col lg:sticky lg:top-20 h-auto lg:h-[calc(100vh-5.5rem)] lg:max-h-[920px] overflow-hidden shadow-sm ${
+            className={`lg:col-span-5 bg-white border border-slate-200 rounded-2xl flex-col lg:sticky lg:top-20 h-auto lg:max-h-[min(520px,calc(100dvh-13.5rem))] overflow-hidden shadow-sm ${
               mobilePosPane === 'register' ? 'flex' : 'hidden lg:flex'
             }`}
           >
             {/* Clean Retail Register Header */}
-            <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/90 flex items-center justify-between gap-2 shrink-0">
+            <div className="px-3.5 py-2.5 border-b border-slate-200 bg-slate-50/90 flex items-center justify-between gap-2 shrink-0">
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-8 h-8 rounded-lg bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0">
                   <ShoppingCart className="w-4 h-4" />
@@ -1971,9 +1971,9 @@ export const PosViews: React.FC<PosViewsProps> = ({
             </div>
 
             {/* Scrollable Register Body: Cart Items FIRST, Optional Customer/Doc Options Collapsed */}
-            <div className="flex-1 min-h-0 overflow-y-auto p-3.5 space-y-3">
+            <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2.5">
               {statusMessage && (
-                <div className="p-3 rounded-xl bg-emerald-50 border border-[#34D186] text-xs text-[#0A006E] font-montserrat font-bold flex items-center gap-2.5">
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-[#34D186] text-xs text-[#0A006E] font-montserrat font-bold flex items-center gap-2">
                   <AnimatedSuccessTickIcon size="sm" />
                   <span className="flex-1">{statusMessage}</span>
                   <button
@@ -1988,9 +1988,9 @@ export const PosViews: React.FC<PosViewsProps> = ({
 
               {/* Cart Items */}
               {computedLineItems.length === 0 ? (
-                <div className="p-8 text-center space-y-2 bg-slate-50/70 border border-dashed border-slate-200 rounded-xl">
-                  <div className="w-10 h-10 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center mx-auto">
-                    <ShoppingCart className="w-5 h-5" />
+                <div className="p-5 text-center space-y-1.5 bg-slate-50/70 border border-dashed border-slate-200 rounded-xl">
+                  <div className="w-9 h-9 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center mx-auto">
+                    <ShoppingCart className="w-4 h-4" />
                   </div>
                   <p className="text-xs font-montserrat font-bold text-slate-700">
                     No items in checkout yet
@@ -2004,7 +2004,7 @@ export const PosViews: React.FC<PosViewsProps> = ({
                   {computedLineItems.map((item, idx) => (
                     <div
                       key={`${item.productId}-${item.unitMode}-${idx}`}
-                      className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between gap-2.5"
+                      className="p-2.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between gap-2.5"
                     >
                       <div className="min-w-0 flex-1">
                         <h4 className="text-xs font-montserrat font-bold text-slate-900 truncate" title={item.name}>
@@ -2271,29 +2271,29 @@ export const PosViews: React.FC<PosViewsProps> = ({
             </div>
 
             {/* Bottom Totals & 1-Tap Quick Checkout Buttons */}
-            <div className="p-4 bg-slate-950 text-white border-t border-slate-800 space-y-3 shrink-0">
-              <div className="space-y-1">
+            <div className="p-3 bg-slate-950 text-white border-t border-slate-800 space-y-2 shrink-0">
+              <div className="space-y-0.5">
                 <div className="flex justify-between text-[11px] text-slate-400 font-mono-tabular">
                   <span>Subtotal: {formatKes(subtotal)}</span>
                   <span>VAT ({(taxRate * 100).toFixed(0)}%): {formatKes(exciseAndTax)}</span>
                 </div>
                 <div className="flex justify-between items-baseline font-mono-tabular">
                   <span className="text-xs font-montserrat font-bold text-slate-300">Total Payable</span>
-                  <span className="text-2xl font-montserrat font-black text-emerald-400">
+                  <span className="text-xl font-montserrat font-black text-emerald-400">
                     {formatKes(grandTotal)}
                   </span>
                 </div>
               </div>
 
               {/* 1-Tap Quick Checkout Action Buttons */}
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   disabled={cart.length === 0 || isProcessing}
                   onClick={() => handleCompleteCheckout('Cash Till Settlement')}
-                  className="min-h-[54px] px-3.5 py-3 rounded-xl bg-gradient-to-r from-[#0C5E37] via-[#157E4C] to-[#21A165] hover:from-[#094A2B] hover:to-[#27B874] disabled:opacity-40 text-white border border-emerald-300/30 shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.98]"
+                  className="min-h-[46px] px-3 py-2 rounded-xl bg-gradient-to-r from-[#0C5E37] via-[#157E4C] to-[#21A165] hover:from-[#094A2B] hover:to-[#27B874] disabled:opacity-40 text-white border border-emerald-300/30 shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.98]"
                 >
-                  <Coins className="w-5 h-5 shrink-0" />
+                  <Coins className="w-4 h-4 shrink-0" />
                   <div className="text-left leading-tight">
                     <div className="text-xs sm:text-sm font-montserrat font-black">
                       {isProcessing ? 'Saving...' : 'Quick Cash'}
@@ -2308,9 +2308,9 @@ export const PosViews: React.FC<PosViewsProps> = ({
                   type="button"
                   disabled={cart.length === 0 || isProcessing}
                   onClick={() => handleCompleteCheckout('M-Pesa Till / Instant Card')}
-                  className="min-h-[54px] px-3.5 py-3 rounded-xl bg-gradient-to-r from-[#0A006E] via-[#15099C] to-[#2518CC] hover:from-[#070052] hover:to-[#2E20E0] disabled:opacity-40 text-white border border-[#FFDE00]/40 shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.98]"
+                  className="min-h-[46px] px-3 py-2 rounded-xl bg-gradient-to-r from-[#0A006E] via-[#15099C] to-[#2518CC] hover:from-[#070052] hover:to-[#2E20E0] disabled:opacity-40 text-white border border-[#FFDE00]/40 shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.98]"
                 >
-                  <Smartphone className="w-5 h-5 text-[#FFDE00] shrink-0" />
+                  <Smartphone className="w-4 h-4 text-[#FFDE00] shrink-0" />
                   <div className="text-left leading-tight">
                     <div className="text-xs sm:text-sm font-montserrat font-black">
                       {isProcessing ? 'Saving...' : 'Quick M-Pesa'}
@@ -2325,7 +2325,7 @@ export const PosViews: React.FC<PosViewsProps> = ({
               <button
                 type="button"
                 onClick={() => setShowRetailMorePay((prev) => !prev)}
-                className="w-full py-1.5 text-[11px] font-montserrat font-bold text-slate-300 hover:text-[#FFDE00] flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                className="w-full py-1 text-[11px] font-montserrat font-bold text-slate-300 hover:text-[#FFDE00] flex items-center justify-center gap-1 cursor-pointer transition-colors"
               >
                 <span>{showRetailMorePay ? 'Hide Extra Payment Options' : 'Cash Change · M-Pesa STK · Card · Cheque'}</span>
                 {showRetailMorePay ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -2335,12 +2335,12 @@ export const PosViews: React.FC<PosViewsProps> = ({
         ) : (
           /* Wholesale B2B Register (Full Featured) */
           <div
-            className={`lg:col-span-5 bg-white border border-slate-200 rounded-2xl flex-col lg:sticky lg:top-20 h-auto lg:h-[calc(100vh-5.5rem)] lg:max-h-[920px] overflow-hidden shadow-sm ${
+            className={`lg:col-span-5 bg-white border border-slate-200 rounded-2xl flex-col lg:sticky lg:top-20 h-auto lg:max-h-[min(560px,calc(100dvh-13.5rem))] overflow-hidden shadow-sm ${
               mobilePosPane === 'register' ? 'flex' : 'hidden lg:flex'
             }`}
           >
             {/* Fixed Register Header */}
-            <div className="p-3.5 border-b border-slate-200 bg-slate-50/90 backdrop-blur-xs space-y-2 shrink-0">
+            <div className="px-3.5 py-2.5 border-b border-slate-200 bg-slate-50/90 backdrop-blur-xs space-y-2 shrink-0">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="w-8 h-8 rounded-lg bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0">
@@ -2738,9 +2738,9 @@ export const PosViews: React.FC<PosViewsProps> = ({
                 </div>
 
                 {computedLineItems.length === 0 ? (
-                  <div className="p-8 text-center space-y-2 bg-slate-50/70 border border-dashed border-slate-200 rounded-xl">
-                    <div className="w-10 h-10 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center mx-auto">
-                      <ShoppingCart className="w-5 h-5" />
+                  <div className="p-5 text-center space-y-1.5 bg-slate-50/70 border border-dashed border-slate-200 rounded-xl">
+                    <div className="w-9 h-9 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center mx-auto">
+                      <ShoppingCart className="w-4 h-4" />
                     </div>
                     <div className="space-y-0.5">
                       <p className="text-xs font-montserrat font-bold text-slate-700">
@@ -2824,7 +2824,7 @@ export const PosViews: React.FC<PosViewsProps> = ({
             </div>
 
             {/* FLOATING CART TOTAL & SETTLEMENT BAR */}
-            <div className="p-4 bg-slate-950 text-white border-t-2 border-[#0A006E] space-y-2.5 shrink-0 shadow-[0_-8px_25px_rgba(0,0,0,0.22)] z-20">
+            <div className="p-3 bg-slate-950 text-white border-t-2 border-[#0A006E] space-y-2 shrink-0 shadow-[0_-8px_25px_rgba(0,0,0,0.22)] z-20">
               <div className="flex items-center justify-between text-xs font-mono-tabular">
                 <div className="flex items-center gap-1.5 text-slate-300">
                   <ShoppingCart className="w-3.5 h-3.5 text-[#FFDE00]" />
