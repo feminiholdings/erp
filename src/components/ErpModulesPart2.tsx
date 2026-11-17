@@ -2334,25 +2334,25 @@ export const DocumentsAndCreditNotesModule: React.FC<{
             <button
               type="button"
               onClick={() => setLedgerView('ledger')}
-              className={`beta-action-tile px-4 py-2 rounded-xl text-xs font-montserrat font-black flex items-center gap-2 cursor-pointer ${
+              className={`beta-action-tile min-h-[44px] sm:min-h-0 px-4 py-2.5 sm:py-2 rounded-xl text-xs font-montserrat font-black flex items-center gap-2 cursor-pointer ${
                 ledgerView === 'ledger'
                   ? 'bg-[#0A006E] text-[#FFDE00] shadow-md ring-2 ring-[#0A006E]/20'
                   : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
               }`}
             >
-              <FileText className="w-3.5 h-3.5 shrink-0" />
+              <FileText className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
               <span>Commercial Documents ({visibleDocs.length})</span>
             </button>
             <button
               type="button"
               onClick={() => setLedgerView('creation_record')}
-              className={`beta-action-tile px-4 py-2 rounded-xl text-xs font-montserrat font-black flex items-center gap-2 cursor-pointer ${
+              className={`beta-action-tile min-h-[44px] sm:min-h-0 px-4 py-2.5 sm:py-2 rounded-xl text-xs font-montserrat font-black flex items-center gap-2 cursor-pointer ${
                 ledgerView === 'creation_record'
                   ? 'bg-[#0A006E] text-[#FFDE00] shadow-md ring-2 ring-[#0A006E]/20'
                   : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
               }`}
             >
-              <History className="w-3.5 h-3.5 shrink-0" />
+              <History className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
               <span>Document Creation Record ({creationRecordEntries.length})</span>
             </button>
           </div>
@@ -2379,9 +2379,9 @@ export const DocumentsAndCreditNotesModule: React.FC<{
                     'Vaairo_Document_Creation_Record'
                   )
                 }
-                className="beta-action-tile px-3 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+                className="beta-action-tile min-h-[42px] sm:min-h-0 px-3.5 py-2 sm:px-3 sm:py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
-                <Download className="w-3.5 h-3.5 shrink-0" />
+                <Download className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
                 Export Record PDF
               </button>
               <button
@@ -2407,9 +2407,9 @@ export const DocumentsAndCreditNotesModule: React.FC<{
                     ])
                   )
                 }
-                className="beta-action-tile px-3 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+                className="beta-action-tile min-h-[42px] sm:min-h-0 px-3.5 py-2 sm:px-3 sm:py-1.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
-                <Download className="w-3.5 h-3.5 shrink-0" />
+                <Download className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
                 CSV
               </button>
             </div>
@@ -2417,7 +2417,7 @@ export const DocumentsAndCreditNotesModule: React.FC<{
         </div>
 
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-1">
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {[
               'All',
               'Purchase Order',
@@ -2432,7 +2432,7 @@ export const DocumentsAndCreditNotesModule: React.FC<{
                 <button
                   key={dt}
                   onClick={() => setFilterDocType(dt)}
-                  className={`beta-action-tile px-3.5 py-2 rounded-xl text-xs font-montserrat font-black cursor-pointer ${
+                  className={`beta-action-tile min-h-[44px] sm:min-h-0 px-4 py-2.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-montserrat font-black cursor-pointer ${
                     filterDocType === dt
                       ? 'bg-[#0A006E] text-[#FFDE00] shadow-md ring-2 ring-[#0A006E]/20'
                       : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
@@ -2847,10 +2847,10 @@ export const DocumentsAndCreditNotesModule: React.FC<{
                         {creationRec.createdBy}{' '}
                         <span className="font-normal text-[10px] text-slate-500">({creationRec.createdByRole})</span>
                       </div>
-                      <div className="text-[10px] font-mono-tabular text-slate-600">{creationRec.createdDay}</div>
-                      <div className="text-[10px] font-mono-tabular font-bold text-[#0A006E]">{creationRec.createdTime}</div>
+                      <div className="text-[11px] font-mono-tabular text-slate-600">{creationRec.createdDay}</div>
+                      <div className="text-[11px] font-mono-tabular font-bold text-[#0A006E]">{creationRec.createdTime}</div>
                     </td>
-                    <td className="py-2.5 px-3 text-right font-mono-tabular font-bold text-[#0A006E]">
+                    <td className="py-2.5 px-3 text-right font-mono-tabular font-extrabold text-[#0A006E]">
                       {formatKes(tx.totalAmount)}
                     </td>
                     <td className="py-2.5 px-3 text-right">
@@ -3104,11 +3104,11 @@ export const ComplianceModule: React.FC<{
         subtitle={isBranchManager ? `${currentUser.branchName} · KRA &amp; Excise` : 'KRA iTax &amp; Digital Excise'}
         actions={
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="inline-flex bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+            <div className="inline-flex bg-slate-100 p-1 sm:p-0.5 rounded-xl border border-slate-200 gap-1 sm:gap-0">
               <button
                 type="button"
                 onClick={() => setComplianceViewTab('kra_returns')}
-                className={`relative px-3 py-1.5 rounded-lg text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap transition ${
+                className={`relative min-h-[42px] sm:min-h-0 px-3.5 py-2 sm:px-3 sm:py-1.5 rounded-lg text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap transition ${
                   complianceViewTab === 'kra_returns'
                     ? 'text-[#FFDE00]'
                     : 'text-slate-600 hover:text-slate-900'
@@ -3122,14 +3122,14 @@ export const ComplianceModule: React.FC<{
                   />
                 )}
                 <span className="relative z-10 flex items-center gap-1.5">
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <FileSpreadsheet className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                   KRA Returns
                 </span>
               </button>
               <button
                 type="button"
                 onClick={() => setComplianceViewTab('excise_bonds')}
-                className={`relative px-3 py-1.5 rounded-lg text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap transition ${
+                className={`relative min-h-[42px] sm:min-h-0 px-3.5 py-2 sm:px-3 sm:py-1.5 rounded-lg text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap transition ${
                   complianceViewTab === 'excise_bonds'
                     ? 'text-[#FFDE00]'
                     : 'text-slate-600 hover:text-slate-900'
@@ -3143,7 +3143,7 @@ export const ComplianceModule: React.FC<{
                   />
                 )}
                 <span className="relative z-10 flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <ShieldCheck className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                   Excise ({visibleRecords.length})
                 </span>
               </button>
@@ -3169,9 +3169,9 @@ export const ComplianceModule: React.FC<{
                     'Vaairo_Regulatory_Compliance'
                   )
                 }
-                className="beta-action-tile px-3 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                className="beta-action-tile min-h-[44px] sm:min-h-0 px-4 py-2.5 sm:px-3 sm:py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
               >
-                <Download className="w-3.5 h-3.5" />
+                <Download className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                 PDF
               </button>
             )}
@@ -3187,33 +3187,33 @@ export const ComplianceModule: React.FC<{
           className="grid grid-cols-2 lg:grid-cols-4 gap-3"
         >
           {isCompKpiVisible('active_certs') && (
-            <div className="beta-kpi-card rounded-xl p-3.5">
-              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Excise Certs</div>
-              <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+            <div className="beta-kpi-card rounded-xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500">Excise Certs</div>
+              <div className="text-xl sm:text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1">
                 {activeCertsCount}
               </div>
             </div>
           )}
           {isCompKpiVisible('duty_paid') && (
-            <div className="beta-kpi-card rounded-xl p-3.5">
-              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Duty Paid</div>
-              <div className="text-lg sm:text-xl font-montserrat font-black text-emerald-700 font-mono-tabular mt-0.5">
+            <div className="beta-kpi-card rounded-xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500">Duty Paid</div>
+              <div className="text-xl sm:text-2xl font-extrabold text-emerald-700 font-mono-tabular mt-1">
                 {formatKes(totalDutyPaidAmount)}
               </div>
             </div>
           )}
           {isCompKpiVisible('payroll_runs') && (
-            <div className="beta-kpi-card rounded-xl p-3.5">
-              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Payroll Runs</div>
-              <div className="text-lg sm:text-xl font-montserrat font-black text-indigo-700 font-mono-tabular mt-0.5">
+            <div className="beta-kpi-card rounded-xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500">Payroll Runs</div>
+              <div className="text-xl sm:text-2xl font-extrabold text-indigo-700 font-mono-tabular mt-1">
                 {payrollRuns.length}
               </div>
             </div>
           )}
           {isCompKpiVisible('taxable_tx') && (
-            <div className="beta-kpi-card rounded-xl p-3.5">
-              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Taxable Sales</div>
-              <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+            <div className="beta-kpi-card rounded-xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500">Taxable Sales</div>
+              <div className="text-xl sm:text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1">
                 {transactions.length}
               </div>
             </div>
@@ -3278,7 +3278,7 @@ export const ComplianceModule: React.FC<{
                     <button
                       type="button"
                       onClick={() => setShowNewBatchForm((v) => !v)}
-                      className={`beta-action-tile px-3.5 py-2 rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                      className={`beta-action-tile min-h-[44px] sm:min-h-0 px-4 py-2.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                         showNewBatchForm
                           ? 'bg-slate-200 text-slate-800'
                           : 'bg-[#0A006E] text-[#FFDE00] shadow-sm'
@@ -3286,13 +3286,13 @@ export const ComplianceModule: React.FC<{
                     >
                       {showNewBatchForm ? (
                         <>
-                          <X className="w-3.5 h-3.5" />
+                          <X className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                           Close Form
                         </>
                       ) : (
                         <>
-                          <Plus className="w-3.5 h-3.5" />
-                          + New Batch
+                          <Plus className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                          New Batch
                         </>
                       )}
                     </button>
@@ -4232,54 +4232,59 @@ export const HrAndRbacModule: React.FC<{
             <button
               type="button"
               onClick={onOpenAccessMatrix}
-              className="px-2.5 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              className="beta-action-tile min-h-[44px] sm:min-h-[38px] w-full sm:w-auto px-4 py-2 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-bold flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
             >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              Access Matrix
+              <ShieldCheck className="w-4 h-4 shrink-0" />
+              <span>Access Matrix</span>
             </button>
           ) : undefined
         }
       />
 
       {isHrWidgetVisible('kpi_strip') && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+          className="grid grid-cols-2 lg:grid-cols-4 gap-3"
+        >
           {isHrKpiVisible('active_staff') && (
-            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
-              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Active Staff</div>
-              <div className="text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
-                {activeStaffCount} / {staffList.length}
+            <div className="beta-kpi-card rounded-2xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500">Active Staff</div>
+              <div className="text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1">
+                {activeStaffCount} <span className="text-sm font-bold text-slate-400">/ {staffList.length}</span>
               </div>
             </div>
           )}
           {isHrKpiVisible('payroll_runs') && (
-            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
-              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Payroll Runs</div>
-              <div className="text-lg font-montserrat font-black text-emerald-700 font-mono-tabular mt-0.5">
-                {payrollRuns.length} Cycles
+            <div className="beta-kpi-card rounded-2xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500">Payroll Runs</div>
+              <div className="text-2xl font-extrabold text-emerald-700 font-mono-tabular mt-1">
+                {payrollRuns.length}
               </div>
             </div>
           )}
           {isHrKpiVisible('pending_leave') && (
-            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
-              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Pending Leave Requests</div>
-              <div className="text-lg font-montserrat font-black text-amber-700 font-mono-tabular mt-0.5">
-                {pendingLeaveCount} Pending
+            <div className="beta-kpi-card rounded-2xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500">Pending Leave</div>
+              <div className="text-2xl font-extrabold text-amber-600 font-mono-tabular mt-1">
+                {pendingLeaveCount}
               </div>
             </div>
           )}
           {isHrKpiVisible('kra_coverage') && (
-            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
-              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Statutory KRA Coverage</div>
-              <div className="text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+            <div className="beta-kpi-card rounded-2xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500">KRA PIN Ready</div>
+              <div className="text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1">
                 {kraCoveragePct}%
               </div>
             </div>
           )}
-        </div>
+        </motion.div>
       )}
 
       {feedback && (
-        <div className="p-3.5 rounded-2xl bg-emerald-50 border-2 border-[#34D186] text-xs text-emerald-950 font-montserrat font-bold flex items-center justify-between gap-3 animate-success-pop shadow-md">
+        <div className="p-4 rounded-2xl bg-emerald-50 border-2 border-[#34D186] text-xs sm:text-sm text-emerald-950 font-montserrat font-bold flex items-center justify-between gap-3 animate-success-pop shadow-md">
           <div className="flex items-center gap-3">
             <AnimatedSuccessTickIcon size="sm" />
             <span>{feedback}</span>
@@ -4287,45 +4292,45 @@ export const HrAndRbacModule: React.FC<{
           <button
             type="button"
             onClick={() => setFeedback(null)}
-            className="p-1 hover:bg-emerald-100 rounded-lg text-emerald-800 cursor-pointer"
+            className="min-w-[40px] min-h-[40px] flex items-center justify-center hover:bg-emerald-100 rounded-xl text-emerald-800 cursor-pointer shrink-0"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
       )}
 
       {isHrWidgetVisible('workspace_tabs') && (
       <>
-      {/* Tab Switcher: Staff Directory vs HR Payroll */}
-      <div className="flex items-center gap-2 border-b border-slate-300 pb-3">
+      {/* Simplified Beta Tab Switcher */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
         <button
           type="button"
           onClick={() => setActiveTab('roster')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-montserrat font-black flex items-center gap-2 cursor-pointer transition ${
+          className={`beta-action-tile min-h-[46px] px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-montserrat font-black flex items-center gap-2 cursor-pointer transition ${
             activeTab === 'roster'
               ? 'bg-[#0A006E] text-[#FFDE00] shadow-md'
-              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+              : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
           }`}
         >
-          <Users className="w-4 h-4" />
-          Staff Directory & Roles ({staffList.length})
+          <Users className="w-4 h-4 shrink-0" />
+          <span>Staff ({staffList.length})</span>
         </button>
 
         {canManagePayroll && (
           <button
             type="button"
             onClick={() => setActiveTab('payroll')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-montserrat font-black flex items-center gap-2 cursor-pointer transition ${
+            className={`beta-action-tile min-h-[46px] px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-montserrat font-black flex items-center gap-2 cursor-pointer transition ${
               activeTab === 'payroll'
                 ? 'bg-[#0A006E] text-[#FFDE00] shadow-md'
-                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
             }`}
           >
-            <DollarSign className="w-4 h-4 text-[#34D186]" />
-            HR Payroll, Salaries & Penalties Engine
+            <DollarSign className="w-4 h-4 text-[#34D186] shrink-0" />
+            <span>Payroll</span>
             {payrollRuns.length > 0 && (
-              <span className="px-1.5 py-0.5 rounded-md text-[10px] bg-[#34D186] text-[#0A006E]">
-                {payrollRuns.length} Runs
+              <span className="px-2 py-0.5 rounded-lg text-[10px] font-mono-tabular bg-[#34D186] text-[#0A006E]">
+                {payrollRuns.length}
               </span>
             )}
           </button>
@@ -4335,14 +4340,14 @@ export const HrAndRbacModule: React.FC<{
           <button
             type="button"
             onClick={() => setActiveTab('leave_requests')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-montserrat font-black flex items-center gap-2 cursor-pointer transition whitespace-nowrap ${
+            className={`beta-action-tile min-h-[46px] px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-montserrat font-black flex items-center gap-2 cursor-pointer transition whitespace-nowrap ${
               activeTab === 'leave_requests'
                 ? 'bg-[#0A006E] text-[#FFDE00] shadow-md'
-                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
             }`}
           >
-            <Calendar className="w-4 h-4 text-amber-500" />
-            Leave, Off &amp; Emergency Requests
+            <Calendar className="w-4 h-4 text-amber-500 shrink-0" />
+            <span>Leave &amp; Off</span>
             {pendingLeaveCount > 0 && (
               <span
                 className={`px-2 py-0.5 rounded-full text-[10px] font-mono-tabular font-black ${
@@ -4351,7 +4356,7 @@ export const HrAndRbacModule: React.FC<{
                     : 'bg-[#FFDE00] text-[#0A006E]'
                 }`}
               >
-                {pendingLeaveCount} Pending
+                {pendingLeaveCount}
               </span>
             )}
           </button>
@@ -4361,14 +4366,14 @@ export const HrAndRbacModule: React.FC<{
           <button
             type="button"
             onClick={() => setActiveTab('master_security')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-montserrat font-black flex items-center gap-2 cursor-pointer transition ${
+            className={`beta-action-tile min-h-[46px] px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-montserrat font-black flex items-center gap-2 cursor-pointer transition ${
               activeTab === 'master_security'
                 ? 'bg-[#0A006E] text-[#FFDE00] shadow-md'
-                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
             }`}
           >
-            <ShieldCheck className="w-4 h-4 text-[#FFDE00]" />
-            Master Passcode & Security Settings
+            <ShieldCheck className="w-4 h-4 text-[#FFDE00] shrink-0" />
+            <span>Security</span>
           </button>
         )}
 
@@ -4376,26 +4381,40 @@ export const HrAndRbacModule: React.FC<{
           <button
             type="button"
             onClick={onOpenAccessMatrix}
-            className="ml-auto px-3.5 py-2 rounded-xl text-xs font-montserrat font-black bg-[#FFDE00] text-[#0A006E] border-2 border-[#0A006E] hover:bg-amber-400 flex items-center gap-1.5 cursor-pointer shadow-xs transition"
+            className="beta-action-tile ml-auto min-h-[46px] px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-montserrat font-black bg-[#FFDE00] text-[#0A006E] border-2 border-[#0A006E] hover:bg-amber-400 flex items-center gap-1.5 cursor-pointer shadow-xs transition"
           >
-            <ShieldCheck className="w-3.5 h-3.5 text-[#0A006E]" />
-            8-Role Access Matrix
+            <ShieldCheck className="w-4 h-4 text-[#0A006E] shrink-0" />
+            <span>Roles Matrix</span>
           </button>
         )}
       </div>
 
+      <AnimatePresence mode="wait">
       {activeTab === 'master_security' && currentUser.role === 'Admin' && (
-        <div className="bg-white border-2 border-[#0A006E]/20 rounded-2xl p-6 shadow-sm space-y-6 max-w-2xl mx-auto">
+        <motion.div
+          key="hr_security"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+          className="beta-kpi-card rounded-2xl p-5 sm:p-6 shadow-sm space-y-5 max-w-2xl mx-auto"
+        >
           <div className="flex items-center gap-3 border-b border-slate-200 pb-4">
-            <div className="p-3 bg-[#0A006E] text-[#FFDE00] rounded-xl">
+            <div className="w-12 h-12 bg-[#0A006E] text-[#FFDE00] rounded-2xl flex items-center justify-center shrink-0">
               <ShieldCheck className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-base font-montserrat font-black text-[#0A006E]">
-                Administrator Master Passcode & Security Settings
-              </h3>
-              <p className="text-xs text-slate-600 mt-0.5">
-                Change the system master passcode used for emergency access and fallback authentication. For maximum security, passcodes are hashed and never revealed or displayed in plaintext.
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-montserrat font-black text-[#0A006E]">
+                  Master Passcode
+                </h3>
+                <span className="beta-badge">
+                  <Sparkles className="w-2.5 h-2.5" />
+                  <span>Beta</span>
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Emergency admin override passcode (hashed &amp; private).
               </p>
             </div>
           </div>
@@ -4403,21 +4422,21 @@ export const HrAndRbacModule: React.FC<{
           <form onSubmit={handleUpdateMasterPasscode} className="space-y-4">
             <div>
               <label className="block text-xs font-montserrat font-bold text-slate-700 mb-1">
-                New Master Passcode (Minimum 6 characters)
+                New Passcode (6+ characters)
               </label>
               <input
                 type="password"
                 required
                 value={newMasterPasscode}
                 onChange={(e) => setNewMasterPasscode(e.target.value)}
-                placeholder="Enter new secure master passcode..."
-                className="w-full px-4 py-2.5 bg-slate-50 border-2 border-slate-200 focus:border-[#0A006E] rounded-xl text-sm font-montserrat font-medium text-slate-900 outline-none transition"
+                placeholder="Enter new master passcode..."
+                className="w-full min-h-[46px] px-4 py-2.5 bg-slate-50 border-2 border-slate-200 focus:border-[#0A006E] rounded-xl text-sm font-montserrat font-medium text-slate-900 outline-none transition"
               />
             </div>
 
             <div>
               <label className="block text-xs font-montserrat font-bold text-slate-700 mb-1">
-                Confirm New Master Passcode
+                Confirm Passcode
               </label>
               <input
                 type="password"
@@ -4425,56 +4444,63 @@ export const HrAndRbacModule: React.FC<{
                 value={confirmMasterPasscode}
                 onChange={(e) => setConfirmMasterPasscode(e.target.value)}
                 placeholder="Confirm new master passcode..."
-                className="w-full px-4 py-2.5 bg-slate-50 border-2 border-slate-200 focus:border-[#0A006E] rounded-xl text-sm font-montserrat font-medium text-slate-900 outline-none transition"
+                className="w-full min-h-[46px] px-4 py-2.5 bg-slate-50 border-2 border-slate-200 focus:border-[#0A006E] rounded-xl text-sm font-montserrat font-medium text-slate-900 outline-none transition"
               />
-            </div>
-
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-900 font-medium">
-                Security Policy: Changing the master passcode updates executive override and recovery authentication. Keep your passcode secure and confidential.
-              </p>
             </div>
 
             <button
               type="submit"
               disabled={isUpdatingMaster}
-              className="w-full py-3 px-4 rounded-xl bg-[#0A006E] hover:bg-[#12009E] disabled:opacity-50 text-[#FFDE00] font-montserrat font-black text-sm tracking-wide shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+              className="beta-action-tile w-full min-h-[50px] py-3 px-4 rounded-2xl bg-[#0A006E] hover:bg-[#12009E] disabled:opacity-50 text-[#FFDE00] font-montserrat font-black text-sm tracking-wide shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
             >
               {isUpdatingMaster ? (
                 <>
-                  <RefreshCw className="w-4 h-4 animate-spin text-[#FFDE00]" />
-                  <span>Securing & Updating Master Passcode...</span>
+                  <RefreshCw className="w-5 h-5 animate-spin text-[#FFDE00]" />
+                  <span>Saving Passcode...</span>
                 </>
               ) : (
                 <>
-                  <ShieldCheck className="w-4 h-4 text-[#FFDE00]" />
-                  <span>Save New Master Passcode</span>
+                  <ShieldCheck className="w-5 h-5 text-[#FFDE00]" />
+                  <span>Save Master Passcode</span>
                 </>
               )}
             </button>
           </form>
-        </div>
+        </motion.div>
       )}
 
       {activeTab === 'roster' && (
-        <>
+        <motion.div
+          key="hr_roster"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+          className="space-y-4"
+        >
           {creatableRoles.length === 0 ? (
             <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-900">
-              Your current role (<strong>{currentUser.role}</strong>) has read-only visibility into the organizational directory and cannot provision new staff accounts.
+              Read-only staff directory view for <strong>{currentUser.role}</strong>.
             </div>
           ) : (
-            <div className="bg-[#0A006E] text-white border-2 border-[#FFDE00] rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
-              <div>
-                <span className="text-[10px] font-montserrat font-black text-[#FFDE00] uppercase tracking-wider">
-                  Step-by-Step Staff Provisioning Wizard
-                </span>
-                <h3 className="text-lg font-montserrat font-black text-white mt-0.5">
-                  Onboard New Employee or POS Cashier
-                </h3>
-                <p className="text-xs text-slate-200 mt-1">
-                  Guided wizard: Role &amp; Identity → Branch Station → Compensation &amp; Deductions → Security PIN.
-                </p>
+            <div className="bg-gradient-to-r from-[#0A006E] via-[#130894] to-[#0A006E] text-white border border-[#FFDE00]/60 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-[#FFDE00] text-[#0A006E] flex items-center justify-center shrink-0 shadow-md">
+                  <UserPlus className="w-6 h-6 stroke-[2.4]" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base sm:text-lg font-montserrat font-black text-white">
+                      Add New Staff Member
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full bg-white/15 text-[#FFDE00] text-[10px] font-montserrat font-extrabold uppercase tracking-wider">
+                      Beta
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-200 mt-0.5">
+                    Role, branch, pay &amp; login PIN in 5 quick steps
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
@@ -4482,10 +4508,10 @@ export const HrAndRbacModule: React.FC<{
                   setWizardStep(1);
                   setIsStaffWizardOpen(true);
                 }}
-                className="px-6 py-3.5 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-2xl font-montserrat font-black text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer shadow-lg transition-transform active:scale-95 shrink-0"
+                className="beta-action-tile min-h-[50px] w-full sm:w-auto px-6 py-3.5 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-2xl font-montserrat font-black text-sm flex items-center justify-center gap-2 cursor-pointer shadow-lg transition-transform active:scale-95 shrink-0"
               >
                 <UserPlus className="w-5 h-5 stroke-[2.5]" />
-                <span>Launch Staff Onboarding Wizard (+)</span>
+                <span>Add New Staff</span>
               </button>
             </div>
           )}
@@ -4516,9 +4542,10 @@ export const HrAndRbacModule: React.FC<{
                   <button
                     type="button"
                     onClick={() => setIsStaffWizardOpen(false)}
-                    className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer"
+                    aria-label="Close staff wizard"
+                    className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer transition"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-5 h-5" />
                   </button>
                 </div>
 
@@ -4715,7 +4742,7 @@ export const HrAndRbacModule: React.FC<{
                               <button
                                 type="button"
                                 onClick={handleRandomizePin}
-                                className="px-4 py-3 bg-[#0A006E] text-[#FFDE00] rounded-xl font-montserrat font-bold text-xs cursor-pointer shadow-xs hover:bg-[#060046] transition"
+                                className="min-h-[46px] px-5 py-3 bg-[#0A006E] text-[#FFDE00] rounded-xl font-montserrat font-black text-xs cursor-pointer shadow-sm hover:bg-[#060046] transition"
                               >
                                 Generate New PIN
                               </button>
@@ -4796,14 +4823,14 @@ export const HrAndRbacModule: React.FC<{
                 </div>
 
                 {/* Wizard Footer Controls */}
-                <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+                <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
                   {wizardStep > 1 ? (
                     <button
                       type="button"
                       onClick={() => setWizardStep((prev) => prev - 1)}
-                      className="px-4 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-xl font-montserrat font-bold text-xs cursor-pointer hover:bg-slate-100 transition"
+                      className="min-h-[48px] px-5 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-xl font-montserrat font-bold text-xs sm:text-sm cursor-pointer hover:bg-slate-100 transition"
                     >
-                      ← Previous Step
+                      ← Back
                     </button>
                   ) : (
                     <div />
@@ -4823,9 +4850,9 @@ export const HrAndRbacModule: React.FC<{
                         }
                         setWizardStep((prev) => prev + 1);
                       }}
-                      className="px-5 py-2.5 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-xl font-montserrat font-black text-xs cursor-pointer shadow-sm transition flex items-center gap-1.5"
+                      className="min-h-[48px] px-6 py-2.5 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-xl font-montserrat font-black text-xs sm:text-sm cursor-pointer shadow-sm transition flex items-center gap-1.5"
                     >
-                      <span>Next Step →</span>
+                      <span>Next →</span>
                     </button>
                   ) : (
                     <button
@@ -4835,10 +4862,10 @@ export const HrAndRbacModule: React.FC<{
                         setIsStaffWizardOpen(false);
                         setWizardStep(1);
                       }}
-                      className="px-6 py-3 bg-[#FFDE00] hover:bg-amber-400 border-2 border-[#0A006E] text-[#0A006E] rounded-xl font-montserrat font-black text-xs cursor-pointer shadow-md transition flex items-center gap-2"
+                      className="min-h-[50px] px-6 py-3 bg-[#FFDE00] hover:bg-amber-400 border-2 border-[#0A006E] text-[#0A006E] rounded-xl font-montserrat font-black text-xs sm:text-sm cursor-pointer shadow-md transition flex items-center gap-2"
                     >
-                      <UserPlus className="w-4 h-4" />
-                      <span>Provision Staff Account Now</span>
+                      <UserPlus className="w-5 h-5" />
+                      <span>Create Staff Account</span>
                     </button>
                   )}
                 </div>
@@ -4846,84 +4873,19 @@ export const HrAndRbacModule: React.FC<{
             </div>
           )}
 
-          {/* Organization Staff Directory Table */}
-          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-3">
+          {/* Organization Staff Directory */}
+          <div className="beta-kpi-card rounded-2xl p-4 sm:p-5 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
-                  Provisioned Organization Directory ({staffList.length} Staff)
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm sm:text-base font-montserrat font-black text-[#0A006E]">
+                  Staff Directory ({displayedStaffList.length})
                 </h3>
-                {/* View-Friendly Search & Filter Toolbar */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 my-3">
-                  <input
-                    type="text"
-                    value={directorySearch}
-                    onChange={(e) => setDirectorySearch(e.target.value)}
-                    placeholder="Search staff by name, email, phone, role..."
-                    className="px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold outline-none shadow-2xs"
-                  />
-                  <select
-                    value={directoryRoleFilter}
-                    onChange={(e) => setDirectoryRoleFilter(e.target.value)}
-                    className="px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold shadow-2xs"
-                  >
-                    <option value="ALL">All Roles</option>
-                    {Array.from(new Set(staffList.map((s) => s.role))).map((role) => (
-                      <option key={role} value={role}>{role}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={directoryBranchFilter}
-                    onChange={(e) => setDirectoryBranchFilter(e.target.value)}
-                    className="px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold shadow-2xs"
-                  >
-                    <option value="ALL">All Branches</option>
-                    {branches.map((b) => (
-                      <option key={b.id} value={b.name}>{b.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Online / Offline Presence Filter Tabs */}
-                <div className="flex items-center gap-1.5 p-1 bg-white border border-slate-200 rounded-xl w-fit flex-wrap mt-2 shadow-2xs">
-                  <button
-                    type="button"
-                    onClick={() => setPresenceFilter('ALL')}
-                    className={`px-3 py-1 rounded-lg text-xs font-montserrat font-bold cursor-pointer transition ${
-                      presenceFilter === 'ALL'
-                        ? 'bg-[#0A006E] text-[#FFDE00] shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    All Staff ({staffList.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPresenceFilter('ONLINE')}
-                    className={`px-3 py-1 rounded-lg text-xs font-montserrat font-bold cursor-pointer transition flex items-center gap-1.5 ${
-                      presenceFilter === 'ONLINE'
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'text-emerald-700 hover:text-emerald-900'
-                    }`}
-                  >
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    Online ({onlineCount})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPresenceFilter('OFFLINE')}
-                    className={`px-3 py-1 rounded-lg text-xs font-montserrat font-bold cursor-pointer transition flex items-center gap-1.5 ${
-                      presenceFilter === 'OFFLINE'
-                        ? 'bg-slate-700 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    <span className="w-2 h-2 rounded-full bg-slate-400" />
-                    Offline ({offlineCount})
-                  </button>
-                </div>
+                <span className="beta-badge">
+                  <Sparkles className="w-2.5 h-2.5" />
+                  <span>Beta</span>
+                </span>
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="grid grid-cols-2 sm:flex items-center gap-2">
                 <button
                   onClick={() =>
                     exportToCSV(
@@ -4954,10 +4916,10 @@ export const HrAndRbacModule: React.FC<{
                       })
                     )
                   }
-                  className="px-3.5 py-1.5 bg-white hover:bg-slate-50 text-[#0A006E] border-2 border-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  className="beta-action-tile min-h-[44px] sm:min-h-[38px] px-4 py-2 bg-white hover:bg-slate-50 text-[#0A006E] border border-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                 >
-                  <Download className="w-3.5 h-3.5 text-[#0A006E]" />
-                  Export Staff CSV
+                  <Download className="w-4 h-4 text-[#0A006E]" />
+                  <span>Export CSV</span>
                 </button>
                 <button
                   onClick={() =>
@@ -4984,18 +4946,89 @@ export const HrAndRbacModule: React.FC<{
                       'Vaairo_HR_Staff_Directory'
                     )
                   }
-                  className="px-3.5 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer"
+                  className="beta-action-tile min-h-[44px] sm:min-h-[38px] px-4 py-2 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <Download className="w-3.5 h-3.5 text-[#FFDE00]" />
-                  Export HR PDF
+                  <Download className="w-4 h-4 text-[#FFDE00]" />
+                  <span>Export PDF</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Search, Filter & Presence Row */}
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <input
+                  type="text"
+                  value={directorySearch}
+                  onChange={(e) => setDirectorySearch(e.target.value)}
+                  placeholder="Search name, phone, role..."
+                  className="min-h-[44px] px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none"
+                />
+                <select
+                  value={directoryRoleFilter}
+                  onChange={(e) => setDirectoryRoleFilter(e.target.value)}
+                  className="min-h-[44px] px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                >
+                  <option value="ALL">All Roles</option>
+                  {Array.from(new Set(staffList.map((s) => s.role))).map((role) => (
+                    <option key={role} value={role}>{role}</option>
+                  ))}
+                </select>
+                <select
+                  value={directoryBranchFilter}
+                  onChange={(e) => setDirectoryBranchFilter(e.target.value)}
+                  className="min-h-[44px] px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                >
+                  <option value="ALL">All Branches</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.name}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-3 sm:inline-flex items-center gap-1.5 p-1 bg-slate-100 border border-slate-200 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setPresenceFilter('ALL')}
+                  className={`min-h-[42px] sm:min-h-[36px] px-3.5 py-2 rounded-lg text-xs font-montserrat font-bold cursor-pointer transition ${
+                    presenceFilter === 'ALL'
+                      ? 'bg-[#0A006E] text-[#FFDE00] shadow-xs'
+                      : 'text-slate-700 hover:text-slate-900'
+                  }`}
+                >
+                  All ({staffList.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPresenceFilter('ONLINE')}
+                  className={`min-h-[42px] sm:min-h-[36px] px-3.5 py-2 rounded-lg text-xs font-montserrat font-bold cursor-pointer transition flex items-center justify-center gap-1.5 ${
+                    presenceFilter === 'ONLINE'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-emerald-700 hover:text-emerald-900'
+                  }`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span>Online ({onlineCount})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPresenceFilter('OFFLINE')}
+                  className={`min-h-[42px] sm:min-h-[36px] px-3.5 py-2 rounded-lg text-xs font-montserrat font-bold cursor-pointer transition flex items-center justify-center gap-1.5 ${
+                    presenceFilter === 'OFFLINE'
+                      ? 'bg-slate-700 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-slate-400" />
+                  <span>Offline ({offlineCount})</span>
                 </button>
               </div>
             </div>
 
             {/* MOBILE STAFF DIRECTORY CARDS (< md) */}
-            <div className="md:hidden space-y-2.5">
+            <div className="md:hidden space-y-3">
               {displayedStaffList.length === 0 ? (
-                <div className="py-8 text-center text-slate-500 font-medium bg-white border border-slate-200 rounded-xl text-xs">
+                <div className="py-8 text-center text-slate-500 font-medium bg-slate-50 border border-slate-200 rounded-xl text-xs">
                   No staff members found matching {presenceFilter.toLowerCase()} status.
                 </div>
               ) : (
@@ -5011,7 +5044,7 @@ export const HrAndRbacModule: React.FC<{
                   return (
                     <div
                       key={`mob-staff-${s.id}`}
-                      className="bg-white border border-slate-200 rounded-2xl p-3.5 space-y-2.5 shadow-2xs"
+                      className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-2xs"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
@@ -5021,16 +5054,16 @@ export const HrAndRbacModule: React.FC<{
                                 s.isOnline ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-slate-300'
                               }`}
                             />
-                            <span className="font-montserrat font-black text-sm text-slate-900 truncate">
+                            <span className="font-montserrat font-black text-base text-slate-900 truncate">
                               {s.name}
                             </span>
                           </div>
-                          <div className="text-[11px] font-montserrat font-bold text-[#0A006E] mt-0.5">
+                          <div className="text-xs font-montserrat font-bold text-[#0A006E] mt-0.5">
                             {s.role}
                           </div>
                         </div>
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                          className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 ${
                             s.status === 'Active'
                               ? 'bg-[#34D186]/20 text-[#1E9E60] border border-[#34D186]/40'
                               : s.status === 'Suspended'
@@ -5043,18 +5076,18 @@ export const HrAndRbacModule: React.FC<{
                       </div>
 
                       {/* Contact & Branch */}
-                      <div className="text-[11px] text-slate-600 space-y-1 bg-slate-50 border border-slate-100 rounded-xl p-2.5">
+                      <div className="text-xs text-slate-600 space-y-1.5 bg-slate-50 border border-slate-100 rounded-xl p-3">
                         {s.phone && (
                           <div className="font-mono-tabular font-bold text-[#0A006E] flex items-center gap-1.5">
-                            <Phone className="w-3 h-3" />
+                            <Phone className="w-3.5 h-3.5" />
                             <span>{s.phone}</span>
                           </div>
                         )}
                         <div className="truncate">{s.email}</div>
-                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/70">
+                        <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-slate-200/70">
                           <span className="truncate font-semibold text-slate-700">{s.branchName}</span>
-                          <span className="font-mono-tabular font-black text-[#0A006E] shrink-0">
-                            Net KES {net.toLocaleString()}
+                          <span className="font-mono-tabular font-black text-sm text-[#0A006E] shrink-0">
+                            KES {net.toLocaleString()}
                           </span>
                         </div>
                       </div>
@@ -5062,17 +5095,17 @@ export const HrAndRbacModule: React.FC<{
                       {/* Auth & Admin-Only PIN Inspection */}
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         {s.authMethod === 'google' ? (
-                          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0A006E] bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg">
-                            <GoogleIcon className="w-3.5 h-3.5 shrink-0" />
-                            Google OAuth
+                          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0A006E] bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl">
+                            <GoogleIcon className="w-4 h-4 shrink-0" />
+                            <span>Google OAuth</span>
                           </span>
                         ) : (
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg font-mono-tabular">
-                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                          <div className="flex items-center gap-2 flex-wrap w-full">
+                            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-xl font-mono-tabular">
+                              <ShieldCheck className="w-4 h-4 text-emerald-600" />
                               {isAdminViewer && revealedPinMap[s.id]
                                 ? getAdminViewablePin(s) || 'Reset in Edit'
-                                : 'Encrypted PIN'}
+                                : 'PIN Protected'}
                             </span>
                             {isAdminViewer && (
                               <button
@@ -5083,16 +5116,16 @@ export const HrAndRbacModule: React.FC<{
                                     [s.id]: !prev[s.id],
                                   }))
                                 }
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-montserrat font-black bg-[#0A006E]/10 hover:bg-[#FFDE00] text-[#0A006E] border border-[#0A006E]/25 cursor-pointer transition"
+                                className="min-h-[40px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-montserrat font-black bg-[#0A006E]/10 hover:bg-[#FFDE00] text-[#0A006E] border border-[#0A006E]/25 cursor-pointer transition"
                               >
                                 {revealedPinMap[s.id] ? (
                                   <>
-                                    <EyeOff className="w-3.5 h-3.5" />
+                                    <EyeOff className="w-4 h-4" />
                                     <span>Hide</span>
                                   </>
                                 ) : (
                                   <>
-                                    <Eye className="w-3.5 h-3.5" />
+                                    <Eye className="w-4 h-4" />
                                     <span>View PIN</span>
                                   </>
                                 )}
@@ -5102,66 +5135,66 @@ export const HrAndRbacModule: React.FC<{
                         )}
                       </div>
 
-                      {/* Actions Strip */}
+                      {/* App-Style Big Actions Grid */}
                       {canManage ? (
-                        <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-100">
-                          {currentUser.role === 'Admin' && onOpenUserFeatureModal && (
-                            <button
-                              type="button"
-                              onClick={() => onOpenUserFeatureModal(s)}
-                              className="px-2.5 py-1.5 bg-purple-50 text-purple-800 border border-purple-200 rounded-lg font-montserrat font-black text-[11px] flex items-center gap-1 cursor-pointer"
-                            >
-                              <Sliders className="w-3 h-3" />
-                              Features
-                            </button>
-                          )}
+                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
                           <button
                             type="button"
                             onClick={() => handleOpenCompensation(s)}
-                            className="px-2.5 py-1.5 bg-amber-50 text-[#0A006E] border border-amber-300 rounded-lg font-montserrat font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+                            className="beta-action-tile min-h-[44px] px-3.5 py-2.5 bg-amber-50 text-[#0A006E] border border-amber-300 rounded-xl font-montserrat font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                           >
-                            <DollarSign className="w-3 h-3 text-[#1E9E60]" />
-                            Pay
+                            <DollarSign className="w-4 h-4 text-[#1E9E60]" />
+                            <span>Salary &amp; Pay</span>
                           </button>
                           <button
                             type="button"
                             onClick={() => handleOpenEdit(s)}
-                            className="px-2.5 py-1.5 bg-slate-100 text-slate-800 rounded-lg font-montserrat font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+                            className="beta-action-tile min-h-[44px] px-3.5 py-2.5 bg-slate-100 text-slate-800 rounded-xl font-montserrat font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                           >
-                            <Pencil className="w-3 h-3" />
-                            Edit
+                            <Pencil className="w-4 h-4" />
+                            <span>Edit Staff</span>
                           </button>
-                          {s.status === 'Active' && (
+                          {currentUser.role === 'Admin' && onOpenUserFeatureModal && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenUserFeatureModal(s)}
+                              className="beta-action-tile min-h-[44px] px-3.5 py-2.5 bg-purple-50 text-purple-800 border border-purple-200 rounded-xl font-montserrat font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <Sliders className="w-4 h-4" />
+                              <span>Features</span>
+                            </button>
+                          )}
+                          {s.status === 'Active' ? (
                             <button
                               type="button"
                               onClick={() => onSetStaffStatus?.(s.id, 'Suspended')}
-                              className="px-2.5 py-1.5 bg-amber-50 text-amber-800 rounded-lg font-montserrat font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+                              className="beta-action-tile min-h-[44px] px-3.5 py-2.5 bg-amber-50 text-amber-800 rounded-xl font-montserrat font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                             >
-                              <PauseCircle className="w-3 h-3" />
-                              Suspend
+                              <PauseCircle className="w-4 h-4" />
+                              <span>Suspend</span>
                             </button>
-                          )}
-                          {s.status === 'Suspended' && (
+                          ) : s.status === 'Suspended' ? (
                             <button
                               type="button"
                               onClick={() => onSetStaffStatus?.(s.id, 'Active')}
-                              className="px-2.5 py-1.5 bg-emerald-50 text-emerald-800 rounded-lg font-montserrat font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+                              className="beta-action-tile min-h-[44px] px-3.5 py-2.5 bg-emerald-50 text-emerald-800 rounded-xl font-montserrat font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                             >
-                              <PlayCircle className="w-3 h-3" />
-                              Activate
+                              <PlayCircle className="w-4 h-4" />
+                              <span>Activate</span>
                             </button>
-                          )}
+                          ) : null}
                           <button
                             type="button"
                             onClick={() => setDeletingStaff(s)}
-                            className="ml-auto p-1.5 bg-rose-50 text-rose-700 rounded-lg cursor-pointer"
+                            className="beta-action-tile col-span-2 min-h-[44px] px-3.5 py-2.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-xl font-montserrat font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                             aria-label={`Delete ${s.name}`}
                           >
                             <Trash2 className="w-4 h-4" />
+                            <span>Delete Staff</span>
                           </button>
                         </div>
                       ) : (
-                        <div className="text-[11px] text-slate-400 italic pt-1 border-t border-slate-100">
+                        <div className="text-xs text-slate-400 italic pt-1 border-t border-slate-100">
                           {s.id === currentUser.id ? 'Current Session User' : 'Restricted'}
                         </div>
                       )}
@@ -5308,43 +5341,43 @@ export const HrAndRbacModule: React.FC<{
                                 <button
                                   type="button"
                                   onClick={() => onOpenUserFeatureModal(s)}
-                                  className="px-2 py-1 bg-purple-50 hover:bg-[#0A006E] hover:text-[#FFDE00] text-purple-800 border border-purple-200 rounded-lg font-montserrat font-black text-[11px] transition-colors cursor-pointer flex items-center gap-1"
+                                  className="beta-action-tile min-h-[34px] px-2.5 py-1.5 bg-purple-50 hover:bg-[#0A006E] hover:text-[#FFDE00] text-purple-800 border border-purple-200 rounded-lg font-montserrat font-black text-xs transition-colors cursor-pointer flex items-center gap-1"
                                   title="Control Access Model & Strip Features from User"
                                 >
-                                  <Sliders className="w-3 h-3 text-purple-600" />
-                                  Features
+                                  <Sliders className="w-3.5 h-3.5" />
+                                  <span>Features</span>
                                 </button>
                               )}
 
                               <button
                                 type="button"
                                 onClick={() => handleOpenCompensation(s)}
-                                className="px-2 py-1 bg-amber-50 hover:bg-[#FFDE00] text-[#0A006E] border border-amber-300 rounded-lg font-montserrat font-bold text-[11px] transition-colors cursor-pointer flex items-center gap-1"
+                                className="beta-action-tile min-h-[34px] px-2.5 py-1.5 bg-amber-50 hover:bg-[#FFDE00] text-[#0A006E] border border-amber-300 rounded-lg font-montserrat font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
                                 title="Set Salary, Deductions & Penalties"
                               >
-                                <DollarSign className="w-3 h-3 text-[#1E9E60]" />
-                                Compensation
+                                <DollarSign className="w-3.5 h-3.5 text-[#1E9E60]" />
+                                <span>Pay</span>
                               </button>
 
                               <button
                                 type="button"
                                 onClick={() => handleOpenEdit(s)}
-                                className="px-2 py-1 bg-slate-100 hover:bg-[#0A006E] hover:text-[#FFDE00] text-slate-700 rounded-lg font-montserrat font-bold text-[11px] transition-colors cursor-pointer flex items-center gap-1"
+                                className="beta-action-tile min-h-[34px] px-2.5 py-1.5 bg-slate-100 hover:bg-[#0A006E] hover:text-[#FFDE00] text-slate-700 rounded-lg font-montserrat font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
                                 title="Edit Staff Member"
                               >
-                                <Pencil className="w-3 h-3" />
-                                Edit
+                                <Pencil className="w-3.5 h-3.5" />
+                                <span>Edit</span>
                               </button>
 
                               {s.status === 'Active' && (
                                 <button
                                   type="button"
                                   onClick={() => onSetStaffStatus?.(s.id, 'Suspended')}
-                                  className="px-2 py-1 bg-amber-50 hover:bg-amber-500 hover:text-white text-amber-700 rounded-lg font-montserrat font-bold text-[11px] transition-colors cursor-pointer flex items-center gap-1"
+                                  className="beta-action-tile min-h-[34px] px-2.5 py-1.5 bg-amber-50 hover:bg-amber-500 hover:text-white text-amber-700 rounded-lg font-montserrat font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
                                   title="Suspend Staff Access"
                                 >
-                                  <PauseCircle className="w-3 h-3" />
-                                  Suspend
+                                  <PauseCircle className="w-3.5 h-3.5" />
+                                  <span>Suspend</span>
                                 </button>
                               )}
 
@@ -5352,34 +5385,22 @@ export const HrAndRbacModule: React.FC<{
                                 <button
                                   type="button"
                                   onClick={() => onSetStaffStatus?.(s.id, 'Active')}
-                                  className="px-2 py-1 bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 rounded-lg font-montserrat font-bold text-[11px] transition-colors cursor-pointer flex items-center gap-1"
+                                  className="beta-action-tile min-h-[34px] px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 rounded-lg font-montserrat font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
                                   title="Reactivate Staff Account"
                                 >
-                                  <PlayCircle className="w-3 h-3" />
-                                  Activate
-                                </button>
-                              )}
-
-                              {s.status !== 'Terminated' && (
-                                <button
-                                  type="button"
-                                  onClick={() => onSetStaffStatus?.(s.id, 'Terminated')}
-                                  className="px-2 py-1 bg-rose-50 hover:bg-rose-500 hover:text-white text-rose-700 rounded-lg font-montserrat font-bold text-[11px] transition-colors cursor-pointer flex items-center gap-1"
-                                  title="Terminate Staff Account"
-                                >
-                                  <XCircle className="w-3 h-3" />
-                                  Terminate
+                                  <PlayCircle className="w-3.5 h-3.5" />
+                                  <span>Activate</span>
                                 </button>
                               )}
 
                               <button
                                 type="button"
                                 onClick={() => setDeletingStaff(s)}
-                                className="p-1 bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 rounded-lg transition-colors cursor-pointer"
+                                className="beta-action-tile min-h-[34px] min-w-[34px] flex items-center justify-center p-1.5 bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 rounded-lg transition-colors cursor-pointer"
                                 title="Permanently Delete Staff"
                                 aria-label={`Permanently Delete ${s.name}`}
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
                           ) : (
@@ -5395,19 +5416,26 @@ export const HrAndRbacModule: React.FC<{
               </table>
             </div>
           </div>
-        </>
+        </motion.div>
       )}
 
       {/* PAYROLL & COMPENSATION ENGINE TAB */}
       {activeTab === 'payroll' && canManagePayroll && (
-        <div className="space-y-6">
+        <motion.div
+          key="hr_payroll"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+          className="space-y-5"
+        >
           {/* Top KPI Summary Metrics */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-              <div className="text-xs font-montserrat font-bold text-slate-600">
-                Total Monthly Net Disbursement
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="beta-kpi-card rounded-2xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500">
+                Net Payroll
               </div>
-              <div className="text-2xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1">
+              <div className="text-xl sm:text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1">
                 KES {staffList.filter((s) => s.status === 'Active').reduce((sum, s) => {
                   const bSal = s.baseSalaryKes ?? (s.role === 'Admin' ? 180000 : s.role === 'Accountant' ? 120000 : s.role === 'Branch Manager' ? 95000 : 65000);
                   const ded = s.deductionsKes ?? Math.round(bSal * 0.18);
@@ -5415,113 +5443,102 @@ export const HrAndRbacModule: React.FC<{
                   return sum + Math.max(0, bSal - ded - pen);
                 }, 0).toLocaleString()}
               </div>
-              <div className="text-xs text-slate-500 mt-1">
-                For {staffList.filter((s) => s.status === 'Active').length} active employees on roster
+              <div className="text-xs text-slate-500 font-mono-tabular mt-0.5">
+                {staffList.filter((s) => s.status === 'Active').length} active staff
               </div>
             </div>
 
-            <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-              <div className="text-xs font-montserrat font-bold text-slate-600">
-                Total Gross Monthly Salaries
+            <div className="beta-kpi-card rounded-2xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500">
+                Gross Salaries
               </div>
-              <div className="text-2xl font-montserrat font-black text-slate-800 font-mono-tabular mt-1">
+              <div className="text-xl sm:text-2xl font-extrabold text-slate-900 font-mono-tabular mt-1">
                 KES {staffList.filter((s) => s.status === 'Active').reduce((sum, s) => {
                   return sum + (s.baseSalaryKes ?? (s.role === 'Admin' ? 180000 : s.role === 'Accountant' ? 120000 : s.role === 'Branch Manager' ? 95000 : 65000));
                 }, 0).toLocaleString()}
               </div>
-              <div className="text-xs text-slate-500 mt-1">
-                Base contracted remuneration
-              </div>
+              <div className="text-xs text-slate-500 mt-0.5">Base pay</div>
             </div>
 
-            <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-              <div className="text-xs font-montserrat font-bold text-slate-600">
-                Total Statutory Deductions
+            <div className="beta-kpi-card rounded-2xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500">
+                Deductions
               </div>
-              <div className="text-2xl font-montserrat font-black text-rose-600 font-mono-tabular mt-1">
+              <div className="text-xl sm:text-2xl font-extrabold text-rose-600 font-mono-tabular mt-1">
                 KES {staffList.filter((s) => s.status === 'Active').reduce((sum, s) => {
                   const bSal = s.baseSalaryKes ?? (s.role === 'Admin' ? 180000 : s.role === 'Accountant' ? 120000 : s.role === 'Branch Manager' ? 95000 : 65000);
                   return sum + (s.deductionsKes ?? Math.round(bSal * 0.18));
                 }, 0).toLocaleString()}
               </div>
-              <div className="text-xs text-slate-500 mt-1">
-                KRA PAYE · SHIF · NSSF · Housing Levy
-              </div>
+              <div className="text-xs text-slate-500 mt-0.5">PAYE · SHIF · NSSF · AHL</div>
             </div>
 
-            <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-              <div className="text-xs font-montserrat font-bold text-slate-600">
-                Total Disciplinary Penalties
+            <div className="beta-kpi-card rounded-2xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500">
+                Penalties
               </div>
-              <div className="text-2xl font-montserrat font-black text-amber-600 font-mono-tabular mt-1">
+              <div className="text-xl sm:text-2xl font-extrabold text-amber-600 font-mono-tabular mt-1">
                 KES {staffList.filter((s) => s.status === 'Active').reduce((sum, s) => sum + (s.penaltiesKes ?? 0), 0).toLocaleString()}
               </div>
-              <div className="text-xs text-slate-500 mt-1">
-                Shift variances & disciplinary fines
-              </div>
+              <div className="text-xs text-slate-500 mt-0.5">Variances &amp; fines</div>
             </div>
           </div>
 
           {/* Run Payroll Execution Control Panel */}
-          <div className="bg-[#FFDE00] border-2 border-[#0A006E] rounded-2xl p-5 shadow-sm space-y-4">
+          <div className="bg-[#FFDE00] border-2 border-[#0A006E] rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#0A006E]/20 pb-3">
-              <div>
-                <span className="text-[11px] font-montserrat font-black text-[#0A006E] uppercase tracking-wider">
-                  HR Corporate Disbursement Engine
-                </span>
-                <h3 className="text-base font-montserrat font-black text-[#0A006E]">
-                  Execute & Publish Payroll Disbursement
+              <div className="flex items-center gap-2">
+                <h3 className="text-base sm:text-lg font-montserrat font-black text-[#0A006E]">
+                  Run Monthly Payroll
                 </h3>
+                <span className="beta-badge">
+                  <Sparkles className="w-2.5 h-2.5" />
+                  <span>Beta</span>
+                </span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-900">Pay Period:</span>
+                <span className="text-xs font-bold text-slate-900 shrink-0">Pay Period:</span>
                 <input
                   type="text"
                   value={payrollPeriod}
                   onChange={(e) => setPayrollPeriod(e.target.value)}
                   placeholder="e.g. October 2026"
-                  className="px-3 py-1.5 bg-white border-2 border-[#0A006E] rounded-xl font-montserrat font-black text-xs text-[#0A006E]"
+                  className="min-h-[44px] px-3.5 py-2 bg-white border-2 border-[#0A006E] rounded-xl font-montserrat font-black text-xs sm:text-sm text-[#0A006E] w-full sm:w-44"
                 />
               </div>
             </div>
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="text-xs text-slate-900 space-y-1">
-                <p className="font-semibold">
-                  Executing payroll locks the ledger for <strong>{payrollPeriod}</strong> and generates serialized thermal payslips for all <strong>{staffList.filter((s) => s.status === 'Active').length}</strong> active staff.
-                </p>
-                <p className="text-[11px] text-slate-800">
-                  <ShieldCheck className="w-3.5 h-3.5 inline mr-1 text-[#0A006E]" />
-                  Employees will immediately be able to download their 80mm/58mm POS thermal receipt payslip from their own dashboard.
-                </p>
-              </div>
+              <p className="text-xs sm:text-sm font-semibold text-slate-900">
+                Creates payslips for <strong>{staffList.filter((s) => s.status === 'Active').length}</strong> active staff for <strong>{payrollPeriod}</strong>.
+              </p>
 
-              <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <div className="grid grid-cols-1 sm:flex sm:flex-wrap items-center gap-2.5 shrink-0">
                 {onOpenKraReturns && (
                   <button
                     type="button"
                     onClick={() => onOpenKraReturns('PAYE_P10_SEC_B')}
-                    className="px-4 py-3 bg-white hover:bg-slate-50 border-2 border-[#0A006E] text-[#0A006E] rounded-xl font-montserrat font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 transition"
+                    className="beta-action-tile min-h-[48px] px-5 py-3 bg-white hover:bg-slate-50 border-2 border-[#0A006E] text-[#0A006E] rounded-2xl font-montserrat font-black text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap shrink-0 transition"
                   >
-                    <FileSpreadsheet className="w-4 h-4 text-[#0A006E]" />
-                    <span>KRA P10 &amp; AHL (.xlsx)</span>
+                    <FileSpreadsheet className="w-5 h-5 text-[#0A006E]" />
+                    <span>KRA P10 (.xlsx)</span>
                   </button>
                 )}
                 <button
                   type="button"
                   disabled={isRunningPayroll || staffList.filter((s) => s.status === 'Active').length === 0}
                   onClick={handleExecutePayroll}
-                  className="px-6 py-3 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-xl font-montserrat font-black text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg transition disabled:opacity-50 whitespace-nowrap shrink-0"
+                  className="beta-action-tile min-h-[48px] px-6 py-3 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-2xl font-montserrat font-black text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer shadow-lg transition disabled:opacity-50 whitespace-nowrap shrink-0"
                 >
                   {isRunningPayroll ? (
                     <>
-                      <RefreshCw className="w-4 h-4 animate-spin text-[#FFDE00]" />
-                      Processing Ledger...
+                      <RefreshCw className="w-5 h-5 animate-spin text-[#FFDE00]" />
+                      <span>Running Payroll...</span>
                     </>
                   ) : (
                     <>
-                      <Printer className="w-4 h-4 text-[#FFDE00]" />
-                      Run Payroll for {payrollPeriod}
+                      <Printer className="w-5 h-5 text-[#FFDE00]" />
+                      <span>Run Payroll ({payrollPeriod})</span>
                     </>
                   )}
                 </button>
@@ -5530,42 +5547,44 @@ export const HrAndRbacModule: React.FC<{
           </div>
 
           {/* Direct HR Deduction Item Selector & Quick Employee Assignment Panel */}
-          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-4">
+          <div className="beta-kpi-card rounded-2xl p-4 sm:p-5 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
               <div>
                 <h3 className="text-sm font-montserrat font-black text-[#0A006E] flex items-center gap-2">
                   <ListChecks className="w-4 h-4 text-[#0A006E]" />
-                  Select &amp; Add HR Deduction Items to Staff
+                  <span>Quick Add Deduction</span>
                 </h3>
-                <p className="text-xs text-slate-600">
-                  Pick an employee and select any statutory, loan, SACCO, advance, or custom deduction item to add directly to their payroll profile.
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Assign loan, SACCO, advance, or custom deduction to any staff member.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowCatalogManager((prev) => !prev)}
-                className="px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-[#0A006E] rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap"
+                className="beta-action-tile min-h-[44px] sm:min-h-[38px] px-4 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-300 text-[#0A006E] rounded-xl text-xs font-montserrat font-bold flex items-center justify-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap"
               >
-                <Tag className="w-3.5 h-3.5 text-[#0A006E]" />
-                {showCatalogManager
-                  ? 'Hide Deduction Catalog'
-                  : `Manage Deduction Catalog (${fullDeductionCatalog.length} Items)`}
+                <Tag className="w-4 h-4 text-[#0A006E]" />
+                <span>
+                  {showCatalogManager
+                    ? 'Hide Catalog'
+                    : `Catalog (${fullDeductionCatalog.length})`}
+                </span>
               </button>
             </div>
 
             <form
               onSubmit={handleQuickAssignDeductionToStaff}
-              className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 text-xs"
+              className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 text-xs"
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3">
                 <div className="lg:col-span-3">
                   <label className="block font-montserrat font-bold text-slate-700 mb-1">
-                    1. Select Employee *
+                    1. Employee *
                   </label>
                   <select
                     value={quickAssignStaffId || staffList[0]?.id || ''}
                     onChange={(e) => setQuickAssignStaffId(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg font-montserrat font-bold text-slate-900"
+                    className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-xl font-montserrat font-bold text-slate-900"
                   >
                     {staffList.map((s) => (
                       <option key={s.id} value={s.id}>
@@ -5577,7 +5596,7 @@ export const HrAndRbacModule: React.FC<{
 
                 <div className="lg:col-span-4">
                   <label className="block font-montserrat font-bold text-slate-700 mb-1">
-                    2. Select Deduction Item *
+                    2. Deduction Item *
                   </label>
                   <select
                     value={quickAssignCatalogId}
@@ -5591,7 +5610,7 @@ export const HrAndRbacModule: React.FC<{
                         setQuickAssignFreq(found.defaultFrequency);
                       }
                     }}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg font-montserrat font-bold text-[#0A006E]"
+                    className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-xl font-montserrat font-bold text-[#0A006E]"
                   >
                     {DEDUCTION_CATEGORIES.map((category) => {
                       const entries = fullDeductionCatalog.filter((c) => c.category === category);
@@ -5616,7 +5635,7 @@ export const HrAndRbacModule: React.FC<{
                   <select
                     value={quickAssignMode}
                     onChange={(e) => setQuickAssignMode(e.target.value as DeductionCalcMode)}
-                    className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-lg font-semibold text-slate-800"
+                    className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-xl font-semibold text-slate-800"
                   >
                     <option value="FIXED">Fixed (KES)</option>
                     <option value="PERCENTAGE">% of Basic</option>
@@ -5631,12 +5650,12 @@ export const HrAndRbacModule: React.FC<{
                     {quickAssignMode === 'PERCENTAGE'
                       ? 'Percentage (%)'
                       : quickAssignMode === 'STATUTORY_AUTO'
-                      ? 'Auto KRA Formula'
+                      ? 'Auto KRA'
                       : 'Amount (KES)'}
                   </label>
                   {quickAssignMode === 'STATUTORY_AUTO' ? (
-                    <div className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg font-mono-tabular text-slate-600 font-bold">
-                      Auto-calculated from Salary
+                    <div className="w-full min-h-[44px] flex items-center px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl font-mono-tabular text-slate-600 font-bold">
+                      Auto KRA Formula
                     </div>
                   ) : (
                     <input
@@ -5645,20 +5664,20 @@ export const HrAndRbacModule: React.FC<{
                       step={quickAssignMode === 'PERCENTAGE' ? '0.5' : '50'}
                       value={quickAssignValue}
                       onChange={(e) => setQuickAssignValue(Number(e.target.value))}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono-tabular tabular-nums font-bold text-slate-900"
+                      className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-xl font-mono-tabular tabular-nums font-bold text-slate-900"
                     />
                   )}
                 </div>
               </div>
 
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
-                <div className="flex flex-1 items-center gap-2.5">
+                <div className="flex flex-col sm:flex-row flex-1 items-stretch sm:items-center gap-2.5">
                   <select
                     value={quickAssignFreq}
                     onChange={(e) =>
                       setQuickAssignFreq(e.target.value as 'Recurring Monthly' | 'One-Off')
                     }
-                    className="px-2.5 py-2 bg-slate-50 border border-slate-300 rounded-lg font-semibold text-slate-700"
+                    className="min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-xl font-semibold text-slate-700"
                   >
                     <option value="Recurring Monthly">Recurring Monthly</option>
                     <option value="One-Off">One-Off (This Run)</option>
@@ -5667,18 +5686,18 @@ export const HrAndRbacModule: React.FC<{
                     type="text"
                     value={quickAssignNote}
                     onChange={(e) => setQuickAssignNote(e.target.value)}
-                    placeholder="Optional reference / loan account note (e.g. HELB #9920, Advance Oct)"
-                    className="flex-1 px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-800"
+                    placeholder="Optional note (e.g. HELB #9920)"
+                    className="min-h-[44px] flex-1 px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-800"
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={isAssigningQuick || staffList.length === 0}
-                  className="px-5 py-2 bg-[#0A006E] hover:bg-[#12009E] disabled:opacity-50 text-[#FFDE00] rounded-xl font-montserrat font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer transition whitespace-nowrap shrink-0"
+                  className="beta-action-tile min-h-[46px] px-5 py-2.5 bg-[#0A006E] hover:bg-[#12009E] disabled:opacity-50 text-[#FFDE00] rounded-xl font-montserrat font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 cursor-pointer transition whitespace-nowrap shrink-0"
                 >
                   <Plus className="w-4 h-4 text-[#FFDE00]" />
-                  {isAssigningQuick ? 'Adding...' : 'Add Deduction to Employee'}
+                  <span>{isAssigningQuick ? 'Adding...' : 'Add Deduction'}</span>
                 </button>
               </div>
             </form>
@@ -5821,29 +5840,84 @@ export const HrAndRbacModule: React.FC<{
             )}
           </div>
 
-          {/* Staff Compensation, Deductions & Net Pay Configuration Table */}
-          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-4">
+          {/* Staff Compensation, Deductions & Net Pay Configuration */}
+          <div className="beta-kpi-card rounded-2xl p-4 sm:p-5 space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
-                  Staff Remuneration, Selected Deductions &amp; Penalties Roster ({staffList.length} Staff)
+                <h3 className="text-sm sm:text-base font-montserrat font-black text-[#0A006E]">
+                  Staff Pay &amp; Deductions ({staffList.length})
                 </h3>
-                <p className="text-xs text-slate-600">
-                  Review itemized employee deductions, configure monthly salaries, and adjust penalties before running payroll.
+                <p className="text-xs text-slate-500">
+                  Tap any employee to edit salary, deductions, or penalties.
                 </p>
               </div>
             </div>
 
-            <div className="overflow-x-auto bg-white border border-slate-200 rounded-xl">
+            {/* Mobile Staff Remuneration Cards (< md) */}
+            <div className="grid grid-cols-1 gap-3 md:hidden">
+              {staffList.map((s) => {
+                const bSal = s.baseSalaryKes ?? (s.role === 'Admin' ? 180000 : s.role === 'Accountant' ? 120000 : s.role === 'Branch Manager' ? 95000 : 65000);
+                const sItems = hydrateStaffDeductionItems({
+                  baseSalary: bSal,
+                  deductionsKes: s.deductionsKes,
+                  deductionsBreakdown: s.deductionsBreakdown,
+                  deductionItems: s.deductionItems,
+                });
+                const ded =
+                  s.deductionItems && s.deductionItems.length > 0
+                    ? summarizeDeductionItems(s.deductionItems).totalDeductionsKes
+                    : s.deductionsKes ?? summarizeDeductionItems(sItems).totalDeductionsKes;
+                const pen = s.penaltiesKes ?? 0;
+                const net = Math.max(0, bSal - ded - pen);
+
+                return (
+                  <div key={`pay-mob-${s.id}`} className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-2xs">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-montserrat font-black text-sm text-slate-900">{s.name}</div>
+                        <div className="text-xs font-semibold text-[#0A006E]">{s.role} · {s.branchName}</div>
+                      </div>
+                      <span className="font-mono-tabular font-black text-sm text-[#0A006E] shrink-0">
+                        KES {net.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-xs bg-slate-50 border border-slate-100 rounded-xl p-2.5 font-mono-tabular">
+                      <div>
+                        <div className="text-[10px] text-slate-500">Gross</div>
+                        <div className="font-bold text-slate-900">{bSal.toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-slate-500">Deductions</div>
+                        <div className="font-bold text-rose-600">-{ded.toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-slate-500">Penalties</div>
+                        <div className="font-bold text-amber-600">{pen > 0 ? `-${pen.toLocaleString()}` : '0'}</div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenCompensation(s)}
+                      className="beta-action-tile w-full min-h-[44px] px-4 py-2.5 bg-[#0A006E] text-[#FFDE00] rounded-xl font-montserrat font-black text-xs flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <ListChecks className="w-4 h-4 text-[#FFDE00]" />
+                      <span>Edit Pay &amp; Deductions</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="hidden md:block overflow-x-auto bg-white border border-slate-200 rounded-xl">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
                     <th className="py-2.5 px-3 font-black">Staff Member</th>
-                    <th className="py-2.5 px-3 font-black">Role &amp; Branch Depot</th>
+                    <th className="py-2.5 px-3 font-black">Role &amp; Branch</th>
                     <th className="py-2.5 px-3 font-black text-right">Basic Salary (KES)</th>
-                    <th className="py-2.5 px-3 font-black text-right">Selected Deductions (KES)</th>
+                    <th className="py-2.5 px-3 font-black text-right">Deductions (KES)</th>
                     <th className="py-2.5 px-3 font-black text-right">Penalties (KES)</th>
-                    <th className="py-2.5 px-3 font-black text-right">Net Take-Home (KES)</th>
+                    <th className="py-2.5 px-3 font-black text-right">Net Pay (KES)</th>
                     <th className="py-2.5 px-3 font-black text-right">Actions</th>
                   </tr>
                 </thead>
@@ -5916,10 +5990,10 @@ export const HrAndRbacModule: React.FC<{
                           <button
                             type="button"
                             onClick={() => handleOpenCompensation(s)}
-                            className="px-2.5 py-1.5 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-lg font-montserrat font-bold text-[11px] cursor-pointer shadow-xs transition ml-auto flex items-center gap-1 whitespace-nowrap"
+                            className="beta-action-tile min-h-[38px] px-3.5 py-2 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl font-montserrat font-bold text-xs cursor-pointer shadow-xs transition ml-auto flex items-center gap-1.5 whitespace-nowrap"
                           >
-                            <ListChecks className="w-3.5 h-3.5 text-[#FFDE00]" />
-                            Deductions &amp; Salary
+                            <ListChecks className="w-4 h-4 text-[#FFDE00]" />
+                            <span>Edit Pay</span>
                           </button>
                         </td>
                       </tr>
@@ -5931,27 +6005,27 @@ export const HrAndRbacModule: React.FC<{
           </div>
 
           {/* Historical Payroll Runs & Generated Thermal Payslips */}
-          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-5 space-y-4">
+          <div className="beta-kpi-card rounded-2xl p-4 sm:p-5 space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-montserrat font-black text-[#0A006E] flex items-center gap-2">
                   <History className="w-4 h-4 text-[#0A006E]" />
-                  Historical Payroll Execution Batches ({payrollRuns.length} Runs)
+                  <span>Payroll History ({payrollRuns.length})</span>
                 </h3>
-                <p className="text-xs text-slate-600">
-                  Executed payroll batches. Individual employee thermal payslips are available for download.
+                <p className="text-xs text-slate-500">
+                  Completed payroll batches and thermal payslips.
                 </p>
               </div>
             </div>
 
             {payrollRuns.length === 0 ? (
-              <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-2">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-8 text-center space-y-2">
                 <Receipt className="w-8 h-8 text-slate-400 mx-auto" />
                 <div className="font-montserrat font-bold text-slate-700 text-sm">
-                  No Payroll Runs Finalized Yet
+                  No Payroll Runs Yet
                 </div>
                 <p className="text-xs text-slate-500 max-w-md mx-auto">
-                  Click the <strong>"Run Payroll for {payrollPeriod}"</strong> button above to finalize your first disbursement cycle and generate employee thermal payslips.
+                  Tap <strong>Run Payroll ({payrollPeriod})</strong> above to generate employee payslips.
                 </p>
               </div>
             ) : (
@@ -5968,58 +6042,58 @@ export const HrAndRbacModule: React.FC<{
                     <div key={run.id} className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-2xs">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="p-2 bg-[#34D186]/20 text-[#1E9E60] rounded-xl font-bold">
-                            <CheckCircle2 className="w-4 h-4" />
+                          <div className="w-10 h-10 bg-[#34D186]/20 text-[#1E9E60] rounded-xl font-bold flex items-center justify-center shrink-0">
+                            <CheckCircle2 className="w-5 h-5" />
                           </div>
                           <div>
                             <div className="font-montserrat font-black text-slate-900 text-sm">
-                              Payroll Run: {run.period}
+                              {run.period}
                             </div>
-                            <div className="text-[11px] text-slate-500">
-                              Executed by {run.runBy} on {new Date(run.runDate).toLocaleString()} · Batch ID: {run.id}
+                            <div className="text-xs text-slate-500">
+                              By {run.runBy} · {new Date(run.runDate).toLocaleDateString()}
                             </div>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-3">
-                          <div className="text-right">
-                            <div className="text-xs text-slate-500">Total Net Disbursed:</div>
+                          <div className="text-left sm:text-right">
+                            <div className="text-xs text-slate-500">Total Net:</div>
                             <div className="font-mono-tabular font-black text-[#0A006E] text-sm">
                               KES {run.totalDisbursed.toLocaleString()}
                             </div>
                           </div>
                           <span className="px-2.5 py-1 bg-[#34D186]/20 text-[#1E9E60] border border-[#34D186]/40 rounded-xl text-xs font-bold">
-                            PAID & CLEARED
+                            PAID
                           </span>
                         </div>
                       </div>
 
                       {/* Employee payslip list inside this run */}
-                      <div className="space-y-1.5 pt-1">
-                        <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                          Employee Payslips in this Batch ({runRecords.length}):
+                      <div className="space-y-2 pt-1">
+                        <div className="text-xs font-bold text-slate-600">
+                          Payslips ({runRecords.length})
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
                           {runRecords.map((rec) => (
                             <div
                               key={rec.staffId}
-                              className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-2 text-xs"
+                              className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-2 text-xs"
                             >
                               <div className="truncate">
                                 <div className="font-montserrat font-bold text-slate-900 truncate">
                                   {rec.staffName}
                                 </div>
-                                <div className="text-[10px] text-slate-500 font-mono-tabular">
+                                <div className="text-xs text-slate-500 font-mono-tabular">
                                   {rec.staffRole} · KES {rec.netSalary.toLocaleString()}
                                 </div>
                               </div>
                               <button
                                 type="button"
                                 onClick={() => onOpenPayslip?.(rec)}
-                                className="px-2 py-1 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-lg font-montserrat font-black text-[10px] flex items-center gap-1 cursor-pointer transition shrink-0"
+                                className="beta-action-tile min-h-[40px] px-3.5 py-2 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-xl font-montserrat font-black text-xs flex items-center gap-1.5 cursor-pointer transition shrink-0"
                               >
-                                <Printer className="w-3 h-3" />
-                                Payslip
+                                <Printer className="w-4 h-4" />
+                                <span>Payslip</span>
                               </button>
                             </div>
                           ))}
@@ -6031,25 +6105,34 @@ export const HrAndRbacModule: React.FC<{
               </div>
             )}
           </div>
-        </div>
+        </motion.div>
       )}
 
       {activeTab === 'leave_requests' && canManageLeaveRequests && (
-        <LeaveManagementPortal
-          mode="hr_inbox"
-          currentUser={currentUser}
-          leaveRequests={leaveRequests}
-          staffList={staffList}
-          branches={branches}
-          onSubmitLeaveRequest={
-            onSubmitLeaveRequest ||
-            (async () => null)
-          }
-          onReviewLeaveRequest={onReviewLeaveRequest}
-          onCancelLeaveRequest={onCancelLeaveRequest}
-          onTriggerToast={onTriggerToast}
-        />
+        <motion.div
+          key="hr_leave_requests"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <LeaveManagementPortal
+            mode="hr_inbox"
+            currentUser={currentUser}
+            leaveRequests={leaveRequests}
+            staffList={staffList}
+            branches={branches}
+            onSubmitLeaveRequest={
+              onSubmitLeaveRequest ||
+              (async () => null)
+            }
+            onReviewLeaveRequest={onReviewLeaveRequest}
+            onCancelLeaveRequest={onCancelLeaveRequest}
+            onTriggerToast={onTriggerToast}
+          />
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {/* Quick Compensation & Selectable Deductions Modal */}
       {compStaff && (
@@ -6159,20 +6242,20 @@ export const HrAndRbacModule: React.FC<{
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200">
+              <div className="grid grid-cols-2 sm:flex sm:items-center sm:justify-end gap-2.5 pt-3 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setCompStaff(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-montserrat font-bold cursor-pointer"
+                  className="min-h-[48px] px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-montserrat font-bold text-xs sm:text-sm cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSavingComp}
-                  className="px-5 py-2.5 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] border-2 border-[#0A006E] rounded-xl font-montserrat font-black cursor-pointer shadow-md transition disabled:opacity-50"
+                  className="min-h-[48px] px-6 py-2.5 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] border-2 border-[#0A006E] rounded-xl font-montserrat font-black text-xs sm:text-sm cursor-pointer shadow-md transition disabled:opacity-50"
                 >
-                  {isSavingComp ? 'Saving...' : 'Save Deductions & Remuneration'}
+                  {isSavingComp ? 'Saving...' : 'Save Pay'}
                 </button>
               </div>
             </form>
@@ -6371,9 +6454,9 @@ export const HrAndRbacModule: React.FC<{
                           <button
                             type="button"
                             onClick={() => setShowEditPin((prev) => !prev)}
-                            className="px-3 py-2.5 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl font-montserrat font-bold text-xs text-[#0A006E] cursor-pointer flex items-center gap-1.5"
+                            className="min-h-[44px] px-4 py-2.5 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl font-montserrat font-bold text-xs text-[#0A006E] cursor-pointer flex items-center gap-1.5"
                           >
-                            {showEditPin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                            {showEditPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                             <span>{showEditPin ? 'Hide PIN' : 'View PIN'}</span>
                           </button>
                           <button
@@ -6382,9 +6465,9 @@ export const HrAndRbacModule: React.FC<{
                               handleRandomizeEditPin();
                               setShowEditPin(true);
                             }}
-                            className="px-3.5 py-2.5 bg-white hover:bg-[#FFDE00] border border-slate-300 rounded-xl font-montserrat font-bold text-xs text-[#0A006E] cursor-pointer"
+                            className="min-h-[44px] px-4 py-2.5 bg-white hover:bg-[#FFDE00] border border-slate-300 rounded-xl font-montserrat font-bold text-xs text-[#0A006E] cursor-pointer"
                           >
-                            Generate New PIN
+                            New PIN
                           </button>
                         </>
                       )}
@@ -6398,19 +6481,19 @@ export const HrAndRbacModule: React.FC<{
                 )}
               </div>
 
-              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200">
+              <div className="grid grid-cols-2 sm:flex sm:items-center sm:justify-end gap-2.5 pt-3 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setEditingStaff(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-montserrat font-bold cursor-pointer"
+                  className="min-h-[48px] px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-montserrat font-bold text-xs sm:text-sm cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl font-montserrat font-black cursor-pointer shadow-md"
+                  className="min-h-[48px] px-6 py-2.5 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl font-montserrat font-black text-xs sm:text-sm cursor-pointer shadow-md"
                 >
-                  Save Staff Changes
+                  Save Changes
                 </button>
               </div>
             </form>
@@ -6418,7 +6501,7 @@ export const HrAndRbacModule: React.FC<{
         </div>
       )}
 
-      {/* Delete Staff Permanent Confirmation Modal (Prompting Question per Requirement 3) */}
+      {/* Delete Staff Permanent Confirmation Modal */}
       {deletingStaff && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-none sm:rounded-3xl border-0 sm:border-2 border-rose-600 shadow-2xl max-w-none sm:max-w-md w-full h-full sm:h-auto overflow-y-auto p-5 sm:p-6 space-y-4 flex flex-col justify-between sm:justify-start">
@@ -6428,20 +6511,20 @@ export const HrAndRbacModule: React.FC<{
 
             <div className="text-center space-y-1.5">
               <span className="text-[11px] font-montserrat font-black uppercase tracking-wider text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200">
-                Permanent Removal Notice
+                Permanent Removal
               </span>
               <h3 className="text-lg sm:text-xl font-montserrat font-black text-slate-900">
-                Are you sure you want to permanently delete this staff member?
+                Permanently delete this staff member?
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                This action is <strong>permanent</strong> and cannot be undone. All login credentials, authentication PIN codes, and role assignments will be permanently eradicated.
+                This permanently removes login credentials, PINs, and role assignments.
               </p>
             </div>
 
             <div className="bg-rose-50/80 border border-rose-200 rounded-2xl p-4 space-y-1.5 text-xs">
               <div className="font-montserrat font-black text-slate-900 text-sm">{deletingStaff.name}</div>
               <div className="text-slate-600">
-                Email: <span className="font-medium text-slate-800">{deletingStaff.email}</span>
+                {deletingStaff.email}
               </div>
               <div className="flex items-center gap-2 pt-0.5">
                 <span className="font-montserrat font-black text-[#0A006E]">{deletingStaff.role}</span>
@@ -6452,23 +6535,23 @@ export const HrAndRbacModule: React.FC<{
               </div>
             </div>
 
-            <div className="flex items-center gap-3 pt-2">
+            <div className="grid grid-cols-2 gap-3 pt-2">
               <button
                 type="button"
                 disabled={isDeletingStaff}
                 onClick={() => setDeletingStaff(null)}
-                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-montserrat font-bold cursor-pointer transition-colors"
+                className="min-h-[48px] py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs sm:text-sm font-montserrat font-bold cursor-pointer transition-colors"
               >
-                Cancel / Keep Staff
+                Cancel
               </button>
               <button
                 type="button"
                 disabled={isDeletingStaff}
                 onClick={handleConfirmDelete}
-                className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-montserrat font-black cursor-pointer shadow-md transition-colors flex items-center justify-center gap-2"
+                className="min-h-[48px] py-3 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs sm:text-sm font-montserrat font-black cursor-pointer shadow-md transition-colors flex items-center justify-center gap-2"
               >
                 <Trash2 className="w-4 h-4" />
-                {isDeletingStaff ? 'Deleting...' : 'Permanently Delete Staff'}
+                <span>{isDeletingStaff ? 'Deleting...' : 'Delete'}</span>
               </button>
             </div>
           </div>

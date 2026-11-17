@@ -421,16 +421,11 @@ export const InventoryBarcodeAssignmentModal: React.FC<InventoryBarcodeAssignmen
               <Barcode className="w-6 h-6 stroke-[2.2]" />
             </div>
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-montserrat font-black text-sm text-[#FFDE00]">
-                  Scan & Register Real Product Barcode
-                </h3>
-                <span className="px-2 py-0.5 bg-[#FFDE00]/20 text-[#FFDE00] border border-[#FFDE00]/40 rounded-full text-[10px] font-montserrat font-black uppercase tracking-wider">
-                  Inventory Controller Master Station
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-300">
-                All fake barcodes have been removed. Scan the physical bottle to register its real barcode for Retail POS checkout.
+              <h3 className="font-montserrat font-bold text-sm text-[#FFDE00]">
+                Link Product Barcode
+              </h3>
+              <p className="text-xs text-slate-300">
+                Scan or enter the bottle barcode
               </p>
             </div>
           </div>
@@ -622,43 +617,38 @@ export const InventoryBarcodeAssignmentModal: React.FC<InventoryBarcodeAssignmen
 
           {/* TAB 1: Camera Scanner Viewfinder */}
           {activeTab === 'camera' && (
-            <div className="space-y-3">
-              <div className="relative w-full aspect-4/3 max-w-md mx-auto bg-slate-950 rounded-2xl overflow-hidden border-2 border-[#0A006E] shadow-inner">
-                <div id="inventory-camera-viewfinder" className="w-full h-full" />
+            <div className="relative w-full aspect-4/3 max-w-md mx-auto bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 shadow-inner">
+              <div id="inventory-camera-viewfinder" className="w-full h-full" />
 
-                {/* Overlay Aim Guide */}
-                <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-6">
-                  <div className="w-full h-44 border-2 border-[#FFDE00] rounded-xl relative shadow-[0_0_20px_rgba(255,222,0,0.3)]">
-                    <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-0.5 bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.9)] animate-pulse" />
-                    <div className="absolute bottom-2 inset-x-0 text-center text-[10px] font-montserrat font-black text-[#FFDE00] drop-shadow">
-                      Center bottle barcode within frame
-                    </div>
-                  </div>
-                </div>
-
-                {/* Torch / Camera Switch controls */}
-                <div className="absolute top-3 right-3 flex items-center gap-2 z-20">
-                  {availableCameras.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const nextIndex =
-                          (availableCameras.findIndex((c) => c.id === currentCameraId) + 1) %
-                          availableCameras.length;
-                        startCameraScanner(availableCameras[nextIndex].id);
-                      }}
-                      className="p-2 bg-slate-900/80 text-white rounded-xl hover:bg-slate-800 cursor-pointer"
-                      title="Switch camera"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                    </button>
-                  )}
+              {/* Clean Corner Brackets Only */}
+              <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-8">
+                <div className="w-full max-w-[260px] h-40 relative">
+                  <div className="absolute top-0 left-0 w-7 h-7 border-t-[3px] border-l-[3px] border-[#FFDE00] rounded-tl-xl" />
+                  <div className="absolute top-0 right-0 w-7 h-7 border-t-[3px] border-r-[3px] border-[#FFDE00] rounded-tr-xl" />
+                  <div className="absolute bottom-0 left-0 w-7 h-7 border-b-[3px] border-l-[3px] border-[#FFDE00] rounded-bl-xl" />
+                  <div className="absolute bottom-0 right-0 w-7 h-7 border-b-[3px] border-r-[3px] border-[#FFDE00] rounded-br-xl" />
+                  <div className="absolute inset-x-3 top-1/2 -translate-y-1/2 h-[2px] bg-[#FFDE00]/85 shadow-[0_0_8px_#FFDE00] animate-pulse" />
                 </div>
               </div>
 
-              <p className="text-center text-[11px] text-slate-500 font-medium">
-                Align the real bottle barcode (EAN-13, UPC-A, Code-128). Audio chime confirms successful scan.
-              </p>
+              {/* Camera Switch button */}
+              {availableCameras.length > 1 && (
+                <div className="absolute top-3 right-3 z-20">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextIndex =
+                        (availableCameras.findIndex((c) => c.id === currentCameraId) + 1) %
+                        availableCameras.length;
+                      startCameraScanner(availableCameras[nextIndex].id);
+                    }}
+                    className="min-w-[40px] min-h-[40px] bg-black/60 text-white rounded-xl hover:bg-black/80 flex items-center justify-center cursor-pointer"
+                    title="Switch camera"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

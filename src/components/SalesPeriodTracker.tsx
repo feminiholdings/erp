@@ -434,14 +434,14 @@ export const SalesPeriodTracker: React.FC<SalesPeriodTrackerProps> = ({
             >
               <div className="flex items-center justify-between gap-1">
                 <span
-                  className={`text-[11px] font-montserrat font-black uppercase tracking-wider ${
+                  className={`text-xs font-montserrat font-black uppercase tracking-wider ${
                     isSelected ? 'text-[#FFDE00]' : 'text-[#0A006E]'
                   }`}
                 >
                   {opt.label}
                 </span>
                 <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-md font-bold ${
+                  className={`text-[11px] px-1.5 py-0.5 rounded-md font-bold font-mono-tabular ${
                     isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
                   }`}
                 >
@@ -449,7 +449,7 @@ export const SalesPeriodTracker: React.FC<SalesPeriodTrackerProps> = ({
                 </span>
               </div>
               <div
-                className={`text-sm sm:text-base font-montserrat font-black font-mono-tabular truncate ${
+                className={`text-base sm:text-lg font-extrabold font-mono-tabular truncate ${
                   isSelected ? 'text-white' : 'text-slate-900'
                 }`}
               >
@@ -468,11 +468,11 @@ export const SalesPeriodTracker: React.FC<SalesPeriodTrackerProps> = ({
             <span>Gross Sales ({activeStats.label})</span>
             <TrendingUp className="w-4 h-4 text-[#1E9E60]" />
           </div>
-          <div className="text-2xl font-montserrat font-black text-[#0A006E] font-mono-tabular">
+          <div className="text-2xl font-extrabold text-[#0A006E] font-mono-tabular">
             {formatKes(activeStats.grossSales)}
           </div>
-          <div className="text-[11px] text-slate-500">
-            Across <strong className="text-slate-800 font-bold">{activeStats.ordersCount}</strong> completed transactions
+          <div className="text-xs text-slate-500">
+            Across <strong className="text-slate-800 font-bold font-mono-tabular">{activeStats.ordersCount}</strong> completed transactions
           </div>
         </div>
 
@@ -482,10 +482,10 @@ export const SalesPeriodTracker: React.FC<SalesPeriodTrackerProps> = ({
             <span>Net Realized Revenue</span>
             <DollarSign className="w-4 h-4 text-[#0A006E]" />
           </div>
-          <div className="text-2xl font-montserrat font-black text-[#1E9E60] font-mono-tabular">
+          <div className="text-2xl font-extrabold text-[#1E9E60] font-mono-tabular">
             {formatKes(activeStats.netSales)}
           </div>
-          <div className="text-[11px] text-slate-500">
+          <div className="text-xs text-slate-500">
             {activeStats.creditNotes > 0
               ? `Credit Notes: -${formatKes(activeStats.creditNotes)}`
               : 'Zero credit adjustments deducted'}
@@ -498,10 +498,10 @@ export const SalesPeriodTracker: React.FC<SalesPeriodTrackerProps> = ({
             <span>Average Ticket (AOV)</span>
             <Layers className="w-4 h-4 text-[#0A006E]" />
           </div>
-          <div className="text-2xl font-montserrat font-black text-[#0A006E] font-mono-tabular">
+          <div className="text-2xl font-extrabold text-[#0A006E] font-mono-tabular">
             {formatKes(activeStats.averageOrderValue)}
           </div>
-          <div className="text-[11px] text-slate-500">
+          <div className="text-xs text-slate-500">
             Mean invoice size for {activeStats.label.toLowerCase()}
           </div>
         </div>
@@ -511,31 +511,31 @@ export const SalesPeriodTracker: React.FC<SalesPeriodTrackerProps> = ({
           <div className="text-slate-500 text-xs font-montserrat font-bold">
             Sales Channels Mix
           </div>
-          <div className="space-y-1 pt-1 text-xs">
+          <div className="space-y-1.5 pt-1 text-xs sm:text-sm">
             <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-slate-600">
+              <span className="flex items-center gap-1.5 text-slate-600 text-xs">
                 <ShoppingCart className="w-3.5 h-3.5 text-[#0A006E]" />
                 Retail Counter:
               </span>
-              <span className="font-montserrat font-bold font-mono-tabular text-slate-900">
+              <span className="font-bold font-mono-tabular text-slate-900">
                 {formatKes(activeStats.channelBreakdown.retail.total)}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-slate-600">
+              <span className="flex items-center gap-1.5 text-slate-600 text-xs">
                 <Building2 className="w-3.5 h-3.5 text-[#0A006E]" />
                 Wholesale B2B:
               </span>
-              <span className="font-montserrat font-bold font-mono-tabular text-slate-900">
+              <span className="font-bold font-mono-tabular text-slate-900">
                 {formatKes(activeStats.channelBreakdown.wholesale.total)}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-slate-600">
+              <span className="flex items-center gap-1.5 text-slate-600 text-xs">
                 <Globe className="w-3.5 h-3.5 text-[#0A006E]" />
                 Online Store:
               </span>
-              <span className="font-montserrat font-bold font-mono-tabular text-slate-900">
+              <span className="font-bold font-mono-tabular text-slate-900">
                 {formatKes(activeStats.channelBreakdown.online.total)}
               </span>
             </div>

@@ -160,44 +160,8 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Zone 2: Navigation & Action Controls */}
         {variant === 'authenticated' ? (
           <>
-            {/* Mobile Header: Quick Profile, Lock & Hamburger (< md) — Never show Storefront when logged in */}
-            <div className="flex md:hidden items-center gap-1.5 shrink-0 relative z-10">
-              {onOpenAccessMatrix && (
-                <button
-                  type="button"
-                  onClick={onOpenAccessMatrix}
-                  className="w-9.5 h-9.5 rounded-xl flex items-center justify-center border bg-[#FFDE00] text-[#0A006E] border-white cursor-pointer transition active:scale-95"
-                  title="Access Model Matrix"
-                  aria-label="Access Model Matrix"
-                >
-                  <ShieldCheck className="w-4.5 h-4.5 stroke-[2.4]" />
-                </button>
-              )}
-
-              {currentUser && onOpenUserProfile && (
-                <button
-                  type="button"
-                  onClick={onOpenUserProfile}
-                  className="w-9.5 h-9.5 rounded-xl flex items-center justify-center border bg-white text-[#0A006E] border-white cursor-pointer transition active:scale-95"
-                  title={`${currentUser.name} (${currentUser.role})`}
-                  aria-label="User Profile"
-                >
-                  <User className="w-4.5 h-4.5 stroke-[2.3]" />
-                </button>
-              )}
-
-              {onLogout && (
-                <button
-                  type="button"
-                  onClick={onLogout}
-                  className="w-9.5 h-9.5 rounded-xl flex items-center justify-center border bg-white text-[#0A006E] hover:text-rose-600 border-white cursor-pointer transition active:scale-95"
-                  title="Lock Terminal / Sign Out"
-                  aria-label="Lock Terminal / Sign Out"
-                >
-                  <Lock className="w-4.5 h-4.5 stroke-[2.3]" />
-                </button>
-              )}
-
+            {/* Mobile Header: Hamburger Menu Only (< md) — Profile, Access Matrix & Lock live inside drawer */}
+            <div className="flex md:hidden items-center shrink-0 relative z-10">
               <button
                 type="button"
                 onClick={onToggleMobileDrawer}
@@ -272,13 +236,13 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </>
         ) : (
-          /* Gateway mode: Customer Website & Utilities Hamburger */
+          /* Gateway mode: Customer Website (Desktop) & Utilities Hamburger */
           <div className="flex items-center gap-2.5 sm:gap-3 shrink-0 relative z-10">
             {onOpenCustomerPortal && (
               <button
                 type="button"
                 onClick={onOpenCustomerPortal}
-                className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-white hover:bg-[#FFDE00] text-[#0A006E] border-2 border-white shadow-md transition-all cursor-pointer flex items-center justify-center active:scale-95 relative group"
+                className="hidden md:flex w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-white hover:bg-[#FFDE00] text-[#0A006E] border-2 border-white shadow-md transition-all cursor-pointer items-center justify-center active:scale-95 relative group"
                 title="Customer Website & Online Storefront"
                 aria-label="Customer Website & Online Storefront"
               >

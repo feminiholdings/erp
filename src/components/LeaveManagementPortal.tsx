@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   Calendar,
   Clock,
@@ -519,22 +520,22 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
         onToggleWidget={toggleLeaveWidget}
         onReset={resetLeavePrefs}
         actions={
-          <>
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             {canReviewAsHr && (
-              <div className="inline-flex bg-slate-100 border border-slate-200 rounded-lg p-0.5">
+              <div className="grid grid-cols-2 sm:inline-flex bg-slate-100 border border-slate-200 rounded-xl p-1 gap-1 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={() => setViewMode('hr_approvals')}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-montserrat font-bold cursor-pointer transition flex items-center gap-1 ${
+                  className={`min-h-[44px] sm:min-h-[38px] px-4 py-2 sm:px-3.5 sm:py-1.5 rounded-lg text-xs font-montserrat font-black cursor-pointer transition flex items-center justify-center gap-1.5 ${
                     viewMode === 'hr_approvals'
-                      ? 'bg-[#0A006E] text-[#FFDE00]'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-[#0A006E] text-[#FFDE00] shadow-sm'
+                      : 'text-slate-700 hover:text-slate-900'
                   }`}
                 >
-                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <ShieldCheck className="w-4 h-4 shrink-0" />
                   <span>HR Desk</span>
                   {pendingRequests.length > 0 && (
-                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-600 text-white font-mono-tabular">
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-rose-600 text-white font-mono-tabular">
                       {pendingRequests.length}
                     </span>
                   )}
@@ -542,20 +543,20 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
                 <button
                   type="button"
                   onClick={() => setViewMode('my_requests')}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-montserrat font-bold cursor-pointer transition flex items-center gap-1 ${
+                  className={`min-h-[44px] sm:min-h-[38px] px-4 py-2 sm:px-3.5 sm:py-1.5 rounded-lg text-xs font-montserrat font-black cursor-pointer transition flex items-center justify-center gap-1.5 ${
                     viewMode === 'my_requests'
-                      ? 'bg-[#0A006E] text-[#FFDE00]'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-[#0A006E] text-[#FFDE00] shadow-sm'
+                      : 'text-slate-700 hover:text-slate-900'
                   }`}
                 >
-                  <Calendar className="w-3.5 h-3.5" />
+                  <Calendar className="w-4 h-4 shrink-0" />
                   <span>My Requests</span>
                 </button>
               </div>
             )}
 
             {viewMode === 'hr_approvals' && (
-              <>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={() =>
@@ -595,10 +596,10 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
                       ])
                     )
                   }
-                  className="px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                  className="beta-action-tile flex-1 sm:flex-none min-h-[44px] sm:min-h-[38px] px-4 py-2 sm:px-3.5 sm:py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 rounded-xl text-xs font-montserrat font-bold flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
                 >
-                  <Download className="w-3.5 h-3.5" />
-                  CSV
+                  <Download className="w-4 h-4 shrink-0" />
+                  <span>CSV</span>
                 </button>
                 <button
                   type="button"
@@ -620,125 +621,106 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
                       'Vaairo_Leave_Register'
                     )
                   }
-                  className="px-2.5 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                  className="beta-action-tile flex-1 sm:flex-none min-h-[44px] sm:min-h-[38px] px-4 py-2 sm:px-3.5 sm:py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-bold flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shadow-xs"
                 >
-                  <Download className="w-3.5 h-3.5" />
-                  PDF
+                  <Download className="w-4 h-4 shrink-0" />
+                  <span>PDF</span>
                 </button>
-              </>
+              </div>
             )}
-          </>
+          </div>
         }
       />
 
       {isLeaveWidgetVisible('kpi_strip') && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+          className="grid grid-cols-2 lg:grid-cols-4 gap-3"
+        >
           {isLeaveKpiVisible('total_requests') && (
-            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
-              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Total Requests</div>
-              <div className="text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+            <div className="beta-kpi-card rounded-2xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500">Total Requests</div>
+              <div className="text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1">
                 {totalScopedLeave}
               </div>
             </div>
           )}
           {isLeaveKpiVisible('pending_hr') && (
-            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
-              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Pending HR Review</div>
-              <div className="text-lg font-montserrat font-black text-amber-700 font-mono-tabular mt-0.5">
+            <div className="beta-kpi-card rounded-2xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500">Pending Review</div>
+              <div className="text-2xl font-extrabold text-amber-600 font-mono-tabular mt-1">
                 {pendingScopedLeave}
               </div>
             </div>
           )}
           {isLeaveKpiVisible('approved') && (
-            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
-              <div className="text-[11px] font-montserrat font-semibold text-slate-500">Approved Requests</div>
-              <div className="text-lg font-montserrat font-black text-emerald-700 font-mono-tabular mt-0.5">
+            <div className="beta-kpi-card rounded-2xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500">Approved</div>
+              <div className="text-2xl font-extrabold text-emerald-700 font-mono-tabular mt-1">
                 {approvedScopedLeave}
               </div>
             </div>
           )}
-        </div>
+          {viewMode === 'hr_approvals' && canReviewAsHr ? (
+            <div
+              className={`beta-kpi-card rounded-2xl p-4 ${
+                urgentPendingRequests.length > 0 ? '!bg-rose-50 !border-rose-300' : ''
+              }`}
+            >
+              <div className="text-xs font-montserrat font-semibold text-rose-700">Urgent Queue</div>
+              <div className="text-2xl font-extrabold text-rose-600 font-mono-tabular mt-1">
+                {urgentPendingRequests.length}
+              </div>
+            </div>
+          ) : (
+            <div className="beta-kpi-card rounded-2xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500">Annual Days Left</div>
+              <div className="text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1">
+                {myBalances.annual.remaining}
+                <span className="text-xs font-semibold text-slate-500 ml-1">/ {myBalances.annual.entitlement}d</span>
+              </div>
+            </div>
+          )}
+        </motion.div>
       )}
 
       {isLeaveWidgetVisible('leave_portal') && (
       <>
+      <AnimatePresence mode="wait">
       {/* =================================================================== */}
       {/* HR APPROVALS DESK VIEW                                              */}
       {/* =================================================================== */}
       {viewMode === 'hr_approvals' && canReviewAsHr && (
-        <div className="space-y-6">
-          {/* HR Summary Metrics */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-              <div className="text-xs font-montserrat font-bold text-slate-600">
-                Pending HR Review
-              </div>
-              <div className="text-2xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1">
-                {pendingRequests.length}
-              </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                Awaiting HR approval / decline
-              </div>
-            </div>
-
-            <div
-              className={`rounded-2xl p-4 border-2 ${
-                urgentPendingRequests.length > 0
-                  ? 'bg-rose-50 border-rose-400'
-                  : 'bg-[#F0F2F0] border-slate-200'
-              }`}
-            >
-              <div className="text-xs font-montserrat font-bold text-rose-800">
-                Urgent / Emergency / Maternity
-              </div>
-              <div className="text-2xl font-montserrat font-black text-rose-600 font-mono-tabular mt-1">
-                {urgentPendingRequests.length}
-              </div>
-              <div className="text-[11px] text-rose-700 mt-1">
-                Priority humanitarian &amp; emergency queue
-              </div>
-            </div>
-
-            <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-              <div className="text-xs font-montserrat font-bold text-slate-600">
-                Away Today / Next 14 Days
-              </div>
-              <div className="text-2xl font-montserrat font-black text-[#1E9E60] font-mono-tabular mt-1">
-                {awayTodayAndUpcoming.length}
-              </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                Approved active &amp; upcoming absences
-              </div>
-            </div>
-
-            <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-              <div className="text-xs font-montserrat font-bold text-slate-600">
-                Total Requests Logged
-              </div>
-              <div className="text-2xl font-montserrat font-black text-slate-800 font-mono-tabular mt-1">
-                {leaveRequests.length}
-              </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                {leaveRequests.filter((r) => r.status === 'Approved').length} approved ·{' '}
-                {leaveRequests.filter((r) => r.status === 'Declined').length} declined
-              </div>
-            </div>
-          </div>
-
+        <motion.div
+          key="hr_approvals"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+          className="space-y-4"
+        >
           {/* Urgent Emergency / Maternity Priority Alert Queue */}
           {urgentPendingRequests.length > 0 && (
-            <div className="bg-rose-50 border-2 border-rose-500 rounded-2xl p-4 sm:p-5 space-y-3 shadow-sm">
+            <div className="bg-rose-50/90 border border-rose-300 rounded-2xl p-4 sm:p-5 space-y-3 shadow-sm">
               <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0">
-                    <AlertTriangle className="w-5 h-5" />
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <AlertTriangle className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-montserrat font-black text-rose-900">
-                      Priority Emergency &amp; Maternity Requests ({urgentPendingRequests.length})
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-montserrat font-black text-rose-900">
+                        Priority Requests ({urgentPendingRequests.length})
+                      </h3>
+                      <span className="beta-badge">
+                        <Sparkles className="w-2.5 h-2.5" />
+                        <span>Urgent</span>
+                      </span>
+                    </div>
                     <p className="text-xs text-rose-700">
-                      Time-sensitive staff requests flagged for immediate HR attention.
+                      Emergency &amp; maternity approvals
                     </p>
                   </div>
                 </div>
@@ -748,66 +730,62 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
                 {urgentPendingRequests.map((req) => (
                   <div
                     key={req.id}
-                    className="bg-white border-2 border-rose-300 rounded-2xl p-4 space-y-2.5 shadow-2xs"
+                    className="beta-kpi-card rounded-2xl p-4 space-y-3 shadow-2xs"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-mono-tabular font-black text-xs text-[#0A006E]">
+                        <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
+                          <span className="font-mono-tabular font-black text-[#0A006E]">
                             {req.requestNo}
                           </span>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-600 text-white">
-                            {req.leaveType}
-                          </span>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                            {req.totalDays} day(s)
-                          </span>
+                          <span aria-hidden="true">·</span>
+                          <span className="font-bold text-rose-600">{req.leaveType}</span>
+                          <span aria-hidden="true">·</span>
+                          <span className="font-mono-tabular font-bold text-slate-800">{req.totalDays}d</span>
                         </div>
                         <div className="font-montserrat font-black text-sm text-slate-900 mt-1">
-                          {req.staffName}{' '}
-                          <span className="text-xs font-semibold text-slate-500">
-                            ({req.staffRole} · {req.branchName})
-                          </span>
+                          {req.staffName}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {req.staffRole} · {req.branchName}
                         </div>
                       </div>
                     </div>
 
-                    <div className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl p-2.5 space-y-1">
-                      <div>
-                        <strong>Dates:</strong> {req.startDate} to {req.endDate}
+                    <div className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1">
+                      <div className="font-mono-tabular font-semibold text-slate-900">
+                        {req.startDate} → {req.endDate}
                         {req.expectedDeliveryDate && ` · EDD: ${req.expectedDeliveryDate}`}
                       </div>
-                      <div>
-                        <strong>Reason:</strong> {req.reason}
-                      </div>
+                      <div>{req.reason}</div>
                       {(req.reliefStaffName || req.emergencyContactPhone) && (
-                        <div className="text-[11px] text-slate-600 pt-1 border-t border-slate-200 flex flex-wrap gap-3">
+                        <div className="text-xs text-slate-600 pt-1.5 border-t border-slate-200 flex flex-wrap gap-3">
                           {req.reliefStaffName && (
-                            <span>Relief Cover: <strong>{req.reliefStaffName}</strong></span>
+                            <span>Cover: <strong>{req.reliefStaffName}</strong></span>
                           )}
                           {req.emergencyContactPhone && (
-                            <span>Emergency Tel: <strong>{req.emergencyContactPhone}</strong></span>
+                            <span>Tel: <strong className="font-mono-tabular">{req.emergencyContactPhone}</strong></span>
                           )}
                         </div>
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2 pt-1">
+                    <div className="grid grid-cols-2 gap-2.5 pt-1">
                       <button
                         type="button"
                         onClick={() => handleOpenDecision(req, 'Approved')}
-                        className="flex-1 py-2 bg-[#34D186] hover:bg-[#28B873] text-[#0A006E] font-montserrat font-black text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer border border-[#0A006E]"
+                        className="beta-action-tile min-h-[46px] px-4 py-2.5 bg-[#34D186] hover:bg-[#28B873] text-[#0A006E] font-montserrat font-black text-xs sm:text-sm rounded-xl flex items-center justify-center gap-1.5 cursor-pointer border border-[#0A006E]"
                       >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        Approve Now
+                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                        <span>Approve</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => handleOpenDecision(req, 'Declined')}
-                        className="flex-1 py-2 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white font-montserrat font-black text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer border border-rose-300 transition"
+                        className="beta-action-tile min-h-[46px] px-4 py-2.5 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white font-montserrat font-black text-xs sm:text-sm rounded-xl flex items-center justify-center gap-1.5 cursor-pointer border border-rose-300 transition"
                       >
-                        <XCircle className="w-3.5 h-3.5" />
-                        Decline
+                        <XCircle className="w-4 h-4 shrink-0" />
+                        <span>Decline</span>
                       </button>
                     </div>
                   </div>
@@ -818,10 +796,10 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
 
           {/* Away Today / Upcoming Roster Coverage Strip */}
           {awayTodayAndUpcoming.length > 0 && (
-            <div className="bg-[#0A006E]/5 border border-[#0A006E]/20 rounded-2xl p-4 space-y-2.5">
+            <div className="beta-kpi-card rounded-2xl p-4 space-y-2.5">
               <div className="text-xs font-montserrat font-black text-[#0A006E] flex items-center gap-2">
                 <Users className="w-4 h-4 text-[#0A006E]" />
-                Active &amp; Upcoming Approved Staff Absences (Today + Next 14 Days)
+                <span>Staff Away (Next 14 Days · {awayTodayAndUpcoming.length})</span>
               </div>
               <div className="flex flex-wrap gap-2">
                 {awayTodayAndUpcoming.map((r) => {
@@ -829,23 +807,16 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
                   return (
                     <div
                       key={r.id}
-                      className={`px-3 py-2 rounded-xl border text-xs flex items-center gap-2 bg-white ${
+                      className={`px-3.5 py-2.5 rounded-xl border text-xs bg-white ${
                         isAwayNow ? 'border-[#34D186] shadow-2xs' : 'border-slate-200'
                       }`}
                     >
-                      <span
-                        className={`w-2 h-2 rounded-full ${
-                          isAwayNow ? 'bg-[#34D186] animate-pulse' : 'bg-amber-400'
-                        }`}
-                      />
-                      <div>
-                        <span className="font-montserrat font-black text-[#0A006E]">
-                          {r.staffName}
-                        </span>{' '}
-                        <span className="text-slate-500">({r.leaveType})</span>
-                        <div className="text-[10px] text-slate-500 font-mono-tabular">
-                          {r.startDate} → {r.endDate} · Cover: {r.reliefStaffName || 'Supervisor'}
-                        </div>
+                      <div className="font-montserrat font-black text-[#0A006E]">
+                        {r.staffName}{' '}
+                        <span className="font-semibold text-slate-500">· {r.leaveType}</span>
+                      </div>
+                      <div className="text-xs text-slate-600 font-mono-tabular mt-0.5">
+                        {r.startDate} → {r.endDate} · Cover: {r.reliefStaffName || 'Supervisor'}
                       </div>
                     </div>
                   );
@@ -855,27 +826,27 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
           )}
 
           {/* Filter & Search Bar */}
-          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4 space-y-3">
+          <div className="beta-kpi-card rounded-2xl p-4 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
               <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search staff, request #, branch..."
-                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl"
+                  className="w-full min-h-[44px] pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium"
                 />
               </div>
 
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold text-slate-800"
+                className="min-h-[44px] px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800"
               >
                 <option value="ALL">All Statuses ({leaveRequests.length})</option>
                 <option value="Pending HR Approval">
-                  Pending HR Approval ({pendingRequests.length})
+                  Pending ({pendingRequests.length})
                 </option>
                 <option value="Approved">Approved</option>
                 <option value="Declined">Declined</option>
@@ -885,9 +856,9 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
               <select
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}
-                className="px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold text-slate-800"
+                className="min-h-[44px] px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800"
               >
-                <option value="ALL">All Leave &amp; Off Categories</option>
+                <option value="ALL">All Categories</option>
                 {LEAVE_CATEGORY_META.map((c) => (
                   <option key={c.type} value={c.type}>
                     {c.type}
@@ -898,9 +869,9 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
               <select
                 value={branchFilter}
                 onChange={(e) => setBranchFilter(e.target.value)}
-                className="px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold text-slate-800"
+                className="min-h-[44px] px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800"
               >
-                <option value="ALL">All Branches &amp; Warehouses</option>
+                <option value="ALL">All Branches</option>
                 {branches.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name}
@@ -912,38 +883,33 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
             {/* Mobile Card List */}
             <div className="grid grid-cols-1 gap-3 md:hidden">
               {filteredHrRequests.length === 0 ? (
-                <div className="bg-white border border-slate-200 rounded-xl p-6 text-center text-xs text-slate-500">
-                  No leave, off-day, or emergency requests match the active filters.
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 text-center text-xs text-slate-500">
+                  No leave requests match the active filters.
                 </div>
               ) : (
                 filteredHrRequests.map((req) => (
                   <div
                     key={req.id}
-                    className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2.5 text-xs shadow-2xs"
+                    className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 text-xs shadow-2xs"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <div className="flex items-center gap-1.5 flex-wrap">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500 flex-wrap">
                           <span className="font-mono-tabular font-black text-[#0A006E]">
                             {req.requestNo}
                           </span>
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getUrgencyBadgeClass(
-                              req.urgency
-                            )}`}
-                          >
-                            {req.urgency}
-                          </span>
+                          <span aria-hidden="true">·</span>
+                          <span className="font-bold text-slate-700">{req.urgency}</span>
                         </div>
-                        <div className="font-montserrat font-black text-slate-900 text-sm mt-1">
+                        <div className="font-montserrat font-black text-slate-900 text-sm mt-0.5">
                           {req.staffName}
                         </div>
-                        <div className="text-[11px] text-slate-500">
+                        <div className="text-xs text-slate-500">
                           {req.staffRole} · {req.branchName}
                         </div>
                       </div>
                       <span
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${getStatusBadgeClass(
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border shrink-0 ${getStatusBadgeClass(
                           req.status
                         )}`}
                       >
@@ -951,7 +917,7 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
                       </span>
                     </div>
 
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 space-y-1">
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1">
                       <div className="font-bold text-[#0A006E]">
                         {req.leaveType} ({req.totalDays} day{req.totalDays === 1 ? '' : 's'}
                         {req.durationMode && req.durationMode !== 'Full Days'
@@ -959,46 +925,49 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
                           : ''}
                         )
                       </div>
-                      <div className="font-mono-tabular text-[11px] text-slate-700">
+                      <div className="font-mono-tabular text-xs text-slate-700 font-semibold">
                         {req.startDate} → {req.endDate}
                       </div>
                       <div className="text-slate-700">{req.reason}</div>
                       {req.reliefStaffName && (
-                        <div className="text-[11px] text-slate-500">
-                          Relief Cover: <strong>{req.reliefStaffName}</strong>
+                        <div className="text-xs text-slate-500">
+                          Relief: <strong>{req.reliefStaffName}</strong>
                         </div>
                       )}
                       {req.hrDecisionNote && (
-                        <div className="text-[11px] text-[#0A006E] pt-1 border-t border-slate-200">
+                        <div className="text-xs text-[#0A006E] pt-1.5 border-t border-slate-200">
                           <strong>HR Note:</strong> {req.hrDecisionNote}
                         </div>
                       )}
                     </div>
 
                     {req.status === 'Pending HR Approval' ? (
-                      <div className="flex items-center gap-2">
+                      <div className="grid grid-cols-2 gap-2.5">
                         <button
                           type="button"
                           onClick={() => handleOpenDecision(req, 'Approved')}
-                          className="flex-1 py-2 bg-[#34D186] text-[#0A006E] border border-[#0A006E] rounded-xl font-montserrat font-black text-xs cursor-pointer"
+                          className="beta-action-tile min-h-[46px] px-4 py-2.5 bg-[#34D186] text-[#0A006E] border border-[#0A006E] rounded-xl font-montserrat font-black text-xs sm:text-sm cursor-pointer flex items-center justify-center gap-1.5"
                         >
-                          Approve
+                          <CheckCircle2 className="w-4 h-4 shrink-0" />
+                          <span>Approve</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => handleOpenDecision(req, 'Declined')}
-                          className="flex-1 py-2 bg-rose-50 text-rose-700 border border-rose-300 rounded-xl font-montserrat font-black text-xs cursor-pointer"
+                          className="beta-action-tile min-h-[46px] px-4 py-2.5 bg-rose-50 text-rose-700 border border-rose-300 rounded-xl font-montserrat font-black text-xs sm:text-sm cursor-pointer flex items-center justify-center gap-1.5"
                         >
-                          Decline
+                          <XCircle className="w-4 h-4 shrink-0" />
+                          <span>Decline</span>
                         </button>
                       </div>
                     ) : (
                       <button
                         type="button"
                         onClick={() => handlePrintLeaveLetter(req)}
-                        className="w-full py-2 bg-[#0A006E] text-[#FFDE00] rounded-xl font-montserrat font-black text-xs cursor-pointer"
+                        className="beta-action-tile w-full min-h-[46px] px-4 py-2.5 bg-[#0A006E] text-[#FFDE00] rounded-xl font-montserrat font-black text-xs sm:text-sm cursor-pointer flex items-center justify-center gap-2"
                       >
-                        Print Decision Record (PDF)
+                        <FileText className="w-4 h-4 shrink-0" />
+                        <span>Print Decision PDF</span>
                       </button>
                     )}
                   </div>
@@ -1115,32 +1084,32 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
                         </td>
                         <td className="py-3 px-3 text-right whitespace-nowrap">
                           {req.status === 'Pending HR Approval' ? (
-                            <div className="inline-flex items-center gap-1.5">
+                            <div className="inline-flex items-center gap-2">
                               <button
                                 type="button"
                                 onClick={() => handleOpenDecision(req, 'Approved')}
-                                className="px-3 py-1.5 bg-[#34D186] hover:bg-[#28B873] text-[#0A006E] border border-[#0A006E] rounded-lg font-montserrat font-black text-[11px] cursor-pointer flex items-center gap-1"
+                                className="beta-action-tile min-h-[38px] px-3.5 py-2 bg-[#34D186] hover:bg-[#28B873] text-[#0A006E] border border-[#0A006E] rounded-xl font-montserrat font-black text-xs cursor-pointer flex items-center gap-1.5"
                               >
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                Approve
+                                <CheckCircle2 className="w-4 h-4" />
+                                <span>Approve</span>
                               </button>
                               <button
                                 type="button"
                                 onClick={() => handleOpenDecision(req, 'Declined')}
-                                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white border border-rose-300 rounded-lg font-montserrat font-black text-[11px] cursor-pointer flex items-center gap-1 transition"
+                                className="beta-action-tile min-h-[38px] px-3.5 py-2 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white border border-rose-300 rounded-xl font-montserrat font-black text-xs cursor-pointer flex items-center gap-1.5 transition"
                               >
-                                <XCircle className="w-3.5 h-3.5" />
-                                Decline
+                                <XCircle className="w-4 h-4" />
+                                <span>Decline</span>
                               </button>
                             </div>
                           ) : (
                             <button
                               type="button"
                               onClick={() => handlePrintLeaveLetter(req)}
-                              className="px-3 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg font-montserrat font-black text-[11px] cursor-pointer inline-flex items-center gap-1"
+                              className="beta-action-tile min-h-[38px] px-3.5 py-2 bg-[#0A006E] text-[#FFDE00] rounded-xl font-montserrat font-black text-xs cursor-pointer inline-flex items-center gap-1.5"
                             >
-                              <FileText className="w-3 h-3" />
-                              PDF Record
+                              <FileText className="w-4 h-4" />
+                              <span>PDF</span>
                             </button>
                           )}
                         </td>
@@ -1151,64 +1120,67 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
               </table>
             </div>
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* =================================================================== */}
       {/* STAFF SELF-SERVICE LEAVE, OFF & EMERGENCY REQUEST PORTAL            */}
       {/* =================================================================== */}
       {viewMode === 'my_requests' && (
-        <div className="space-y-6">
+        <motion.div
+          key="my_requests"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+          className="space-y-5"
+        >
           {/* Entitlement Balances Strip */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-              <div className="text-xs font-montserrat font-bold text-slate-600">
-                Annual Leave Balance ({currentYear})
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="beta-kpi-card rounded-2xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500">
+                Annual Leave ({currentYear})
               </div>
-              <div className="text-2xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-1">
-                {myBalances.annual.remaining} / {myBalances.annual.entitlement}{' '}
-                <span className="text-xs font-bold">days</span>
+              <div className="text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1">
+                {myBalances.annual.remaining} / {myBalances.annual.entitlement}
+                <span className="text-xs font-semibold text-slate-500 ml-1">days</span>
               </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                Used: {myBalances.annual.used} · Pending: {myBalances.annual.pending}
-              </div>
-            </div>
-
-            <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-              <div className="text-xs font-montserrat font-bold text-slate-600">
-                Sick / Medical Balance
-              </div>
-              <div className="text-2xl font-montserrat font-black text-[#1E9E60] font-mono-tabular mt-1">
-                {myBalances.sick.remaining} / {myBalances.sick.entitlement}{' '}
-                <span className="text-xs font-bold">days</span>
-              </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                Company medical recovery allowance
+              <div className="text-xs text-slate-500 font-mono-tabular mt-0.5">
+                Used {myBalances.annual.used} · Pending {myBalances.annual.pending}
               </div>
             </div>
 
-            <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-              <div className="text-xs font-montserrat font-bold text-slate-600">
+            <div className="beta-kpi-card rounded-2xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500">
+                Sick / Medical
+              </div>
+              <div className="text-2xl font-extrabold text-emerald-700 font-mono-tabular mt-1">
+                {myBalances.sick.remaining} / {myBalances.sick.entitlement}
+                <span className="text-xs font-semibold text-slate-500 ml-1">days</span>
+              </div>
+              <div className="text-xs text-slate-500 mt-0.5">Medical allowance</div>
+            </div>
+
+            <div className="beta-kpi-card rounded-2xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500">
                 Maternity / Paternity
               </div>
-              <div className="text-xl sm:text-2xl font-montserrat font-black text-fuchsia-700 font-mono-tabular mt-1">
-                90d <span className="text-xs text-slate-400">/</span> 14d
+              <div className="text-2xl font-extrabold text-fuchsia-700 font-mono-tabular mt-1">
+                90d <span className="text-slate-400">/</span> 14d
               </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                Full statutory parental protection
-              </div>
+              <div className="text-xs text-slate-500 mt-0.5">Statutory parental</div>
             </div>
 
-            <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4">
-              <div className="text-xs font-montserrat font-bold text-slate-600">
-                Off-Days &amp; Emergencies Logged
+            <div className="beta-kpi-card rounded-2xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500">
+                Off &amp; Emergency
               </div>
-              <div className="text-2xl font-montserrat font-black text-amber-600 font-mono-tabular mt-1">
-                {myBalances.offDay.used + myBalances.emergency.used}{' '}
-                <span className="text-xs font-bold">days</span>
+              <div className="text-2xl font-extrabold text-amber-600 font-mono-tabular mt-1">
+                {myBalances.offDay.used + myBalances.emergency.used}
+                <span className="text-xs font-semibold text-slate-500 ml-1">days</span>
               </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                Pending HR review: {myRequests.filter((r) => r.status === 'Pending HR Approval').length}
+              <div className="text-xs text-slate-500 font-mono-tabular mt-0.5">
+                Pending: {myRequests.filter((r) => r.status === 'Pending HR Approval').length}
               </div>
             </div>
           </div>
@@ -1216,30 +1188,39 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
           {/* Submit Request Form */}
           <form
             onSubmit={handleSubmitForm}
-            className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xs"
+            className="beta-kpi-card rounded-2xl p-4 sm:p-6 space-y-5 shadow-xs"
           >
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
-              <div>
-                <h3 className="text-sm font-montserrat font-black text-[#0A006E] flex items-center gap-2">
-                  <Send className="w-4 h-4 text-[#0A006E]" />
-                  Submit New Leave, Off-Day, Emergency, or Maternity Request
-                </h3>
-                <p className="text-xs text-slate-600 mt-0.5">
-                  Submitted as <strong>{currentUser.name}</strong> ({currentUser.role} ·{' '}
-                  {currentUser.branchName}) directly to HR.
-                </p>
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0">
+                  <Send className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm sm:text-base font-montserrat font-black text-[#0A006E]">
+                      New Leave or Off Request
+                    </h3>
+                    <span className="beta-badge">
+                      <Sparkles className="w-2.5 h-2.5" />
+                      <span>Beta</span>
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    {currentUser.name} · {currentUser.branchName}
+                  </p>
+                </div>
               </div>
-              <span className="px-3 py-1 rounded-xl bg-white border border-slate-200 font-mono-tabular font-black text-xs text-[#0A006E] w-fit">
-                Requested Duration: {computedTotalDays} day{computedTotalDays === 1 ? '' : 's'}
+              <span className="px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono-tabular font-black text-xs text-[#0A006E] w-fit">
+                {computedTotalDays} day{computedTotalDays === 1 ? '' : 's'}
               </span>
             </div>
 
             {/* Category Selector Cards */}
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               <label className="block text-xs font-montserrat font-bold text-slate-700">
-                1. Select Request Category *
+                1. Choose Leave Type
               </label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {LEAVE_CATEGORY_META.map((cat) => {
                   const IconComp = cat.icon;
                   const active = leaveType === cat.type;
@@ -1248,25 +1229,25 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
                       key={cat.type}
                       type="button"
                       onClick={() => handleSelectCategory(cat.type)}
-                      className={`p-3 rounded-2xl border-2 text-left transition cursor-pointer flex flex-col justify-between gap-2 ${
+                      className={`beta-action-tile min-h-[104px] p-4 rounded-2xl border-2 text-left transition cursor-pointer flex flex-col justify-between gap-2.5 ${
                         active
-                          ? 'bg-white border-[#0A006E] ring-2 ring-[#FFDE00] shadow-sm'
-                          : 'bg-white/80 border-slate-200 hover:border-[#0A006E]'
+                          ? 'bg-white border-[#0A006E] ring-2 ring-[#FFDE00] shadow-md'
+                          : 'bg-slate-50/80 border-slate-200 hover:border-[#0A006E] hover:bg-white'
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-1.5">
-                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${cat.accent}`}>
-                          <IconComp className="w-4 h-4" />
+                      <div className="flex items-center justify-between gap-2">
+                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${cat.accent}`}>
+                          <IconComp className="w-6 h-6" />
                         </div>
-                        <span className="text-[10px] font-montserrat font-bold text-slate-500">
+                        <span className="text-[11px] font-mono-tabular font-bold text-slate-500 text-right">
                           {cat.badge}
                         </span>
                       </div>
                       <div>
-                        <div className="text-xs font-montserrat font-black text-[#0A006E]">
+                        <div className="text-sm sm:text-xs font-montserrat font-black text-[#0A006E]">
                           {cat.label}
                         </div>
-                        <div className="text-[10px] text-slate-500 leading-snug">{cat.desc}</div>
+                        <div className="text-[11px] text-slate-500 leading-snug mt-0.5">{cat.desc}</div>
                       </div>
                     </button>
                   );
@@ -1283,7 +1264,7 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
                   type="date"
                   value={startDate}
                   onChange={(e) => handleStartDateChange(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-mono-tabular font-bold text-slate-900"
+                  className="w-full min-h-[44px] mt-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono-tabular font-bold text-slate-900"
                 />
               </div>
 
@@ -1295,7 +1276,7 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
                   min={startDate}
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-mono-tabular font-bold text-slate-900"
+                  className="w-full min-h-[44px] mt-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono-tabular font-bold text-slate-900"
                 />
               </div>
 
@@ -1305,7 +1286,7 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
                   disabled={startDate !== endDate}
                   value={startDate === endDate ? durationMode : 'Full Days'}
                   onChange={(e) => setDurationMode(e.target.value as LeaveDurationMode)}
-                  className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold text-slate-800 disabled:bg-slate-100"
+                  className="w-full min-h-[44px] mt-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800 disabled:bg-slate-100"
                 >
                   <option value="Full Days">Full Day(s)</option>
                   <option value="Half Day (Morning)">Half Day (Morning AM)</option>
@@ -1318,24 +1299,24 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
                 <select
                   value={urgency}
                   onChange={(e) => setUrgency(e.target.value as LeaveUrgency)}
-                  className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-montserrat font-bold text-[#0A006E]"
+                  className="w-full min-h-[44px] mt-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-montserrat font-bold text-[#0A006E]"
                 >
-                  <option value="Standard">Standard Request</option>
-                  <option value="Urgent">Urgent Review</option>
-                  <option value="Emergency">Critical Emergency</option>
+                  <option value="Standard">Standard</option>
+                  <option value="Urgent">Urgent</option>
+                  <option value="Emergency">Emergency</option>
                 </select>
               </div>
 
               <div className="sm:col-span-2">
                 <label className="font-montserrat font-bold text-slate-700">
-                  Relief / Shift Handover Colleague (Optional)
+                  Cover Colleague (Optional)
                 </label>
                 <select
                   value={reliefStaffId}
                   onChange={(e) => setReliefStaffId(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl"
+                  className="w-full min-h-[44px] mt-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl"
                 >
-                  <option value="">-- Assign Line Manager / No Specific Colleague --</option>
+                  <option value="">Line Manager / Auto Cover</option>
                   {reliefColleagues.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name} ({s.role} · {s.branchName})
@@ -1347,33 +1328,33 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
               {leaveType === 'Maternity Leave' && (
                 <div className="sm:col-span-2">
                   <label className="font-montserrat font-bold text-fuchsia-800">
-                    Expected Delivery Date (EDD - Optional)
+                    Expected Delivery Date (Optional)
                   </label>
                   <input
                     type="date"
                     value={expectedDeliveryDate}
                     onChange={(e) => setExpectedDeliveryDate(e.target.value)}
-                    className="w-full mt-1 px-3 py-2 bg-white border border-fuchsia-300 rounded-xl font-mono-tabular"
+                    className="w-full min-h-[44px] mt-1 px-3.5 py-2.5 bg-white border border-fuchsia-300 rounded-xl font-mono-tabular"
                   />
                 </div>
               )}
 
               <div>
                 <label className="font-montserrat font-bold text-slate-700">
-                  Emergency / Alternate Contact Name
+                  Alternate Contact Name
                 </label>
                 <input
                   type="text"
                   value={emergencyContactName}
                   onChange={(e) => setEmergencyContactName(e.target.value)}
-                  placeholder="Next of kin / alternate contact"
-                  className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl"
+                  placeholder="Next of kin"
+                  className="w-full min-h-[44px] mt-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl"
                 />
               </div>
 
               <div>
                 <label className="font-montserrat font-bold text-slate-700">
-                  Reachable Phone {leaveType === 'Emergency Leave' ? '*' : '(Optional)'}
+                  Phone {leaveType === 'Emergency Leave' ? '*' : '(Optional)'}
                 </label>
                 <input
                   type="tel"
@@ -1381,87 +1362,82 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
                   value={emergencyContactPhone}
                   onChange={(e) => setEmergencyContactPhone(e.target.value)}
                   placeholder="+254 7XX XXX XXX"
-                  className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl font-mono-tabular"
+                  className="w-full min-h-[44px] mt-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono-tabular"
                 />
               </div>
 
               <div className="sm:col-span-2 lg:col-span-4">
                 <label className="font-montserrat font-bold text-slate-700">
-                  Reason &amp; Handover Instructions *
+                  Reason &amp; Handover Note *
                 </label>
                 <textarea
                   required
                   rows={2}
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  placeholder="Explain the leave/off/emergency details and pending duties handed over..."
-                  className="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-xl"
+                  placeholder="Short reason and shift handover note..."
+                  className="w-full mt-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm sm:text-xs"
                 />
               </div>
             </div>
 
             {formError && (
-              <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl text-xs text-rose-800 font-semibold flex items-center gap-2">
+              <div className="p-3.5 bg-rose-50 border border-rose-300 rounded-xl text-xs text-rose-800 font-semibold flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
                 {formError}
               </div>
             )}
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-              <div className="text-[11px] text-slate-600 flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-[#0A006E]" />
-                HR will receive this request immediately on their HR Approvals Desk.
+              <div className="text-xs text-slate-500 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-[#0A006E] shrink-0" />
+                <span>Sent directly to HR for approval</span>
               </div>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-6 py-3 bg-[#0A006E] hover:bg-[#060046] disabled:opacity-50 text-[#FFDE00] rounded-xl font-montserrat font-black text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition"
+                className="beta-action-tile min-h-[50px] w-full sm:w-auto px-6 py-3 bg-[#0A006E] hover:bg-[#060046] disabled:opacity-50 text-[#FFDE00] rounded-2xl font-montserrat font-black text-sm flex items-center justify-center gap-2 cursor-pointer shadow-md transition"
               >
                 <Send className="w-4 h-4" />
-                {isSubmitting ? 'Sending to HR...' : `Submit ${leaveType} Request to HR`}
+                <span>{isSubmitting ? 'Sending...' : `Submit ${leaveType} Request`}</span>
               </button>
             </div>
           </form>
 
           {/* My Submitted Requests History */}
-          <div className="bg-[#F0F2F0] border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3">
+          <div className="beta-kpi-card rounded-2xl p-4 sm:p-5 space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-montserrat font-black text-[#0A006E]">
-                My Leave, Off &amp; Emergency Request History ({myRequests.length})
+                My Request History ({myRequests.length})
               </h3>
             </div>
 
             {myRequests.length === 0 ? (
-              <div className="bg-white border border-slate-200 rounded-xl p-6 text-center text-xs text-slate-500">
-                You have not submitted any leave, off-day, emergency, or maternity requests yet.
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 text-center text-xs text-slate-500">
+                No requests submitted yet. Use the form above to send your first request.
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {myRequests.map((req) => (
                   <div
                     key={req.id}
-                    className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2.5 text-xs shadow-2xs"
+                    className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 text-xs shadow-2xs"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500 flex-wrap">
                           <span className="font-mono-tabular font-black text-[#0A006E]">
                             {req.requestNo}
                           </span>
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getUrgencyBadgeClass(
-                              req.urgency
-                            )}`}
-                          >
-                            {req.urgency}
-                          </span>
+                          <span aria-hidden="true">·</span>
+                          <span className="font-bold text-slate-700">{req.urgency}</span>
                         </div>
-                        <div className="font-montserrat font-black text-sm text-slate-900 mt-1">
+                        <div className="font-montserrat font-black text-sm text-slate-900 mt-0.5">
                           {req.leaveType}
                         </div>
                       </div>
                       <span
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${getStatusBadgeClass(
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border shrink-0 ${getStatusBadgeClass(
                           req.status
                         )}`}
                       >
@@ -1469,35 +1445,35 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
                       </span>
                     </div>
 
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 space-y-1">
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1">
                       <div className="font-mono-tabular font-bold text-[#0A006E]">
                         {req.startDate} → {req.endDate} ({req.totalDays} day
                         {req.totalDays === 1 ? '' : 's'})
                       </div>
                       <div className="text-slate-700">{req.reason}</div>
                       {req.reliefStaffName && (
-                        <div className="text-[11px] text-slate-500">
-                          Relief Staff: <strong>{req.reliefStaffName}</strong>
+                        <div className="text-xs text-slate-500">
+                          Relief: <strong>{req.reliefStaffName}</strong>
                         </div>
                       )}
                       {req.hrDecisionNote && (
-                        <div className="text-[11px] pt-1 border-t border-slate-200 text-slate-800">
-                          <strong>HR Response ({req.hrReviewerName || 'HR'}):</strong>{' '}
+                        <div className="text-xs pt-1.5 border-t border-slate-200 text-slate-800">
+                          <strong>HR ({req.hrReviewerName || 'HR'}):</strong>{' '}
                           {req.hrDecisionNote}
                         </div>
                       )}
                     </div>
 
-                    <div className="flex items-center justify-between gap-2 pt-1">
-                      <span className="text-[10px] text-slate-400">
-                        Submitted {new Date(req.createdAt).toLocaleString()}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+                      <span className="text-[11px] text-slate-400">
+                        {new Date(req.createdAt).toLocaleDateString()}
                       </span>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
                         {req.status === 'Pending HR Approval' && onCancelLeaveRequest && (
                           <button
                             type="button"
                             onClick={() => onCancelLeaveRequest(req.id)}
-                            className="px-3 py-1.5 bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-800 rounded-lg font-montserrat font-bold text-[11px] cursor-pointer transition"
+                            className="beta-action-tile flex-1 sm:flex-none min-h-[42px] px-4 py-2 bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-800 rounded-xl font-montserrat font-bold text-xs cursor-pointer transition"
                           >
                             Withdraw
                           </button>
@@ -1506,10 +1482,10 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
                           <button
                             type="button"
                             onClick={() => handlePrintLeaveLetter(req)}
-                            className="px-3 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg font-montserrat font-black text-[11px] cursor-pointer flex items-center gap-1"
+                            className="beta-action-tile flex-1 sm:flex-none min-h-[42px] px-4 py-2 bg-[#0A006E] text-[#FFDE00] rounded-xl font-montserrat font-black text-xs cursor-pointer flex items-center justify-center gap-1.5"
                           >
-                            <Download className="w-3 h-3" />
-                            Approval Letter PDF
+                            <Download className="w-4 h-4 shrink-0" />
+                            <span>Approval PDF</span>
                           </button>
                         )}
                       </div>
@@ -1519,8 +1495,9 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
               </div>
             )}
           </div>
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {/* =================================================================== */}
       {/* HR APPROVAL / DECLINE CONFIRMATION MODAL                            */}
@@ -1532,39 +1509,39 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
             className="bg-white border-2 border-[#0A006E] rounded-3xl max-w-md w-full p-5 sm:p-6 space-y-4 shadow-2xl animate-scale-in"
           >
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-3">
                 <div
-                  className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                  className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
                     decisionTarget.action === 'Approved'
                       ? 'bg-[#34D186] text-[#0A006E]'
                       : 'bg-rose-600 text-white'
                   }`}
                 >
                   {decisionTarget.action === 'Approved' ? (
-                    <CheckCircle2 className="w-5 h-5" />
+                    <CheckCircle2 className="w-6 h-6" />
                   ) : (
-                    <XCircle className="w-5 h-5" />
+                    <XCircle className="w-6 h-6" />
                   )}
                 </div>
                 <div>
                   <h4 className="font-montserrat font-black text-sm text-[#0A006E]">
                     {decisionTarget.action === 'Approved'
-                      ? 'Approve Staff Leave Request'
-                      : 'Decline Staff Leave Request'}
+                      ? 'Approve Leave Request'
+                      : 'Decline Leave Request'}
                   </h4>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-xs text-slate-500">
                     {decisionTarget.req.requestNo} · {decisionTarget.req.staffName}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-[#F0F2F0] rounded-2xl p-3 text-xs space-y-1">
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs space-y-1">
               <div>
                 <strong>Type:</strong> {decisionTarget.req.leaveType} (
                 {decisionTarget.req.totalDays} day{decisionTarget.req.totalDays === 1 ? '' : 's'})
               </div>
-              <div>
+              <div className="font-mono-tabular">
                 <strong>Dates:</strong> {decisionTarget.req.startDate} →{' '}
                 {decisionTarget.req.endDate}
               </div>
@@ -1575,7 +1552,7 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
 
             <div>
               <label className="block text-xs font-montserrat font-bold text-slate-700 mb-1">
-                HR Decision Remarks{' '}
+                HR Note{' '}
                 {decisionTarget.action === 'Declined' ? '(Required)' : '(Optional)'}
               </label>
               <textarea
@@ -1585,25 +1562,25 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
                 onChange={(e) => setDecisionNote(e.target.value)}
                 placeholder={
                   decisionTarget.action === 'Approved'
-                    ? 'Add handover or resumption notes...'
-                    : 'Explain why this request is declined so the employee knows next steps...'
+                    ? 'Optional resumption note...'
+                    : 'Reason for declining...'
                 }
-                className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-200 focus:border-[#0A006E] rounded-xl text-xs outline-none"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-200 focus:border-[#0A006E] rounded-xl text-sm sm:text-xs outline-none"
               />
             </div>
 
-            <div className="flex items-center gap-2 pt-1">
+            <div className="grid grid-cols-2 gap-3 pt-1">
               <button
                 type="button"
                 onClick={() => setDecisionTarget(null)}
-                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-montserrat font-bold text-xs cursor-pointer"
+                className="min-h-[48px] px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-montserrat font-bold text-xs sm:text-sm cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isProcessingDecision}
-                className={`flex-1 py-2.5 rounded-xl font-montserrat font-black text-xs cursor-pointer shadow-sm ${
+                className={`min-h-[48px] px-4 py-2.5 rounded-xl font-montserrat font-black text-xs sm:text-sm cursor-pointer shadow-sm ${
                   decisionTarget.action === 'Approved'
                     ? 'bg-[#34D186] hover:bg-[#28B873] text-[#0A006E] border border-[#0A006E]'
                     : 'bg-rose-600 hover:bg-rose-700 text-white'
@@ -1612,8 +1589,8 @@ export const LeaveManagementPortal: React.FC<LeaveManagementPortalProps> = ({
                 {isProcessingDecision
                   ? 'Saving...'
                   : decisionTarget.action === 'Approved'
-                  ? 'Confirm Approval'
-                  : 'Confirm Decline'}
+                  ? 'Approve'
+                  : 'Decline'}
               </button>
             </div>
           </form>

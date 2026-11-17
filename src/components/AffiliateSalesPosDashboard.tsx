@@ -1203,11 +1203,11 @@ export const AffiliateSalesPosDashboard: React.FC<AffiliateSalesPosDashboardProp
 
                           {/* Title & Specs */}
                           <div>
-                            <div className="text-[10px] font-mono font-bold text-slate-500">{prod.sku}</div>
-                            <h4 className="text-xs font-montserrat font-black text-slate-900 leading-tight line-clamp-1">
+                            <div className="text-[11px] font-mono font-bold text-slate-500">{prod.sku}</div>
+                            <h4 className="text-sm font-montserrat font-extrabold text-slate-900 leading-tight line-clamp-1">
                               {prod.name}
                             </h4>
-                            <div className="text-[11px] text-slate-600 font-medium">
+                            <div className="text-xs text-slate-600 font-medium">
                               {prod.volumeMl}ml · {prod.abv}% ABV · Pack: {packSize}s
                             </div>
                           </div>
@@ -1216,16 +1216,16 @@ export const AffiliateSalesPosDashboard: React.FC<AffiliateSalesPosDashboardProp
                         {/* Pricing & Add to Cart Controls */}
                         <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-2">
                           {/* Pricing Details */}
-                          <div className="flex items-baseline justify-between">
+                          <div className="flex items-baseline justify-between gap-2">
                             <div>
-                              <div className="text-[10px] text-slate-500 font-medium">Per Bottle:</div>
-                              <div className="text-xs font-montserrat font-black text-[#0A006E] font-mono-tabular">
+                              <div className="text-[11px] text-slate-500 font-semibold">Per Bottle:</div>
+                              <div className="text-sm sm:text-base font-montserrat font-extrabold text-[#0A006E] font-mono-tabular">
                                 {formatKes(bottlePrice)}
                               </div>
                             </div>
                             <div className="text-right">
-                              <div className="text-[10px] text-slate-500 font-medium">Per Case ({packSize}s):</div>
-                              <div className="text-xs font-montserrat font-black text-slate-800 font-mono-tabular">
+                              <div className="text-[11px] text-slate-500 font-semibold">Per Case ({packSize}s):</div>
+                              <div className="text-sm sm:text-base font-montserrat font-extrabold text-slate-800 font-mono-tabular">
                                 {formatKes(casePrice)}
                               </div>
                             </div>
@@ -1438,8 +1438,8 @@ export const AffiliateSalesPosDashboard: React.FC<AffiliateSalesPosDashboardProp
                             </div>
 
                             {/* Optional Markup Per Unit */}
-                            <div className="flex items-center gap-1 text-[11px]">
-                              <span className="text-slate-500 font-medium text-[10px]">Markup:</span>
+                            <div className="flex items-center gap-1.5 text-xs">
+                              <span className="text-slate-500 font-semibold text-[11px]">Markup:</span>
                               <input
                                 type="number"
                                 min="0"
@@ -1447,7 +1447,7 @@ export const AffiliateSalesPosDashboard: React.FC<AffiliateSalesPosDashboardProp
                                 value={item.affiliateMarkupPerUnit || ''}
                                 onChange={(e) => handleUpdateMarkup(idx, Number(e.target.value))}
                                 placeholder="+0"
-                                className="w-16 px-1.5 py-0.5 bg-white border border-slate-200 rounded text-center text-[10px] font-mono font-bold text-[#1E9E60] outline-none"
+                                className="w-18 px-2 py-1 bg-white border border-slate-200 rounded text-center text-xs font-mono font-bold text-[#1E9E60] outline-none"
                                 title="Add your custom profit markup per unit"
                               />
                             </div>
@@ -1472,33 +1472,33 @@ export const AffiliateSalesPosDashboard: React.FC<AffiliateSalesPosDashboardProp
               {/* FLOATING CART TOTAL CHARGE & ACTION BAR - PERMANENTLY FLOATS AT THE BOTTOM, NEVER SCROLLS */}
               <div className="shrink-0 border-t-2 border-[#0A006E]/20 bg-white p-3.5 sm:p-4 space-y-2.5 shadow-[0_-8px_25px_rgba(10,0,110,0.08)] z-20">
                 {/* Cart Financials Summary */}
-                <div className="space-y-1 bg-slate-50/90 border border-slate-200/80 rounded-xl p-2.5">
-                  <div className="flex justify-between text-slate-500 text-[11px] font-mono-tabular">
+                <div className="space-y-1.5 bg-slate-50/90 border border-slate-200/80 rounded-xl p-3">
+                  <div className="flex justify-between text-slate-600 text-xs font-mono-tabular">
                     <span>Subtotal:</span>
-                    <span className="font-semibold text-slate-700">{formatKes(cartSubtotal)}</span>
+                    <span className="font-bold text-slate-800">{formatKes(cartSubtotal)}</span>
                   </div>
-                  <div className="flex justify-between text-[11px] text-slate-400 font-mono-tabular">
+                  <div className="flex justify-between text-xs text-slate-500 font-mono-tabular">
                     <span>16% VAT &amp; Excise Included:</span>
-                    <span>{formatKes(cartVatAndExcise)}</span>
+                    <span className="font-semibold text-slate-600">{formatKes(cartVatAndExcise)}</span>
                   </div>
 
                   {/* Highlighted Floating Total Charge Bar */}
-                  <div className="flex justify-between items-baseline pt-1.5 border-t border-slate-200">
+                  <div className="flex justify-between items-baseline pt-2 border-t border-slate-200">
                     <span className="text-xs sm:text-sm font-montserrat font-black text-[#0A006E] uppercase tracking-wide">
                       Cart Total Charge:
                     </span>
-                    <span className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular">
+                    <span className="text-xl sm:text-2xl font-montserrat font-extrabold text-[#0A006E] font-mono-tabular">
                       {formatKes(cartGrandTotal)}
                     </span>
                   </div>
 
                   {/* Commission Preview Pill */}
-                  <div className="mt-1 pt-1 border-t border-slate-200/60 flex items-center justify-between text-[11px] font-montserrat font-bold text-[#0A006E]">
-                    <span className="flex items-center gap-1 text-[10px] text-slate-600">
+                  <div className="mt-1 pt-1.5 border-t border-slate-200/60 flex items-center justify-between text-xs font-montserrat font-bold text-[#0A006E]">
+                    <span className="flex items-center gap-1 text-[11px] text-slate-600">
                       <TrendingUp className="w-3.5 h-3.5 text-[#1E9E60]" />
                       Earnings ({commPct}%):
                     </span>
-                    <span className="font-mono-tabular text-xs text-[#1E9E60] font-black">
+                    <span className="font-mono-tabular text-sm text-[#1E9E60] font-extrabold">
                       +{formatKes(cartTotalEarnings)}
                     </span>
                   </div>
@@ -1803,20 +1803,20 @@ export const AffiliateSalesPosDashboard: React.FC<AffiliateSalesPosDashboardProp
           {/* Statement Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="bg-[#F0F2F0] rounded-2xl p-4 border border-slate-200">
-              <span className="text-[10px] uppercase font-mono text-slate-500 block">Total Gross Sales</span>
-              <span className="text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5 block">
+              <span className="text-[11px] uppercase font-bold tracking-wide text-slate-600 block">Total Gross Sales</span>
+              <span className="text-xl sm:text-2xl font-montserrat font-extrabold text-[#0A006E] font-mono-tabular mt-1 block">
                 {formatKes(totalSalesVolume)}
               </span>
             </div>
             <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-200">
-              <span className="text-[10px] uppercase font-mono text-emerald-700 block">Total Earned Commission ({commPct}%)</span>
-              <span className="text-lg font-montserrat font-black text-[#1E9E60] font-mono-tabular mt-0.5 block">
+              <span className="text-[11px] uppercase font-bold tracking-wide text-emerald-700 block">Total Earned Commission ({commPct}%)</span>
+              <span className="text-xl sm:text-2xl font-montserrat font-extrabold text-[#1E9E60] font-mono-tabular mt-1 block">
                 {formatKes(totalEarnedCommission)}
               </span>
             </div>
             <div className="bg-amber-50 rounded-2xl p-4 border border-amber-200">
-              <span className="text-[10px] uppercase font-mono text-amber-800 block">Fulfilled Orders Count</span>
-              <span className="text-lg font-montserrat font-black text-amber-900 font-mono-tabular mt-0.5 block">
+              <span className="text-[11px] uppercase font-bold tracking-wide text-amber-800 block">Fulfilled Orders Count</span>
+              <span className="text-xl sm:text-2xl font-montserrat font-extrabold text-amber-900 font-mono-tabular mt-1 block">
                 {paidTransactions.length} orders ({ownTransactions.length} total)
               </span>
             </div>

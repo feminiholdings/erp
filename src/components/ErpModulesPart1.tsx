@@ -621,43 +621,43 @@ export const OverviewModule: React.FC<{
             className="grid grid-cols-2 lg:grid-cols-4 gap-3"
           >
             {isKpiVisible('headcount') && (
-              <div className="beta-kpi-card rounded-xl p-3.5">
-                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Workforce Headcount</div>
-                <div className="text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+              <div className="beta-kpi-card rounded-xl p-4">
+                <div className="text-xs font-montserrat font-semibold text-slate-500">Workforce Headcount</div>
+                <div className="text-xl sm:text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1">
                   {staffList.length}
                 </div>
-                <div className="text-[11px] text-emerald-700 font-semibold mt-0.5">
+                <div className="text-xs text-emerald-700 font-semibold font-mono-tabular mt-0.5">
                   {activeStaff.length} Active · {suspendedStaff.length} Hold
                 </div>
               </div>
             )}
             {isKpiVisible('compliance') && (
-              <div className="beta-kpi-card rounded-xl p-3.5">
-                <div className="text-[11px] font-montserrat font-semibold text-slate-500">KRA / NSSF Coverage</div>
-                <div className="text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+              <div className="beta-kpi-card rounded-xl p-4">
+                <div className="text-xs font-montserrat font-semibold text-slate-500">KRA / NSSF Coverage</div>
+                <div className="text-xl sm:text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1">
                   {kraCoverage}%
                 </div>
-                <div className="text-[11px] text-slate-500 mt-0.5">NSSF/SHIF: {nssfCoverage}%</div>
+                <div className="text-xs text-slate-600 font-mono-tabular mt-0.5">NSSF/SHIF: {nssfCoverage}%</div>
               </div>
             )}
             {isKpiVisible('payroll') && (
-              <div className="beta-kpi-card rounded-xl p-3.5">
-                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Latest Payroll</div>
-                <div className="text-base sm:text-lg font-montserrat font-black text-[#0A006E] truncate mt-0.5">
+              <div className="beta-kpi-card rounded-xl p-4">
+                <div className="text-xs font-montserrat font-semibold text-slate-500">Latest Payroll</div>
+                <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] truncate mt-1">
                   {latestRun ? latestRun.period : 'Awaiting Run'}
                 </div>
-                <div className="text-[11px] text-slate-500 font-mono-tabular mt-0.5">
+                <div className="text-xs text-slate-600 font-mono-tabular mt-0.5">
                   {latestRun ? formatKes(latestRun.totalDisbursed) : 'Ready'}
                 </div>
               </div>
             )}
             {isKpiVisible('branches') && (
-              <div className="beta-kpi-card rounded-xl p-3.5">
-                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Depots Staffed</div>
-                <div className="text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+              <div className="beta-kpi-card rounded-xl p-4">
+                <div className="text-xs font-montserrat font-semibold text-slate-500">Depots Staffed</div>
+                <div className="text-xl sm:text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1">
                   {branches.length} Branches
                 </div>
-                <div className="text-[11px] text-slate-500 mt-0.5">10 RBAC Roles</div>
+                <div className="text-xs text-slate-600 mt-0.5">10 RBAC Roles</div>
               </div>
             )}
           </motion.div>
@@ -669,53 +669,63 @@ export const OverviewModule: React.FC<{
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
-            className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5"
+            className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-2.5"
           >
             <button
               type="button"
               onClick={() => (onOpenHrLeaveTab ? onOpenHrLeaveTab() : onNavigateModule?.('hr_rbac'))}
-              className="beta-action-tile p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1.5 cursor-pointer"
+              className="beta-action-tile p-4 sm:p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl sm:rounded-xl text-left space-y-2 sm:space-y-1.5 cursor-pointer"
             >
-              <Calendar className="w-4 h-4 text-fuchsia-600" />
-              <div className="text-xs font-montserrat font-bold text-slate-900">Leave Approvals</div>
-              <div className="text-[11px] text-slate-500">{pendingLeaveList.length} awaiting decision</div>
+              <div className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-fuchsia-50 text-fuchsia-600 flex items-center justify-center">
+                <Calendar className="w-6 h-6 sm:w-4.5 sm:h-4.5" />
+              </div>
+              <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900">Leave Approvals</div>
+              <div className="text-xs sm:text-[11px] text-slate-500">{pendingLeaveList.length} awaiting decision</div>
             </button>
             <button
               type="button"
               onClick={() => onNavigateModule?.('hr_rbac')}
-              className="beta-action-tile p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1.5 cursor-pointer"
+              className="beta-action-tile p-4 sm:p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl sm:rounded-xl text-left space-y-2 sm:space-y-1.5 cursor-pointer"
             >
-              <Users className="w-4 h-4 text-[#0A006E]" />
-              <div className="text-xs font-montserrat font-bold text-slate-900">Staff &amp; Payroll</div>
-              <div className="text-[11px] text-slate-500">Directory &amp; PINs</div>
+              <div className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-[#0A006E]/10 text-[#0A006E] flex items-center justify-center">
+                <Users className="w-6 h-6 sm:w-4.5 sm:h-4.5" />
+              </div>
+              <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900">Staff &amp; Payroll</div>
+              <div className="text-xs sm:text-[11px] text-slate-500">Directory &amp; PINs</div>
             </button>
             <button
               type="button"
               onClick={() => setFocusSection('hr_roles')}
-              className="beta-action-tile p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1.5 cursor-pointer"
+              className="beta-action-tile p-4 sm:p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl sm:rounded-xl text-left space-y-2 sm:space-y-1.5 cursor-pointer"
             >
-              <ShieldCheck className="w-4 h-4 text-indigo-600" />
-              <div className="text-xs font-montserrat font-bold text-slate-900">Role Breakdown</div>
-              <div className="text-[11px] text-slate-500">Staff across 10 roles</div>
+              <div className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <ShieldCheck className="w-6 h-6 sm:w-4.5 sm:h-4.5" />
+              </div>
+              <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900">Role Breakdown</div>
+              <div className="text-xs sm:text-[11px] text-slate-500">Staff across 10 roles</div>
             </button>
             <button
               type="button"
               onClick={() => setFocusSection('hr_branches')}
-              className="beta-action-tile p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1.5 cursor-pointer"
+              className="beta-action-tile p-4 sm:p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl sm:rounded-xl text-left space-y-2 sm:space-y-1.5 cursor-pointer"
             >
-              <Building2 className="w-4 h-4 text-emerald-600" />
-              <div className="text-xs font-montserrat font-bold text-slate-900">Branch Staffing</div>
-              <div className="text-[11px] text-slate-500">{branches.length} active locations</div>
+              <div className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <Building2 className="w-6 h-6 sm:w-4.5 sm:h-4.5" />
+              </div>
+              <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900">Branch Staffing</div>
+              <div className="text-xs sm:text-[11px] text-slate-500">{branches.length} active locations</div>
             </button>
             {onOpenKraReturns && (
               <button
                 type="button"
                 onClick={() => onOpenKraReturns('PAYE_P10_SEC_B')}
-                className="beta-action-tile p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1.5 cursor-pointer"
+                className="beta-action-tile p-4 sm:p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl sm:rounded-xl text-left space-y-2 sm:space-y-1.5 cursor-pointer"
               >
-                <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
-                <div className="text-xs font-montserrat font-bold text-slate-900">KRA P10 &amp; AHL</div>
-                <div className="text-[11px] text-slate-500">Export statutory .xlsx</div>
+                <div className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                  <FileSpreadsheet className="w-6 h-6 sm:w-4.5 sm:h-4.5" />
+                </div>
+                <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900">KRA P10 &amp; AHL</div>
+                <div className="text-xs sm:text-[11px] text-slate-500">Export statutory .xlsx</div>
               </button>
             )}
           </motion.div>
@@ -854,39 +864,39 @@ export const OverviewModule: React.FC<{
             className="grid grid-cols-2 lg:grid-cols-4 gap-3"
           >
             {isKpiVisible('total_sales') && (
-              <div className="beta-kpi-card rounded-xl p-3.5">
-                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Total Sales</div>
-                <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+              <div className="beta-kpi-card rounded-xl p-4">
+                <div className="text-xs font-montserrat font-semibold text-slate-500">Total Sales</div>
+                <div className="text-xl sm:text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1">
                   {formatKes(totalRevenue)}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-0.5">{externalVisibleTransactions.length} documents</div>
+                <div className="text-xs text-slate-600 font-mono-tabular mt-0.5">{externalVisibleTransactions.length} documents</div>
               </div>
             )}
             {isKpiVisible('wholesale') && (
-              <div className="beta-kpi-card rounded-xl p-3.5">
-                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Wholesale B2B</div>
-                <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+              <div className="beta-kpi-card rounded-xl p-4">
+                <div className="text-xs font-montserrat font-semibold text-slate-500">Wholesale B2B</div>
+                <div className="text-xl sm:text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1">
                   {formatKes(wholesaleRevenue)}
                 </div>
-                <div className="text-[11px] text-emerald-700 font-semibold mt-0.5">Distributor orders</div>
+                <div className="text-xs text-emerald-700 font-semibold mt-0.5">Distributor orders</div>
               </div>
             )}
             {isKpiVisible('retail') && (
-              <div className="beta-kpi-card rounded-xl p-3.5">
-                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Retail Counter</div>
-                <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+              <div className="beta-kpi-card rounded-xl p-4">
+                <div className="text-xs font-montserrat font-semibold text-slate-500">Retail Counter</div>
+                <div className="text-xl sm:text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1">
                   {formatKes(retailRevenue)}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-0.5">Direct collections</div>
+                <div className="text-xs text-slate-600 mt-0.5">Direct collections</div>
               </div>
             )}
             {isKpiVisible('partners') && (
-              <div className="beta-kpi-card rounded-xl p-3.5">
-                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Commercial Partners</div>
-                <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+              <div className="beta-kpi-card rounded-xl p-4">
+                <div className="text-xs font-montserrat font-semibold text-slate-500">Commercial Partners</div>
+                <div className="text-xl sm:text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1">
                   {partners.length}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-0.5">Licensed accounts</div>
+                <div className="text-xs text-slate-600 mt-0.5">Licensed accounts</div>
               </div>
             )}
           </motion.div>
@@ -897,43 +907,51 @@ export const OverviewModule: React.FC<{
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
-            className="grid grid-cols-2 sm:grid-cols-4 gap-2.5"
+            className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-2.5"
           >
             <button
               type="button"
               onClick={() => setFocusSection('sales_performance')}
-              className="beta-action-tile p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1 cursor-pointer"
+              className="beta-action-tile p-4 sm:p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl sm:rounded-xl text-left space-y-2 sm:space-y-1.5 cursor-pointer"
             >
-              <TrendingUp className="w-4 h-4 text-[#0A006E]" />
-              <div className="text-xs font-montserrat font-bold text-slate-900">Sales Tracker</div>
-              <div className="text-[11px] text-slate-500">Today · Week · Month</div>
+              <div className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-[#0A006E]/10 text-[#0A006E] flex items-center justify-center">
+                <TrendingUp className="w-6 h-6 sm:w-4.5 sm:h-4.5" />
+              </div>
+              <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900">Sales Tracker</div>
+              <div className="text-xs sm:text-[11px] text-slate-500">Today · Week · Month</div>
             </button>
             <button
               type="button"
               onClick={() => onNavigateModule?.('retail_pos')}
-              className="beta-action-tile p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1 cursor-pointer"
+              className="beta-action-tile p-4 sm:p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl sm:rounded-xl text-left space-y-2 sm:space-y-1.5 cursor-pointer"
             >
-              <ShoppingCart className="w-4 h-4 text-emerald-600" />
-              <div className="text-xs font-montserrat font-bold text-slate-900">Retail POS</div>
-              <div className="text-[11px] text-slate-500">Counter terminal</div>
+              <div className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <ShoppingCart className="w-6 h-6 sm:w-4.5 sm:h-4.5" />
+              </div>
+              <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900">Retail POS</div>
+              <div className="text-xs sm:text-[11px] text-slate-500">Counter terminal</div>
             </button>
             <button
               type="button"
               onClick={() => onNavigateModule?.('geo_pricing')}
-              className="beta-action-tile p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1 cursor-pointer"
+              className="beta-action-tile p-4 sm:p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl sm:rounded-xl text-left space-y-2 sm:space-y-1.5 cursor-pointer"
             >
-              <MapPin className="w-4 h-4 text-amber-600" />
-              <div className="text-xs font-montserrat font-bold text-slate-900">Geo-Pricing</div>
-              <div className="text-[11px] text-slate-500">{regions.length} regional zones</div>
+              <div className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                <MapPin className="w-6 h-6 sm:w-4.5 sm:h-4.5" />
+              </div>
+              <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900">Geo-Pricing</div>
+              <div className="text-xs sm:text-[11px] text-slate-500">{regions.length} regional zones</div>
             </button>
             <button
               type="button"
               onClick={() => onNavigateModule?.('partners')}
-              className="beta-action-tile p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1 cursor-pointer"
+              className="beta-action-tile p-4 sm:p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl sm:rounded-xl text-left space-y-2 sm:space-y-1.5 cursor-pointer"
             >
-              <Users className="w-4 h-4 text-indigo-600" />
-              <div className="text-xs font-montserrat font-bold text-slate-900">Partners</div>
-              <div className="text-[11px] text-slate-500">{partners.length} active accounts</div>
+              <div className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <Users className="w-6 h-6 sm:w-4.5 sm:h-4.5" />
+              </div>
+              <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900">Partners</div>
+              <div className="text-xs sm:text-[11px] text-slate-500">{partners.length} active accounts</div>
             </button>
           </motion.div>
         )}
@@ -1090,45 +1108,45 @@ export const OverviewModule: React.FC<{
             className="grid grid-cols-2 lg:grid-cols-4 gap-3"
           >
             {isKpiVisible('valuation') && (
-              <div className="beta-kpi-card rounded-xl p-3.5">
-                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Bonded Value</div>
-                <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+              <div className="beta-kpi-card rounded-xl p-4">
+                <div className="text-xs font-montserrat font-semibold text-slate-500">Bonded Value</div>
+                <div className="text-xl sm:text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1">
                   {formatKes(totalInventoryValue)}
                 </div>
-                <div className="text-[11px] text-emerald-700 font-semibold mt-0.5">
+                <div className="text-xs text-emerald-700 font-semibold font-mono-tabular mt-0.5">
                   {totalBottlesInBond.toLocaleString()} btls
                 </div>
               </div>
             )}
             {isKpiVisible('ips_lps') && (
-              <div className="beta-kpi-card rounded-xl p-3.5">
-                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Catalog SKUs</div>
-                <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+              <div className="beta-kpi-card rounded-xl p-4">
+                <div className="text-xs font-montserrat font-semibold text-slate-500">Catalog SKUs</div>
+                <div className="text-xl sm:text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1">
                   {products.length} SKUs
                 </div>
-                <div className="text-[11px] text-slate-500 mt-0.5">
+                <div className="text-xs text-slate-600 font-mono-tabular mt-0.5">
                   IPS {ipsCount} · LPS {lpsCount}
                 </div>
               </div>
             )}
             {isKpiVisible('transfers') && (
-              <div className="beta-kpi-card rounded-xl p-3.5">
-                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Transfers</div>
-                <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+              <div className="beta-kpi-card rounded-xl p-4">
+                <div className="text-xs font-montserrat font-semibold text-slate-500">Transfers</div>
+                <div className="text-xl sm:text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1">
                   {transfers.length} Total
                 </div>
-                <div className="text-[11px] text-amber-700 font-semibold mt-0.5">
+                <div className="text-xs text-amber-700 font-semibold font-mono-tabular mt-0.5">
                   {pendingTransfersCount} pending · {activeTransfersCount} active
                 </div>
               </div>
             )}
             {isKpiVisible('damages') && (
-              <div className="beta-kpi-card rounded-xl p-3.5">
-                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Damages &amp; Spoilage</div>
-                <div className="text-lg sm:text-xl font-montserrat font-black text-rose-600 font-mono-tabular mt-0.5">
+              <div className="beta-kpi-card rounded-xl p-4">
+                <div className="text-xs font-montserrat font-semibold text-slate-500">Damages &amp; Spoilage</div>
+                <div className="text-xl sm:text-2xl font-extrabold text-rose-600 font-mono-tabular mt-1">
                   {damagedCount + spoiledCount} btls
                 </div>
-                <div className="text-[11px] text-slate-500 mt-0.5">
+                <div className="text-xs text-slate-600 font-mono-tabular mt-0.5">
                   {damagedCount} damaged · {spoiledCount} spoiled
                 </div>
               </div>
@@ -1146,36 +1164,44 @@ export const OverviewModule: React.FC<{
             <button
               type="button"
               onClick={() => onNavigateModule?.('inventory')}
-              className="beta-action-tile p-4 bg-gradient-to-br from-white to-emerald-50/60 hover:to-emerald-50 border border-slate-200 hover:border-emerald-300 rounded-xl text-left space-y-1.5 cursor-pointer shadow-2xs"
+              className="beta-action-tile p-4 bg-gradient-to-br from-white to-emerald-50/60 hover:to-emerald-50 border border-slate-200 hover:border-emerald-300 rounded-2xl sm:rounded-xl text-left space-y-2 cursor-pointer shadow-2xs"
             >
-              <Package className="w-5 h-5 text-emerald-600" />
+              <div className="w-11 h-11 sm:w-10 sm:h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                <Package className="w-6 h-6 sm:w-5 sm:h-5" />
+              </div>
               <div className="text-sm font-montserrat font-bold text-slate-900">Master Inventory</div>
               <div className="text-xs text-slate-500">{products.length} SKUs &amp; batches</div>
             </button>
             <button
               type="button"
               onClick={() => onNavigateModule?.('branches_transfers')}
-              className="beta-action-tile p-4 bg-gradient-to-br from-white to-amber-50/60 hover:to-amber-50 border border-slate-200 hover:border-amber-300 rounded-xl text-left space-y-1.5 cursor-pointer shadow-2xs"
+              className="beta-action-tile p-4 bg-gradient-to-br from-white to-amber-50/60 hover:to-amber-50 border border-slate-200 hover:border-amber-300 rounded-2xl sm:rounded-xl text-left space-y-2 cursor-pointer shadow-2xs"
             >
-              <ArrowRightLeft className="w-5 h-5 text-amber-600" />
+              <div className="w-11 h-11 sm:w-10 sm:h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+                <ArrowRightLeft className="w-6 h-6 sm:w-5 sm:h-5" />
+              </div>
               <div className="text-sm font-montserrat font-bold text-slate-900">Stock Transfers</div>
               <div className="text-xs text-slate-500">{pendingTransfersCount} pending auth</div>
             </button>
             <button
               type="button"
               onClick={() => setFocusSection('inventory_branches')}
-              className="beta-action-tile p-4 bg-gradient-to-br from-white to-indigo-50/60 hover:to-indigo-50 border border-slate-200 hover:border-[#0A006E]/40 rounded-xl text-left space-y-1.5 cursor-pointer shadow-2xs"
+              className="beta-action-tile p-4 bg-gradient-to-br from-white to-indigo-50/60 hover:to-indigo-50 border border-slate-200 hover:border-[#0A006E]/40 rounded-2xl sm:rounded-xl text-left space-y-2 cursor-pointer shadow-2xs"
             >
-              <Building2 className="w-5 h-5 text-[#0A006E]" />
+              <div className="w-11 h-11 sm:w-10 sm:h-10 rounded-xl bg-indigo-100 text-[#0A006E] flex items-center justify-center">
+                <Building2 className="w-6 h-6 sm:w-5 sm:h-5" />
+              </div>
               <div className="text-sm font-montserrat font-bold text-slate-900">Branch Depots</div>
               <div className="text-xs text-slate-500">{branches.length} excise bonds</div>
             </button>
             <button
               type="button"
               onClick={() => onNavigateModule?.('internal_inbox')}
-              className="beta-action-tile p-4 bg-gradient-to-br from-white to-rose-50/60 hover:to-rose-50 border border-slate-200 hover:border-rose-300 rounded-xl text-left space-y-1.5 cursor-pointer shadow-2xs"
+              className="beta-action-tile p-4 bg-gradient-to-br from-white to-rose-50/60 hover:to-rose-50 border border-slate-200 hover:border-rose-300 rounded-2xl sm:rounded-xl text-left space-y-2 cursor-pointer shadow-2xs"
             >
-              <Inbox className="w-5 h-5 text-rose-600" />
+              <div className="w-11 h-11 sm:w-10 sm:h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center">
+                <Inbox className="w-6 h-6 sm:w-5 sm:h-5" />
+              </div>
               <div className="text-sm font-montserrat font-bold text-slate-900">Dept Inbox</div>
               <div className="text-xs text-slate-500">Staff requests</div>
             </button>
@@ -1252,22 +1278,22 @@ export const OverviewModule: React.FC<{
           onReset={resetToDefault}
           hideModeSwitch
           actions={
-            <>
+            <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => onNavigateModule?.('sales_pos')}
-                className="px-3 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold cursor-pointer whitespace-nowrap"
+                className="min-h-[44px] sm:min-h-0 px-4 py-2.5 sm:px-3 sm:py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-xl sm:rounded-lg text-xs sm:text-[11px] font-montserrat font-bold cursor-pointer whitespace-nowrap active:scale-[0.97] transition"
               >
                 Open Field POS
               </button>
               <button
                 type="button"
                 onClick={() => onNavigateModule?.('leave_management')}
-                className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold cursor-pointer whitespace-nowrap"
+                className="min-h-[44px] sm:min-h-0 px-4 py-2.5 sm:px-2.5 sm:py-1.5 bg-white border border-slate-200 text-slate-700 rounded-xl sm:rounded-lg text-xs sm:text-[11px] font-montserrat font-bold cursor-pointer whitespace-nowrap active:scale-[0.97] transition"
               >
                 Leave / Off
               </button>
-            </>
+            </div>
           }
         />
 
@@ -1288,21 +1314,21 @@ export const OverviewModule: React.FC<{
               </div>
             )}
             {isKpiVisible('commission') && (
-              <div className="beta-kpi-card rounded-xl p-3.5">
-                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Earned Commission</div>
-                <div className="text-xl font-montserrat font-black text-emerald-700 font-mono-tabular mt-0.5">
+              <div className="beta-kpi-card rounded-xl p-4">
+                <div className="text-xs font-montserrat font-semibold text-slate-500">Earned Commission</div>
+                <div className="text-xl sm:text-2xl font-extrabold text-emerald-700 font-mono-tabular mt-1">
                   {formatKes(earnedCommission)}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-0.5">{commPct}% rate</div>
+                <div className="text-xs text-slate-600 font-mono-tabular mt-0.5">{commPct}% rate</div>
               </div>
             )}
             {isKpiVisible('queued_orders') && (
-              <div className="beta-kpi-card rounded-xl p-3.5">
-                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Assigned Base</div>
-                <div className="text-sm font-montserrat font-bold text-[#0A006E] truncate mt-1">
+              <div className="beta-kpi-card rounded-xl p-4">
+                <div className="text-xs font-montserrat font-semibold text-slate-500">Assigned Base</div>
+                <div className="text-base sm:text-lg font-montserrat font-bold text-[#0A006E] truncate mt-1">
                   {currentUser.branchName}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-0.5">{products.length} catalog SKUs</div>
+                <div className="text-xs text-slate-600 font-mono-tabular mt-0.5">{products.length} catalog SKUs</div>
               </div>
             )}
           </motion.div>
@@ -1342,7 +1368,7 @@ export const OverviewModule: React.FC<{
                           <button
                             type="button"
                             onClick={() => onPreviewDoc(tx)}
-                            className="px-2.5 py-1 bg-slate-100 hover:bg-[#0A006E] hover:text-[#FFDE00] text-[#0A006E] rounded-md text-[11px] font-montserrat font-bold cursor-pointer transition"
+                            className="min-h-[38px] sm:min-h-0 px-3.5 py-1.5 sm:px-2.5 sm:py-1 bg-slate-100 hover:bg-[#0A006E] hover:text-[#FFDE00] text-[#0A006E] rounded-lg sm:rounded-md text-xs sm:text-[11px] font-montserrat font-bold cursor-pointer transition"
                           >
                             View
                           </button>
@@ -1387,22 +1413,22 @@ export const OverviewModule: React.FC<{
           onReset={resetToDefault}
           hideModeSwitch
           actions={
-            <>
+            <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => onNavigateModule?.('delivery_management')}
-                className="px-3 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold cursor-pointer whitespace-nowrap"
+                className="min-h-[44px] sm:min-h-0 px-4 py-2.5 sm:px-3 sm:py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-xl sm:rounded-lg text-xs sm:text-[11px] font-montserrat font-bold cursor-pointer whitespace-nowrap active:scale-[0.97] transition"
               >
                 Open Dispatch Queue
               </button>
               <button
                 type="button"
                 onClick={() => onNavigateModule?.('leave_management')}
-                className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold cursor-pointer whitespace-nowrap"
+                className="min-h-[44px] sm:min-h-0 px-4 py-2.5 sm:px-2.5 sm:py-1.5 bg-white border border-slate-200 text-slate-700 rounded-xl sm:rounded-lg text-xs sm:text-[11px] font-montserrat font-bold cursor-pointer whitespace-nowrap active:scale-[0.97] transition"
               >
                 Leave / Off
               </button>
-            </>
+            </div>
           }
         />
 
@@ -1414,33 +1440,33 @@ export const OverviewModule: React.FC<{
             className="grid grid-cols-2 lg:grid-cols-4 gap-3"
           >
             {isKpiVisible('pending_dispatch') && (
-              <div className="beta-kpi-card rounded-xl p-3.5">
-                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Pending Dispatch</div>
-                <div className="text-xl font-montserrat font-black text-amber-600 font-mono-tabular mt-0.5">
+              <div className="beta-kpi-card rounded-xl p-4">
+                <div className="text-xs font-montserrat font-semibold text-slate-500">Pending Dispatch</div>
+                <div className="text-xl sm:text-2xl font-extrabold text-amber-600 font-mono-tabular mt-1">
                   {pendingDispatch}
                 </div>
               </div>
             )}
             {isKpiVisible('in_transit') && (
-              <div className="beta-kpi-card rounded-xl p-3.5">
-                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Out for Delivery</div>
-                <div className="text-xl font-montserrat font-black text-sky-700 font-mono-tabular mt-0.5">
+              <div className="beta-kpi-card rounded-xl p-4">
+                <div className="text-xs font-montserrat font-semibold text-slate-500">Out for Delivery</div>
+                <div className="text-xl sm:text-2xl font-extrabold text-sky-700 font-mono-tabular mt-1">
                   {inTransit}
                 </div>
               </div>
             )}
             {isKpiVisible('delivered') && (
-              <div className="beta-kpi-card rounded-xl p-3.5">
-                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Delivered</div>
-                <div className="text-xl font-montserrat font-black text-emerald-700 font-mono-tabular mt-0.5">
+              <div className="beta-kpi-card rounded-xl p-4">
+                <div className="text-xs font-montserrat font-semibold text-slate-500">Delivered</div>
+                <div className="text-xl sm:text-2xl font-extrabold text-emerald-700 font-mono-tabular mt-1">
                   {delivered}
                 </div>
               </div>
             )}
             {isKpiVisible('riders') && (
-              <div className="beta-kpi-card rounded-xl p-3.5">
-                <div className="text-[11px] font-montserrat font-semibold text-slate-500">Active Riders</div>
-                <div className="text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+              <div className="beta-kpi-card rounded-xl p-4">
+                <div className="text-xs font-montserrat font-semibold text-slate-500">Active Riders</div>
+                <div className="text-xl sm:text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1">
                   {activeRiders}
                 </div>
               </div>
@@ -1460,7 +1486,7 @@ export const OverviewModule: React.FC<{
           <button
             type="button"
             onClick={() => onNavigateModule?.('delivery_management')}
-            className="px-3.5 py-2 bg-[#0A006E] text-[#FFDE00] rounded-lg text-xs font-montserrat font-bold cursor-pointer self-start sm:self-auto"
+            className="min-h-[46px] sm:min-h-0 w-full sm:w-auto px-4 py-2.5 sm:px-3.5 sm:py-2 bg-[#0A006E] text-[#FFDE00] rounded-xl sm:rounded-lg text-sm sm:text-xs font-montserrat font-bold cursor-pointer active:scale-[0.97] transition text-center"
           >
             Process Deliveries →
           </button>
@@ -1506,7 +1532,7 @@ export const OverviewModule: React.FC<{
               <button
                 type="button"
                 onClick={() => selectAdminFocusSection('hub')}
-                className="px-3 py-1.5 bg-[#0A006E] hover:bg-[#12009E] text-[#FFDE00] rounded-lg text-xs font-montserrat font-bold cursor-pointer shrink-0 flex items-center gap-1.5"
+                className="min-h-[44px] sm:min-h-0 px-4 py-2.5 sm:px-3 sm:py-1.5 bg-[#0A006E] hover:bg-[#12009E] text-[#FFDE00] rounded-xl sm:rounded-lg text-xs font-montserrat font-bold cursor-pointer shrink-0 flex items-center gap-1.5 active:scale-[0.97] transition"
               >
                 <span>← Back to Hub</span>
               </button>
@@ -1887,29 +1913,29 @@ export const OverviewModule: React.FC<{
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          <div className="grid grid-cols-3 sm:flex items-center gap-2.5 sm:gap-2 shrink-0 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => onNavigateModule?.('retail_pos')}
-              className="beta-action-tile px-3.5 py-2 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-xs"
+              className="beta-action-tile min-h-[48px] sm:min-h-0 px-3 sm:px-3.5 py-2.5 sm:py-2 bg-[#0A006E] text-[#FFDE00] rounded-2xl sm:rounded-xl text-xs font-montserrat font-black flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
             >
-              <ShoppingCart className="w-4 h-4 shrink-0" />
-              <span>Quick POS</span>
+              <ShoppingCart className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" />
+              <span>POS</span>
             </button>
             <button
               type="button"
               onClick={() => selectAdminFocusSection('delivery_queue')}
-              className="beta-action-tile px-3.5 py-2 bg-cyan-700 hover:bg-cyan-800 text-white rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+              className="beta-action-tile min-h-[48px] sm:min-h-0 px-3 sm:px-3.5 py-2.5 sm:py-2 bg-cyan-700 hover:bg-cyan-800 text-white rounded-2xl sm:rounded-xl text-xs font-montserrat font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
             >
-              <Truck className="w-4 h-4 shrink-0" />
+              <Truck className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" />
               <span>Deliveries</span>
             </button>
             <button
               type="button"
               onClick={() => onNavigateModule?.('inventory')}
-              className="beta-action-tile px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+              className="beta-action-tile min-h-[48px] sm:min-h-0 px-3 sm:px-3.5 py-2.5 sm:py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl sm:rounded-xl text-xs font-montserrat font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
             >
-              <Package className="w-4 h-4 shrink-0" />
+              <Package className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" />
               <span>Inventory</span>
             </button>
           </div>
@@ -1924,29 +1950,29 @@ export const OverviewModule: React.FC<{
             className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3"
           >
             {(isKpiVisible('turnover') || isKpiVisible('branch_sales')) && (
-              <div className="beta-kpi-card rounded-xl p-3">
-                <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
+              <div className="beta-kpi-card rounded-xl p-3.5 sm:p-4">
+                <div className="text-xs font-montserrat font-semibold text-slate-500 truncate">
                   {currentUser.role === 'Branch Manager' ? 'Branch Turnover' : 'Gross Turnover'}
                 </div>
-                <div className="text-base sm:text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5 truncate">
+                <div className="text-xl sm:text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1 truncate">
                   {formatKes(totalRevenue)}
                 </div>
               </div>
             )}
             {(isKpiVisible('catalog') || isKpiVisible('branch_stock')) && (
-              <div className="beta-kpi-card rounded-xl p-3">
-                <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">Liquor Catalog</div>
-                <div className="text-base sm:text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5 truncate">
+              <div className="beta-kpi-card rounded-xl p-3.5 sm:p-4">
+                <div className="text-xs font-montserrat font-semibold text-slate-500 truncate">Liquor Catalog</div>
+                <div className="text-xl sm:text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1 truncate">
                   {products.length} SKUs
                 </div>
               </div>
             )}
             {(isKpiVisible('branches') || isKpiVisible('pending_transfers')) && (
-              <div className="beta-kpi-card rounded-xl p-3">
-                <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
+              <div className="beta-kpi-card rounded-xl p-3.5 sm:p-4">
+                <div className="text-xs font-montserrat font-semibold text-slate-500 truncate">
                   {currentUser.role === 'Branch Manager' ? 'Pending Transfers' : 'Depots & Zones'}
                 </div>
-                <div className="text-base sm:text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5 truncate">
+                <div className="text-xl sm:text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1 truncate">
                   {currentUser.role === 'Branch Manager'
                     ? `${pendingTransfers.length} Pending`
                     : `${branches.length} Depots · ${regions.length} Zones`}
@@ -1954,11 +1980,11 @@ export const OverviewModule: React.FC<{
               </div>
             )}
             {(isKpiVisible('staff_transfers') || isKpiVisible('active_deliveries')) && (
-              <div className="beta-kpi-card rounded-xl p-3">
-                <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
+              <div className="beta-kpi-card rounded-xl p-3.5 sm:p-4">
+                <div className="text-xs font-montserrat font-semibold text-slate-500 truncate">
                   {currentUser.role === 'Branch Manager' ? 'Active Deliveries' : 'Staff & Transfers'}
                 </div>
-                <div className="text-base sm:text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5 truncate">
+                <div className="text-xl sm:text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1 truncate">
                   {currentUser.role === 'Branch Manager'
                     ? `${activeDeliveriesCount} Orders`
                     : `${staffList.length} Staff · ${transfers.length} Trf`}
@@ -2019,52 +2045,60 @@ export const OverviewModule: React.FC<{
             <div className="text-[10px] font-montserrat font-bold text-slate-400 uppercase tracking-wider px-0.5">
               Reports &amp; Insights (Tap to Focus)
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-2.5">
               <button
                 type="button"
                 onClick={() => selectAdminFocusSection('sales_performance')}
-                className="beta-action-tile group p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer"
+                className="beta-action-tile group p-4 sm:p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-xl text-left flex flex-col justify-between gap-2.5 cursor-pointer"
               >
-                <TrendingUp className="w-4 h-4 text-[#0A006E] group-hover:scale-110 transition-transform" />
+                <div className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-[#0A006E]/10 text-[#0A006E] flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <TrendingUp className="w-6 h-6 sm:w-4.5 sm:h-4.5" />
+                </div>
                 <div>
-                  <div className="text-xs font-montserrat font-bold text-slate-900">Sales Performance</div>
-                  <div className="text-[11px] text-slate-500">Today · Week · Month · Year</div>
+                  <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900">Sales Performance</div>
+                  <div className="text-xs sm:text-[11px] text-slate-500">Today · Week · Month · Year</div>
                 </div>
               </button>
 
               <button
                 type="button"
                 onClick={() => selectAdminFocusSection('charts')}
-                className="beta-action-tile group p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer"
+                className="beta-action-tile group p-4 sm:p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-xl text-left flex flex-col justify-between gap-2.5 cursor-pointer"
               >
-                <BarChart3 className="w-4 h-4 text-indigo-600 group-hover:scale-110 transition-transform" />
+                <div className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <BarChart3 className="w-6 h-6 sm:w-4.5 sm:h-4.5" />
+                </div>
                 <div>
-                  <div className="text-xs font-montserrat font-bold text-slate-900">Interactive Charts</div>
-                  <div className="text-[11px] text-slate-500">Bar &amp; pie metrics</div>
+                  <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900">Interactive Charts</div>
+                  <div className="text-xs sm:text-[11px] text-slate-500">Bar &amp; pie metrics</div>
                 </div>
               </button>
 
               <button
                 type="button"
                 onClick={() => selectAdminFocusSection('branch_performance')}
-                className="beta-action-tile group p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer"
+                className="beta-action-tile group p-4 sm:p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-xl text-left flex flex-col justify-between gap-2.5 cursor-pointer"
               >
-                <Building2 className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
+                <div className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <Building2 className="w-6 h-6 sm:w-4.5 sm:h-4.5" />
+                </div>
                 <div>
-                  <div className="text-xs font-montserrat font-bold text-slate-900">Regional Branches</div>
-                  <div className="text-[11px] text-slate-500">Revenue &amp; bonded stock</div>
+                  <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900">Regional Branches</div>
+                  <div className="text-xs sm:text-[11px] text-slate-500">Revenue &amp; bonded stock</div>
                 </div>
               </button>
 
               <button
                 type="button"
                 onClick={() => selectAdminFocusSection('recent_docs')}
-                className="beta-action-tile group p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer"
+                className="beta-action-tile group p-4 sm:p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-xl text-left flex flex-col justify-between gap-2.5 cursor-pointer"
               >
-                <FileText className="w-4 h-4 text-amber-600 group-hover:scale-110 transition-transform" />
+                <div className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <FileText className="w-6 h-6 sm:w-4.5 sm:h-4.5" />
+                </div>
                 <div>
-                  <div className="text-xs font-montserrat font-bold text-slate-900">Latest Documents</div>
-                  <div className="text-[11px] text-slate-500">Receipts, invoices &amp; quotes</div>
+                  <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900">Latest Documents</div>
+                  <div className="text-xs sm:text-[11px] text-slate-500">Receipts, invoices &amp; quotes</div>
                 </div>
               </button>
             </div>
@@ -2082,46 +2116,46 @@ export const OverviewModule: React.FC<{
             <div className="text-[10px] font-montserrat font-bold text-slate-400 uppercase tracking-wider px-0.5">
               Operations &amp; Tools
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-2.5">
               <button
                 type="button"
                 onClick={() => onNavigateModule?.('retail_pos')}
-                className="beta-action-tile group p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer"
+                className="beta-action-tile group p-4 sm:p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl sm:rounded-xl text-left flex items-center gap-3 cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-lg bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                  <ShoppingCart className="w-4 h-4" />
+                <div className="w-12 h-12 sm:w-9 sm:h-9 rounded-2xl sm:rounded-lg bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                  <ShoppingCart className="w-6 h-6 sm:w-4 sm:h-4" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-xs font-montserrat font-bold text-slate-900 truncate">Retail POS</div>
-                  <div className="text-[10px] text-slate-500 truncate">Counter checkout</div>
+                  <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900 truncate">Retail POS</div>
+                  <div className="text-xs sm:text-[10px] text-slate-500 truncate">Counter checkout</div>
                 </div>
               </button>
 
               <button
                 type="button"
                 onClick={() => onNavigateModule?.('sales_pos')}
-                className="beta-action-tile group p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer"
+                className="beta-action-tile group p-4 sm:p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl sm:rounded-xl text-left flex items-center gap-3 cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                  <Briefcase className="w-4 h-4" />
+                <div className="w-12 h-12 sm:w-9 sm:h-9 rounded-2xl sm:rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                  <Briefcase className="w-6 h-6 sm:w-4 sm:h-4" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-xs font-montserrat font-bold text-slate-900 truncate">Wholesale POS</div>
-                  <div className="text-[10px] text-slate-500 truncate">B2B bulk invoicing</div>
+                  <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900 truncate">Wholesale POS</div>
+                  <div className="text-xs sm:text-[10px] text-slate-500 truncate">B2B bulk invoicing</div>
                 </div>
               </button>
 
               <button
                 type="button"
                 onClick={() => onNavigateModule?.('inventory')}
-                className="beta-action-tile group p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer"
+                className="beta-action-tile group p-4 sm:p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl sm:rounded-xl text-left flex items-center gap-3 cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                  <Package className="w-4 h-4" />
+                <div className="w-12 h-12 sm:w-9 sm:h-9 rounded-2xl sm:rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                  <Package className="w-6 h-6 sm:w-4 sm:h-4" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-xs font-montserrat font-bold text-slate-900 truncate">Inventory</div>
-                  <div className="text-[10px] text-slate-500 truncate">Stock &amp; SKUs</div>
+                  <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900 truncate">Inventory</div>
+                  <div className="text-xs sm:text-[10px] text-slate-500 truncate">Stock &amp; SKUs</div>
                 </div>
               </button>
 
@@ -2129,14 +2163,14 @@ export const OverviewModule: React.FC<{
                 <button
                   type="button"
                   onClick={() => setAdminOverviewView('accounting')}
-                  className="beta-action-tile group p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer"
+                  className="beta-action-tile group p-4 sm:p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl sm:rounded-xl text-left flex items-center gap-3 cursor-pointer"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                    <DollarSign className="w-4 h-4" />
+                  <div className="w-12 h-12 sm:w-9 sm:h-9 rounded-2xl sm:rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                    <DollarSign className="w-6 h-6 sm:w-4 sm:h-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-xs font-montserrat font-bold text-slate-900 truncate">Financials</div>
-                    <div className="text-[10px] text-slate-500 truncate">P&amp;L &amp; Expenses</div>
+                    <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900 truncate">Financials</div>
+                    <div className="text-xs sm:text-[10px] text-slate-500 truncate">P&amp;L &amp; Expenses</div>
                   </div>
                 </button>
               )}
@@ -2144,62 +2178,62 @@ export const OverviewModule: React.FC<{
               <button
                 type="button"
                 onClick={() => selectAdminFocusSection('delivery_queue')}
-                className="beta-action-tile group p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer"
+                className="beta-action-tile group p-4 sm:p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl sm:rounded-xl text-left flex items-center gap-3 cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-lg bg-cyan-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                  <Truck className="w-4 h-4" />
+                <div className="w-12 h-12 sm:w-9 sm:h-9 rounded-2xl sm:rounded-lg bg-cyan-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                  <Truck className="w-6 h-6 sm:w-4 sm:h-4" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs font-montserrat font-bold text-slate-900 truncate">
+                  <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900 truncate">
                     Deliveries {activeDeliveriesCount > 0 ? `(${activeDeliveriesCount})` : ''}
                   </div>
-                  <div className="text-[10px] text-slate-500 truncate">Orders &amp; dispatch</div>
+                  <div className="text-xs sm:text-[10px] text-slate-500 truncate">Orders &amp; dispatch</div>
                 </div>
               </button>
 
               <button
                 type="button"
                 onClick={() => selectAdminFocusSection('transfers_queue')}
-                className="beta-action-tile group p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer"
+                className="beta-action-tile group p-4 sm:p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl sm:rounded-xl text-left flex items-center gap-3 cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-lg bg-emerald-700 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                  <ArrowLeftRight className="w-4 h-4" />
+                <div className="w-12 h-12 sm:w-9 sm:h-9 rounded-2xl sm:rounded-lg bg-emerald-700 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                  <ArrowLeftRight className="w-6 h-6 sm:w-4 sm:h-4" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs font-montserrat font-bold text-slate-900 truncate">
+                  <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900 truncate">
                     Transfers {pendingTransfers.length > 0 ? `(${pendingTransfers.length})` : ''}
                   </div>
-                  <div className="text-[10px] text-slate-500 truncate">Authorizations</div>
+                  <div className="text-xs sm:text-[10px] text-slate-500 truncate">Authorizations</div>
                 </div>
               </button>
 
               <button
                 type="button"
                 onClick={() => onNavigateModule?.('hr_rbac')}
-                className="beta-action-tile group p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer"
+                className="beta-action-tile group p-4 sm:p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl sm:rounded-xl text-left flex items-center gap-3 cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-lg bg-purple-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                  <Users className="w-4 h-4" />
+                <div className="w-12 h-12 sm:w-9 sm:h-9 rounded-2xl sm:rounded-lg bg-purple-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                  <Users className="w-6 h-6 sm:w-4 sm:h-4" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-xs font-montserrat font-bold text-slate-900 truncate">HR &amp; Staff</div>
-                  <div className="text-[10px] text-slate-500 truncate">Roles &amp; payroll</div>
+                  <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900 truncate">HR &amp; Staff</div>
+                  <div className="text-xs sm:text-[10px] text-slate-500 truncate">Roles &amp; payroll</div>
                 </div>
               </button>
 
               <button
                 type="button"
                 onClick={() => (onOpenHrLeaveTab ? onOpenHrLeaveTab() : onNavigateModule?.('leave_management'))}
-                className="beta-action-tile group p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer"
+                className="beta-action-tile group p-4 sm:p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl sm:rounded-xl text-left flex items-center gap-3 cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-lg bg-fuchsia-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                  <Calendar className="w-4 h-4" />
+                <div className="w-12 h-12 sm:w-9 sm:h-9 rounded-2xl sm:rounded-lg bg-fuchsia-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                  <Calendar className="w-6 h-6 sm:w-4 sm:h-4" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs font-montserrat font-bold text-slate-900 truncate">
+                  <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900 truncate">
                     Leave {pendingLeaveCount > 0 ? `(${pendingLeaveCount})` : ''}
                   </div>
-                  <div className="text-[10px] text-slate-500 truncate">Off, emergency, maternity</div>
+                  <div className="text-xs sm:text-[10px] text-slate-500 truncate">Off, emergency, maternity</div>
                 </div>
               </button>
 
@@ -2207,14 +2241,14 @@ export const OverviewModule: React.FC<{
                 <button
                   type="button"
                   onClick={() => onOpenKraReturns('VAT3_SALES_SEC_B')}
-                  className="beta-action-tile group p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer"
+                  className="beta-action-tile group p-4 sm:p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl sm:rounded-xl text-left flex items-center gap-3 cursor-pointer"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-emerald-600 text-[#FFDE00] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                    <FileSpreadsheet className="w-4 h-4" />
+                  <div className="w-12 h-12 sm:w-9 sm:h-9 rounded-2xl sm:rounded-lg bg-emerald-600 text-[#FFDE00] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                    <FileSpreadsheet className="w-6 h-6 sm:w-4 sm:h-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-xs font-montserrat font-bold text-slate-900 truncate">KRA Returns</div>
-                    <div className="text-[10px] text-slate-500 truncate">VAT3 &amp; P10 (.xlsx)</div>
+                    <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900 truncate">KRA Returns</div>
+                    <div className="text-xs sm:text-[10px] text-slate-500 truncate">VAT3 &amp; P10 (.xlsx)</div>
                   </div>
                 </button>
               )}
@@ -2223,14 +2257,14 @@ export const OverviewModule: React.FC<{
                 <button
                   type="button"
                   onClick={() => onOpenPayslip?.(latestPayrollRecord)}
-                  className="beta-action-tile group p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer"
+                  className="beta-action-tile group p-4 sm:p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl sm:rounded-xl text-left flex items-center gap-3 cursor-pointer"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                    <Printer className="w-4 h-4" />
+                  <div className="w-12 h-12 sm:w-9 sm:h-9 rounded-2xl sm:rounded-lg bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                    <Printer className="w-6 h-6 sm:w-4 sm:h-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-xs font-montserrat font-bold text-slate-900 truncate">My Payslip</div>
-                    <div className="text-[10px] font-mono-tabular font-bold text-emerald-700 truncate">
+                    <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900 truncate">My Payslip</div>
+                    <div className="text-xs sm:text-[10px] font-mono-tabular font-bold text-emerald-700 truncate">
                       KES {latestPayrollRecord.netSalary.toLocaleString()}
                     </div>
                   </div>
@@ -2240,14 +2274,14 @@ export const OverviewModule: React.FC<{
               <button
                 type="button"
                 onClick={handleDownloadStatementPDF}
-                className="beta-action-tile group p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex items-center gap-3 cursor-pointer"
+                className="beta-action-tile group p-4 sm:p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl sm:rounded-xl text-left flex items-center gap-3 cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-lg bg-slate-800 text-[#FFDE00] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                  <Download className="w-4 h-4" />
+                <div className="w-12 h-12 sm:w-9 sm:h-9 rounded-2xl sm:rounded-lg bg-slate-800 text-[#FFDE00] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                  <Download className="w-6 h-6 sm:w-4 sm:h-4" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-xs font-montserrat font-bold text-slate-900 truncate">PDF Statement</div>
-                  <div className="text-[10px] text-slate-500 truncate">Full audit export</div>
+                  <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900 truncate">PDF Statement</div>
+                  <div className="text-xs sm:text-[10px] text-slate-500 truncate">Full audit export</div>
                 </div>
               </button>
             </div>
@@ -2274,9 +2308,9 @@ export const OverviewModule: React.FC<{
               <button
                 type="button"
                 onClick={onOpenOnboardItems}
-                className="px-2.5 py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                className="min-h-[42px] sm:min-h-0 px-3.5 py-2 sm:px-2.5 sm:py-1.5 bg-[#0A006E] text-[#FFDE00] rounded-xl sm:rounded-lg text-xs sm:text-[11px] font-montserrat font-bold flex items-center gap-1.5 sm:gap-1 cursor-pointer whitespace-nowrap"
               >
-                <Barcode className="w-3.5 h-3.5" />
+                <Barcode className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                 Onboard
               </button>
             )}
@@ -2284,9 +2318,9 @@ export const OverviewModule: React.FC<{
               <button
                 type="button"
                 onClick={() => onOpenKraReturns('VAT3_SALES_SEC_B')}
-                className="px-2.5 py-1.5 bg-white border border-slate-200 text-[#0A006E] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                className="min-h-[42px] sm:min-h-0 px-3.5 py-2 sm:px-2.5 sm:py-1.5 bg-white border border-slate-200 text-[#0A006E] rounded-xl sm:rounded-lg text-xs sm:text-[11px] font-montserrat font-bold flex items-center gap-1.5 sm:gap-1 cursor-pointer whitespace-nowrap"
               >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                <FileSpreadsheet className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-emerald-600" />
                 KRA (.xlsx)
               </button>
             )}
@@ -2294,18 +2328,18 @@ export const OverviewModule: React.FC<{
               <button
                 type="button"
                 onClick={() => setAdminOverviewView('accounting')}
-                className="px-2.5 py-1.5 bg-white border border-slate-200 text-[#0A006E] rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                className="min-h-[42px] sm:min-h-0 px-3.5 py-2 sm:px-2.5 sm:py-1.5 bg-white border border-slate-200 text-[#0A006E] rounded-xl sm:rounded-lg text-xs sm:text-[11px] font-montserrat font-bold flex items-center gap-1.5 sm:gap-1 cursor-pointer whitespace-nowrap"
               >
-                <BarChart3 className="w-3.5 h-3.5" />
+                <BarChart3 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                 Financials
               </button>
             )}
             <button
               type="button"
               onClick={handleDownloadStatementPDF}
-              className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              className="min-h-[42px] sm:min-h-0 px-3.5 py-2 sm:px-2.5 sm:py-1.5 bg-white border border-slate-200 text-slate-700 rounded-xl sm:rounded-lg text-xs sm:text-[11px] font-montserrat font-bold flex items-center gap-1.5 sm:gap-1 cursor-pointer whitespace-nowrap"
             >
-              <Download className="w-3.5 h-3.5" />
+              <Download className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
               PDF
             </button>
             <button
@@ -2463,56 +2497,56 @@ export const OverviewModule: React.FC<{
       {isWidgetVisible('kpi_strip') && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {(isKpiVisible('turnover') || isKpiVisible('branch_sales')) && (
-            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
-              <div className="text-[11px] font-montserrat font-semibold text-slate-500">
+            <div className="beta-kpi-card rounded-xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500">
                 Gross Commercial Turnover
               </div>
-              <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+              <div className="text-xl sm:text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1">
                 {formatKes(totalRevenue)}
               </div>
-              <div className="text-[11px] text-slate-500 mt-0.5">
+              <div className="text-xs text-slate-600 mt-0.5">
                 Credits: <span className="font-mono-tabular font-semibold">{formatKes(totalCredits)}</span>
               </div>
             </div>
           )}
 
           {(isKpiVisible('catalog') || isKpiVisible('branch_stock')) && (
-            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
-              <div className="text-[11px] font-montserrat font-semibold text-slate-500">
+            <div className="beta-kpi-card rounded-xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500">
                 Master Liquor Catalog
               </div>
-              <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+              <div className="text-xl sm:text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1">
                 {products.length} SKUs
               </div>
-              <div className="text-[11px] text-slate-500 mt-0.5">
+              <div className="text-xs text-slate-600 font-mono-tabular mt-0.5">
                 IPS: <strong>{ipsCount}</strong> · LPS: <strong>{lpsCount}</strong> · {totalBottlesInBond.toLocaleString()} Btls
               </div>
             </div>
           )}
 
           {(isKpiVisible('branches') || isKpiVisible('pending_transfers')) && (
-            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
-              <div className="text-[11px] font-montserrat font-semibold text-slate-500">
+            <div className="beta-kpi-card rounded-xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500">
                 Depots &amp; Geo-Zones
               </div>
-              <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+              <div className="text-xl sm:text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1">
                 {branches.length} Depots · {regions.length} Zones
               </div>
-              <div className="text-[11px] text-slate-500 mt-0.5">
+              <div className="text-xs text-slate-600 font-mono-tabular mt-0.5">
                 {partners.length} Trade Partners
               </div>
             </div>
           )}
 
           {(isKpiVisible('staff_transfers') || isKpiVisible('active_deliveries')) && (
-            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
-              <div className="text-[11px] font-montserrat font-semibold text-slate-500">
+            <div className="beta-kpi-card rounded-xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500">
                 Staff &amp; Transfers
               </div>
-              <div className="text-lg sm:text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5">
+              <div className="text-xl sm:text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1">
                 {staffList.length} Active Staff
               </div>
-              <div className="text-[11px] text-slate-500 mt-0.5">
+              <div className="text-xs text-slate-600 font-mono-tabular mt-0.5">
                 {transfers.length} Transfers · {activeDeliveriesCount} Active Deliveries
               </div>
             </div>
@@ -3756,13 +3790,13 @@ export const InventoryModule: React.FC<{
                 }`}
               >
                 <div className="flex items-center justify-between text-emerald-700">
-                  <span className="text-[11px] font-montserrat font-bold">Healthy Stock</span>
+                  <span className="text-xs font-montserrat font-bold">Healthy Stock</span>
                   <CheckCircle2 className="w-3.5 h-3.5" />
                 </div>
-                <div className="text-lg font-montserrat font-black text-slate-900 font-mono-tabular mt-0.5">
+                <div className="text-xl sm:text-2xl font-extrabold text-slate-900 font-mono-tabular mt-0.5">
                   {Math.max(0, products.length - stockHealthMetrics.deadStockCount - stockHealthMetrics.expiringSoonCount)}
                 </div>
-                <div className="text-[10px] text-slate-500">Regular rotation SKUs</div>
+                <div className="text-[11px] text-slate-500">Regular rotation SKUs</div>
               </button>
             )}
 
@@ -3779,13 +3813,13 @@ export const InventoryModule: React.FC<{
                 }`}
               >
                 <div className="flex items-center justify-between text-amber-700">
-                  <span className="text-[11px] font-montserrat font-bold">Dead Stock Alert</span>
+                  <span className="text-xs font-montserrat font-bold">Dead Stock Alert</span>
                   <AlertTriangle className="w-3.5 h-3.5" />
                 </div>
-                <div className="text-lg font-montserrat font-black text-amber-900 font-mono-tabular mt-0.5">
-                  {stockHealthMetrics.deadStockCount} <span className="text-xs font-normal text-slate-500">SKUs</span>
+                <div className="text-xl sm:text-2xl font-extrabold text-amber-900 font-mono-tabular mt-0.5">
+                  {stockHealthMetrics.deadStockCount} <span className="text-xs font-semibold text-slate-500">SKUs</span>
                 </div>
-                <div className="text-[10px] text-amber-700">
+                <div className="text-[11px] text-amber-800 font-mono-tabular">
                   Capital: {formatKes(stockHealthMetrics.deadStockValueKes)}
                 </div>
               </button>
@@ -3804,13 +3838,13 @@ export const InventoryModule: React.FC<{
                 }`}
               >
                 <div className="flex items-center justify-between text-orange-700">
-                  <span className="text-[11px] font-montserrat font-bold">Expiring Soon</span>
+                  <span className="text-xs font-montserrat font-bold">Expiring Soon</span>
                   <AlertCircle className="w-3.5 h-3.5" />
                 </div>
-                <div className="text-lg font-montserrat font-black text-orange-900 font-mono-tabular mt-0.5">
-                  {stockHealthMetrics.expiringSoonCount} <span className="text-xs font-normal text-slate-500">SKUs</span>
+                <div className="text-xl sm:text-2xl font-extrabold text-orange-900 font-mono-tabular mt-0.5">
+                  {stockHealthMetrics.expiringSoonCount} <span className="text-xs font-semibold text-slate-500">SKUs</span>
                 </div>
-                <div className="text-[10px] text-orange-700">
+                <div className="text-[11px] text-orange-800 font-mono-tabular">
                   Within {thresholdSettings.defaultExpiryWarningDays}d limit
                 </div>
               </button>
@@ -3829,13 +3863,13 @@ export const InventoryModule: React.FC<{
                 }`}
               >
                 <div className="flex items-center justify-between text-rose-700">
-                  <span className="text-[11px] font-montserrat font-bold">Damaged / Spoiled</span>
+                  <span className="text-xs font-montserrat font-bold">Damaged / Spoiled</span>
                   <PackageX className="w-3.5 h-3.5" />
                 </div>
-                <div className="text-lg font-montserrat font-black text-rose-900 font-mono-tabular mt-0.5">
-                  {damagedSpoiledBottles} <span className="text-xs font-normal text-slate-500">btls</span>
+                <div className="text-xl sm:text-2xl font-extrabold text-rose-900 font-mono-tabular mt-0.5">
+                  {damagedSpoiledBottles} <span className="text-xs font-semibold text-slate-500">btls</span>
                 </div>
-                <div className="text-[10px] text-rose-700">
+                <div className="text-[11px] text-rose-800 font-mono-tabular">
                   Loss: {formatKes(stockHealthMetrics.totalDamagedLossKes + stockHealthMetrics.totalSpoiledLossKes)}
                 </div>
               </button>

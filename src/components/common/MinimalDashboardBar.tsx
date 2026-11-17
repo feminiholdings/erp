@@ -54,7 +54,7 @@ export const MinimalDashboardBar: React.FC<MinimalDashboardBarProps> = ({
       {!hideModeSwitch && (
         <div
           className={`inline-flex items-center bg-slate-100/90 rounded-xl border border-slate-200/90 shrink-0 ${
-            isLarge ? 'p-1 min-h-[46px] gap-1' : 'p-0.5 rounded-lg'
+            isLarge ? 'p-1 min-h-[48px] gap-1' : 'p-1 sm:p-0.5 min-h-[44px] sm:min-h-0 rounded-xl sm:rounded-lg gap-1 sm:gap-0'
           }`}
         >
           <button
@@ -62,8 +62,8 @@ export const MinimalDashboardBar: React.FC<MinimalDashboardBarProps> = ({
             onClick={() => onChangeMode('minimal')}
             className={`relative font-montserrat font-bold flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap transition ${
               isLarge
-                ? 'min-h-[38px] px-4 sm:px-5 py-2 rounded-lg text-xs sm:text-sm'
-                : 'px-2.5 py-1.5 rounded-md text-[11px] gap-1'
+                ? 'min-h-[40px] px-4 sm:px-5 py-2 rounded-lg text-xs sm:text-sm'
+                : 'min-h-[36px] sm:min-h-0 px-3.5 sm:px-2.5 py-2 sm:py-1.5 rounded-lg sm:rounded-md text-xs sm:text-[11px] gap-1.5 sm:gap-1'
             } ${
               prefs.mode === 'minimal'
                 ? 'bg-[#0A006E] text-[#FFDE00] shadow-sm'
@@ -71,7 +71,7 @@ export const MinimalDashboardBar: React.FC<MinimalDashboardBarProps> = ({
             }`}
             title="Focused low-clutter dashboard"
           >
-            <Minimize2 className={isLarge ? 'w-4 h-4 shrink-0' : 'w-3 h-3 shrink-0'} />
+            <Minimize2 className={isLarge ? 'w-4 h-4 shrink-0' : 'w-4 h-4 sm:w-3 sm:h-3 shrink-0'} />
             <span>{minimalLabel}</span>
           </button>
           <button
@@ -79,8 +79,8 @@ export const MinimalDashboardBar: React.FC<MinimalDashboardBarProps> = ({
             onClick={() => onChangeMode('expanded')}
             className={`relative font-montserrat font-bold flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap transition ${
               isLarge
-                ? 'min-h-[38px] px-4 sm:px-5 py-2 rounded-lg text-xs sm:text-sm'
-                : 'px-2.5 py-1.5 rounded-md text-[11px] gap-1'
+                ? 'min-h-[40px] px-4 sm:px-5 py-2 rounded-lg text-xs sm:text-sm'
+                : 'min-h-[36px] sm:min-h-0 px-3.5 sm:px-2.5 py-2 sm:py-1.5 rounded-lg sm:rounded-md text-xs sm:text-[11px] gap-1.5 sm:gap-1'
             } ${
               prefs.mode === 'expanded'
                 ? 'bg-[#0A006E] text-[#FFDE00] shadow-sm'
@@ -88,7 +88,7 @@ export const MinimalDashboardBar: React.FC<MinimalDashboardBarProps> = ({
             }`}
             title="Expanded operational panels"
           >
-            <LayoutGrid className={isLarge ? 'w-4 h-4 shrink-0' : 'w-3 h-3 shrink-0'} />
+            <LayoutGrid className={isLarge ? 'w-4 h-4 shrink-0' : 'w-4 h-4 sm:w-3 sm:h-3 shrink-0'} />
             <span>{expandedLabel}</span>
           </button>
         </div>
@@ -99,8 +99,8 @@ export const MinimalDashboardBar: React.FC<MinimalDashboardBarProps> = ({
         onClick={() => setIsCustomizerOpen((prev) => !prev)}
         className={`font-montserrat font-bold flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 border transition ${
           isLarge
-            ? 'min-h-[46px] px-4 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm'
-            : 'px-3 py-1.5 min-h-[34px] rounded-lg text-[11px]'
+            ? 'min-h-[48px] px-4 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm'
+            : 'min-h-[44px] sm:min-h-[34px] px-4 sm:px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-lg text-xs sm:text-[11px]'
         } ${
           isCustomizerOpen
             ? 'bg-[#0A006E] text-[#FFDE00] border-[#0A006E] shadow-sm'
@@ -108,7 +108,7 @@ export const MinimalDashboardBar: React.FC<MinimalDashboardBarProps> = ({
         }`}
         title="Show or hide KPIs and sections on your dashboard"
       >
-        <SlidersHorizontal className={isLarge ? 'w-4 h-4 shrink-0' : 'w-3.5 h-3.5 shrink-0'} />
+        <SlidersHorizontal className={isLarge ? 'w-4 h-4 shrink-0' : 'w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0'} />
         <span>Customize</span>
         {customizedCount > 0 && (
           <span className="font-mono-tabular text-[11px] opacity-80">
@@ -247,7 +247,7 @@ export const MinimalDashboardBar: React.FC<MinimalDashboardBarProps> = ({
                           key={kpi.id}
                           type="button"
                           onClick={() => onToggleKpi(kpi.id)}
-                          className={`px-3 py-2 rounded-lg border text-left text-xs font-montserrat font-semibold flex items-center justify-between gap-2 cursor-pointer transition ${
+                          className={`min-h-[44px] sm:min-h-0 px-3.5 py-2.5 sm:px-3 sm:py-2 rounded-xl sm:rounded-lg border text-left text-sm sm:text-xs font-montserrat font-semibold flex items-center justify-between gap-2 cursor-pointer transition ${
                             visible
                               ? 'bg-slate-50 border-[#0A006E]/30 text-[#0A006E]'
                               : 'bg-white border-slate-200 text-slate-400'
@@ -255,9 +255,9 @@ export const MinimalDashboardBar: React.FC<MinimalDashboardBarProps> = ({
                         >
                           <span className="truncate">{kpi.label}</span>
                           {visible ? (
-                            <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <Check className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-emerald-600 shrink-0" />
                           ) : (
-                            <EyeOff className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                            <EyeOff className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-slate-300 shrink-0" />
                           )}
                         </button>
                       );
@@ -279,7 +279,7 @@ export const MinimalDashboardBar: React.FC<MinimalDashboardBarProps> = ({
                           key={widget.id}
                           type="button"
                           onClick={() => onToggleWidget(widget.id)}
-                          className={`px-3 py-2 rounded-lg border text-left text-xs font-montserrat font-semibold flex items-center justify-between gap-2 cursor-pointer transition ${
+                          className={`min-h-[44px] sm:min-h-0 px-3.5 py-2.5 sm:px-3 sm:py-2 rounded-xl sm:rounded-lg border text-left text-sm sm:text-xs font-montserrat font-semibold flex items-center justify-between gap-2 cursor-pointer transition ${
                             visible
                               ? 'bg-slate-50 border-[#0A006E]/30 text-[#0A006E]'
                               : 'bg-white border-slate-200 text-slate-400'
@@ -287,9 +287,9 @@ export const MinimalDashboardBar: React.FC<MinimalDashboardBarProps> = ({
                         >
                           <span className="truncate">{widget.label}</span>
                           {visible ? (
-                            <Eye className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <Eye className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-emerald-600 shrink-0" />
                           ) : (
-                            <EyeOff className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                            <EyeOff className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-slate-300 shrink-0" />
                           )}
                         </button>
                       );

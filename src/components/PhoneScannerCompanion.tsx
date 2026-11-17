@@ -12,18 +12,11 @@ import {
   FlashlightOff,
   CheckCircle2,
   AlertCircle,
-  ScanLine,
-  Smartphone,
-  Keyboard,
-  Upload,
   Volume2,
   VolumeX,
   RotateCcw,
-  Sparkles,
-  Layers,
   ArrowLeft,
-  Store,
-  DollarSign,
+  Plus,
 } from 'lucide-react';
 import { Product, Branch, GeoRegion } from '../types';
 import { playPosBeep, triggerScanHaptic, isAudioMuted, toggleAudioMuted } from '../utils/audioBeep';
@@ -59,14 +52,12 @@ export const PhoneScannerCompanion: React.FC<PhoneScannerCompanionProps> = ({
   onClose,
   isStandaloneMobile = false,
 }) => {
-  const [activeTab, setActiveTab] = useState<'camera' | 'photo' | 'manual'>('camera');
   const [isScanning, setIsScanning] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [hasTorch, setHasTorch] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
   const [soundMuted, setSoundMuted] = useState(isAudioMuted());
   const [manualInput, setManualInput] = useState('');
-  const [sessionScanCount, setSessionScanCount] = useState<number>(0);
   const [isFileScanning, setIsFileScanning] = useState(false);
 
   // Synced Cart State from Firestore
@@ -167,7 +158,6 @@ export const PhoneScannerCompanion: React.FC<PhoneScannerCompanionProps> = ({
 
       playPosBeep(isCaseScan ? 'case' : 'success');
       triggerScanHaptic();
-      setSessionScanCount((prev) => prev + 1);
 
       // Build updated cart using latest accumulated ref
       const currentCart = [...cartRef.current];
@@ -341,11 +331,9 @@ export const PhoneScannerCompanion: React.FC<PhoneScannerCompanionProps> = ({
           setHasTorch(false);
         }
       }
-    } catch (err: any) {
+    } catch {
       if (isMountedRef.current) {
-        setErrorMessage(
-          'Live camera access is restricted or in use. Use "📸 Snap Photo to Scan" or type below to send to desktop cashier.'
-        );
+        setErrorMessage('Camera unavailable');
         setIsScanning(false);
       }
     } finally {
@@ -421,64 +409,47 @@ export const PhoneScannerCompanion: React.FC<PhoneScannerCompanionProps> = ({
 
   const totalCartUnits = remoteCart.reduce((sum, it) => sum + it.quantityUnits, 0);
 
-  // Real sample barcodes for instant testing
-  const testSampleBarcodes = products.filter((p) => Boolean(p.barcode)).slice(0, 6);
-
   return (
     <div className="fixed inset-0 z-[9999] bg-slate-950 text-white flex flex-col h-full overflow-hidden">
-      {/* Top Header: Account Link & Live Sync Status */}
-      <div className="bg-[#0A006E] px-4 py-3 border-b-2 border-[#FFDE00] flex items-center justify-between gap-3 shrink-0 shadow-lg">
+      {/* Minimal Top Header */}
+      <div className="bg-[#0A006E] px-4 py-3 flex items-center justify-between gap-3 shrink-0">
         <div className="flex items-center gap-2.5 min-w-0">
           {onClose && (
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white cursor-pointer mr-1"
-              title="Close Phone Scanner"
+              className="min-w-[40px] min-h-[40px] rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer"
+              title="Back"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
           )}
-          <div className="w-8 h-8 rounded-xl bg-[#FFDE00] text-[#0A006E] flex items-center justify-center font-black shrink-0 shadow-xs">
-            <Smartphone className="w-4 h-4" />
-          </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <h2 className="font-montserrat font-black text-xs sm:text-sm text-[#FFDE00] truncate">
-                Phone Barcode Scanner Station
-              </h2>
-              <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-black bg-emerald-500 text-slate-950 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
-                LIVE SYNC
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-300 truncate">
-              Cashier: <strong className="text-white">{staffName}</strong> ({staffRole})
-            </p>
+            <h2 className="font-montserrat font-bold text-sm text-white truncate">
+              Phone Scanner
+            </h2>
+            <p className="text-xs text-slate-300 truncate">{staffName}</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           <button
             type="button"
             onClick={() => {
               const next = toggleAudioMuted();
               setSoundMuted(next);
             }}
-            className={`p-2 rounded-xl text-xs font-montserrat font-bold transition cursor-pointer ${
-              !soundMuted
-                ? 'bg-emerald-500/20 text-emerald-300'
-                : 'bg-rose-500/20 text-rose-300'
-            }`}
-            title="Toggle Sound"
+            className="min-w-[40px] min-h-[40px] rounded-xl flex items-center justify-center text-slate-200 hover:bg-white/10 cursor-pointer transition"
+            title="Toggle sound"
           >
-            {soundMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+            {soundMuted ? <VolumeX className="w-4 h-4 text-rose-300" /> : <Volume2 className="w-4 h-4" />}
           </button>
           {onClose && (
             <button
               type="button"
               onClick={onClose}
-              className="p-2 rounded-xl hover:bg-white/10 text-slate-300 hover:text-white cursor-pointer"
+              className="min-w-[40px] min-h-[40px] rounded-xl flex items-center justify-center hover:bg-white/10 text-slate-200 hover:text-white cursor-pointer"
+              title="Close"
             >
               <X className="w-5 h-5" />
             </button>
@@ -486,95 +457,61 @@ export const PhoneScannerCompanion: React.FC<PhoneScannerCompanionProps> = ({
         </div>
       </div>
 
-      {/* Floating Cashier Live Cart Banner at Top */}
-      <div className="bg-slate-900 border-b border-slate-800 px-4 py-2 flex items-center justify-between text-xs shrink-0 font-mono-tabular">
-        <div className="flex items-center gap-2">
-          <span className="text-slate-400">Desktop Cart:</span>
-          <span className="px-2 py-0.5 rounded-md bg-[#0A006E] text-[#FFDE00] font-bold">
-            {totalCartUnits} unit{totalCartUnits === 1 ? '' : 's'}
-          </span>
-          <span className="text-slate-400">({remoteCart.length} lines)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-slate-400">Total:</span>
-          <span className="font-montserrat font-black text-emerald-400 text-sm">
-            {formatKes(remoteGrandTotal)}
-          </span>
-        </div>
-      </div>
+      {/* Unobstructed Camera Viewport */}
+      <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden min-h-[260px]">
+        <div id="phone-companion-camera-canvas" className="w-full h-full min-h-[260px] overflow-hidden" />
 
-      {/* Camera Viewport Area */}
-      <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden min-h-[220px]">
-        <div id="phone-companion-camera-canvas" className="w-full h-full min-h-[220px] overflow-hidden" />
-
-        {/* Aiming Reticle with Sweeping Laser Line */}
+        {/* Minimal Corner Brackets Only */}
         {isScanning && !errorMessage && (
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-            <div className="relative w-64 sm:w-72 h-40 sm:h-48 border-2 border-[#FFDE00] rounded-2xl shadow-[0_0_24px_rgba(255,222,0,0.5)]">
-              <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-white rounded-tl-lg" />
-              <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-white rounded-tr-lg" />
-              <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-white rounded-bl-lg" />
-              <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-white rounded-br-lg" />
-              <div className="absolute left-2 right-2 h-0.5 bg-gradient-to-r from-red-500 via-[#FFDE00] to-red-500 shadow-[0_0_12px_#FFDE00] animate-[bounce_1.8s_infinite]" />
-              <div className="absolute bottom-2 inset-x-0 text-center">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-montserrat font-bold bg-black/70 text-white backdrop-blur-xs">
-                  <ScanLine className="w-3 h-3 text-[#FFDE00]" />
-                  Aim bottle barcode inside frame
-                </span>
-              </div>
+            <div className="relative w-64 sm:w-72 h-40 sm:h-44">
+              <div className="absolute top-0 left-0 w-7 h-7 border-t-[3px] border-l-[3px] border-[#FFDE00] rounded-tl-xl" />
+              <div className="absolute top-0 right-0 w-7 h-7 border-t-[3px] border-r-[3px] border-[#FFDE00] rounded-tr-xl" />
+              <div className="absolute bottom-0 left-0 w-7 h-7 border-b-[3px] border-l-[3px] border-[#FFDE00] rounded-bl-xl" />
+              <div className="absolute bottom-0 right-0 w-7 h-7 border-b-[3px] border-r-[3px] border-[#FFDE00] rounded-br-xl" />
+              <div className="absolute left-3 right-3 top-1/2 -translate-y-1/2 h-[2px] bg-[#FFDE00]/85 shadow-[0_0_10px_#FFDE00] animate-pulse" />
             </div>
           </div>
         )}
 
-        {/* Torch Button Floating Top Right */}
+        {/* Torch Toggle Top Right */}
         {hasTorch && (
           <div className="absolute top-3 right-3 z-20">
             <button
               type="button"
               onClick={toggleTorch}
-              className={`w-9 h-9 rounded-xl flex items-center justify-center cursor-pointer transition shadow-md ${
-                torchOn ? 'bg-[#FFDE00] text-[#0A006E]' : 'bg-black/60 text-white'
+              className={`min-w-[42px] min-h-[42px] rounded-xl flex items-center justify-center cursor-pointer transition shadow-md ${
+                torchOn ? 'bg-[#FFDE00] text-[#0A006E]' : 'bg-black/55 text-white'
               }`}
+              title="Flashlight"
             >
               {torchOn ? <Flashlight className="w-4 h-4" /> : <FlashlightOff className="w-4 h-4" />}
             </button>
           </div>
         )}
 
-        {/* Scan Count Badge Floating Top Left */}
-        <div className="absolute top-3 left-3 z-20">
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-montserrat font-bold bg-[#0A006E]/90 text-white border border-white/20 shadow-md">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            Phone Scans: <strong>{sessionScanCount}</strong>
-          </span>
-        </div>
-
-        {/* Fallback Error or Permission helper */}
+        {/* Minimal Camera Fallback */}
         {errorMessage && (
-          <div className="absolute inset-x-4 p-4 rounded-2xl bg-slate-900/95 border-2 border-amber-400 text-white text-xs space-y-3 text-center shadow-2xl z-20">
-            <div className="flex items-center justify-center gap-2 text-amber-300 font-bold">
-              <Smartphone className="w-5 h-5 text-amber-400 shrink-0" />
-              <span>Camera Helper</span>
-            </div>
-            <p className="text-slate-200 text-[11px] leading-relaxed max-w-sm mx-auto">
+          <div className="absolute inset-x-6 p-5 rounded-2xl bg-slate-900/95 border border-slate-700 text-white text-center space-y-3.5 shadow-2xl z-20">
+            <p className="text-sm font-montserrat font-bold text-white">
               {errorMessage}
             </p>
-            <div className="flex items-center justify-center gap-2 pt-1">
+            <div className="flex items-center justify-center gap-2.5">
               <button
                 type="button"
                 onClick={startCamera}
-                className="px-4 py-2 bg-[#FFDE00] text-[#0A006E] rounded-xl text-xs font-montserrat font-black flex items-center gap-1 cursor-pointer"
+                className="px-4 py-2.5 bg-[#FFDE00] text-[#0A006E] rounded-xl text-xs font-montserrat font-extrabold flex items-center gap-1.5 cursor-pointer"
               >
                 <RotateCcw className="w-4 h-4" />
-                Retry Camera
+                Retry
               </button>
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="px-4 py-2 bg-[#0A006E] text-[#FFDE00] border border-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-1 cursor-pointer"
+                className="px-4 py-2.5 bg-slate-800 text-white border border-slate-600 rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer"
               >
-                <Upload className="w-4 h-4" />
-                Snap Photo
+                <Camera className="w-4 h-4 text-[#FFDE00]" />
+                Photo
               </button>
             </div>
           </div>
@@ -591,38 +528,32 @@ export const PhoneScannerCompanion: React.FC<PhoneScannerCompanionProps> = ({
         className="hidden"
       />
 
-      {/* Live Scan Result Toast */}
+      {/* Compact 1-Line Scan Result Toast */}
       {lastScannedFeedback && (
         <div
-          className={`px-4 py-2.5 border-t text-xs flex items-center justify-between gap-3 shrink-0 animate-fade-in ${
+          className={`px-4 py-2.5 border-t text-xs flex items-center gap-2.5 shrink-0 ${
             lastScannedFeedback.success
-              ? 'bg-emerald-950 border-emerald-600 text-emerald-100'
-              : 'bg-rose-950 border-rose-600 text-rose-100'
+              ? 'bg-emerald-950 border-emerald-700 text-emerald-100'
+              : 'bg-rose-950 border-rose-700 text-rose-100'
           }`}
         >
-          <div className="flex items-center gap-2.5 min-w-0">
-            {lastScannedFeedback.success ? (
-              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-            ) : (
-              <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
-            )}
-            <div className="min-w-0">
-              <div className="font-montserrat font-bold truncate">
-                {lastScannedFeedback.productName}
-              </div>
-              <div className="text-[10px] text-slate-300 font-mono-tabular">
-                Barcode: {lastScannedFeedback.code}
-                {lastScannedFeedback.price > 0 && ` · ${formatKes(lastScannedFeedback.price)}`}
-              </div>
-            </div>
-          </div>
-          <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-white/10 shrink-0 text-emerald-300">
-            {lastScannedFeedback.success ? '⚡ Beamed to Desktop' : 'Not Found'}
+          {lastScannedFeedback.success ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+          )}
+          <span className="font-montserrat font-bold truncate flex-1">
+            {lastScannedFeedback.productName}
           </span>
+          {lastScannedFeedback.price > 0 && (
+            <span className="font-mono-tabular font-bold text-emerald-300 shrink-0">
+              {formatKes(lastScannedFeedback.price)}
+            </span>
+          )}
         </div>
       )}
 
-      {/* Manual Input / USB Form */}
+      {/* Manual Entry + Photo */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -631,76 +562,54 @@ export const PhoneScannerCompanion: React.FC<PhoneScannerCompanionProps> = ({
             setManualInput('');
           }
         }}
-        className="bg-slate-950 px-3 py-2 border-t border-slate-800 flex items-center gap-2 shrink-0"
+        className="bg-slate-950 px-3.5 py-2.5 border-t border-slate-800 flex items-center gap-2 shrink-0"
       >
         <input
           type="text"
           value={manualInput}
           onChange={(e) => setManualInput(e.target.value)}
-          placeholder="Type or paste EAN barcode to beam to desktop..."
-          className="flex-1 bg-slate-900 border border-slate-700 focus:border-[#FFDE00] rounded-xl px-3 py-2 text-xs text-white placeholder-slate-400 focus:outline-none"
+          placeholder="Enter barcode..."
+          className="flex-1 min-w-0 bg-slate-900 border border-slate-700 focus:border-[#FFDE00] rounded-xl px-3 py-2.5 text-xs text-white placeholder-slate-400 focus:outline-none"
         />
         <button
           type="submit"
           disabled={!manualInput.trim()}
-          className="px-3 py-2 bg-[#FFDE00] hover:bg-amber-400 disabled:opacity-40 text-[#0A006E] font-montserrat font-black text-xs rounded-xl cursor-pointer"
+          className="px-3.5 py-2.5 bg-[#0A006E] hover:bg-[#130694] disabled:opacity-40 text-[#FFDE00] border border-[#FFDE00]/40 font-montserrat font-bold text-xs rounded-xl flex items-center gap-1 cursor-pointer shrink-0"
         >
-          Send
+          <Plus className="w-4 h-4" />
+          Add
         </button>
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={isFileScanning}
-          className="px-3 py-2 bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-montserrat font-bold flex items-center gap-1 cursor-pointer shrink-0"
+          className="min-w-[42px] min-h-[40px] px-2.5 bg-slate-800 text-white border border-slate-700 rounded-xl text-xs font-montserrat font-bold flex items-center justify-center cursor-pointer shrink-0"
+          title="Scan from photo"
         >
-          <Camera className="w-3.5 h-3.5" />
-          Photo
+          <Camera className="w-4 h-4 text-[#FFDE00]" />
         </button>
       </form>
 
-      {/* Quick Test Barcode Buttons for Real Catalog Bottles */}
-      <div className="bg-slate-900 px-3 py-2 border-t border-slate-800 shrink-0 overflow-x-auto">
-        <div className="flex items-center gap-1.5 min-w-max">
-          <span className="text-[10px] font-bold text-slate-400 mr-1 flex items-center gap-1">
-            <Sparkles className="w-3 h-3 text-[#FFDE00]" />
-            Quick Test:
-          </span>
-          {testSampleBarcodes.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => handleBarcodeDecoded(item.barcode!)}
-              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-[10px] font-montserrat font-semibold border border-slate-700 cursor-pointer flex items-center gap-1"
-            >
-              <span>{item.name.split(' ')[0]}</span>
-              <span className="text-[#FFDE00] font-mono">({item.barcode?.slice(-4)})</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Floating Bottom Bar: Cart Total & Done button */}
-      <div className="bg-[#0A006E] px-4 py-3 border-t-2 border-[#FFDE00] flex items-center justify-between gap-3 shrink-0">
-        <div>
-          <div className="text-[10px] text-[#FFDE00] uppercase font-bold tracking-wider">
-            Live Cashier Cart Total
-          </div>
-          <div className="text-base sm:text-lg font-montserrat font-black text-white font-mono-tabular">
+      {/* Bottom Total & Done Bar */}
+      <div className="bg-[#0A006E] px-4 py-3 border-t border-white/15 flex items-center justify-between gap-3 shrink-0">
+        <div className="flex items-baseline gap-2.5 min-w-0">
+          <span className="text-lg font-montserrat font-extrabold text-white font-mono-tabular">
             {formatKes(remoteGrandTotal)}
-          </div>
+          </span>
+          <span className="text-xs text-slate-300 font-mono-tabular">
+            {totalCartUnits} {totalCartUnits === 1 ? 'item' : 'items'}
+          </span>
         </div>
 
-        <div className="flex items-center gap-2">
-          {onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] font-montserrat font-black text-xs cursor-pointer shadow-md"
-            >
-              Return to POS
-            </button>
-          )}
-        </div>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] font-montserrat font-extrabold text-xs cursor-pointer shrink-0"
+          >
+            Done
+          </button>
+        )}
       </div>
     </div>
   );

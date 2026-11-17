@@ -53,12 +53,9 @@ export const BarcodeScannerModal: React.FC<Props> = ({ products, onBarcodeDetect
             <div className="w-8 h-8 rounded-xl bg-[#0A006E] border border-[#FFDE00] text-[#FFDE00] flex items-center justify-center">
               <Camera className="w-4 h-4" />
             </div>
-            <div>
-              <h3 className="font-montserrat font-black text-sm text-white">
-                Optical Barcode Terminal
-              </h3>
-              <p className="text-[11px] text-slate-400">EAN-13, UPC-A, Code-128 &amp; IPS Excise Stamps</p>
-            </div>
+            <h3 className="font-montserrat font-bold text-sm text-white">
+              Barcode Scanner
+            </h3>
           </div>
           <button
             onClick={onClose}
@@ -70,30 +67,14 @@ export const BarcodeScannerModal: React.FC<Props> = ({ products, onBarcodeDetect
 
         {/* Viewfinder View */}
         <div className="px-6 py-2">
-          <div className="relative aspect-video sm:aspect-4/3 rounded-2xl bg-black border-2 border-slate-800 overflow-hidden flex items-center justify-center group shadow-inner">
-            {/* Viewfinder Target Reticle */}
-            <div className="relative w-4/5 h-3/5 border-2 border-[#FFDE00]/60 rounded-xl flex items-center justify-center">
-              {/* Corner brackets */}
-              <div className="absolute top-0 left-0 w-4 h-4 border-t-3 border-l-3 border-[#FFDE00] -translate-x-0.5 -translate-y-0.5" />
-              <div className="absolute top-0 right-0 w-4 h-4 border-t-3 border-r-3 border-[#FFDE00] translate-x-0.5 -translate-y-0.5" />
-              <div className="absolute bottom-0 left-0 w-4 h-4 border-b-3 border-l-3 border-[#FFDE00] -translate-x-0.5 translate-y-0.5" />
-              <div className="absolute bottom-0 right-0 w-4 h-4 border-b-3 border-r-3 border-[#FFDE00] translate-x-0.5 translate-y-0.5" />
-
-              {/* Laser Scanning Beam */}
-              <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-red-500 to-transparent shadow-[0_0_12px_#ff0033] animate-pulse" />
-
-              <div className="text-center p-2">
-                <Barcode className="w-12 h-12 text-slate-600 mx-auto stroke-[1.5]" />
-                <span className="text-[11px] font-mono text-slate-400 block mt-1">
-                  Align bottle barcode within reticle
-                </span>
-              </div>
-            </div>
-
-            {/* Live Indicator */}
-            <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 text-[10px] font-mono">
-              <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-              <span>LIVE SENSOR ACTIVE</span>
+          <div className="relative aspect-video sm:aspect-4/3 rounded-2xl bg-black border border-slate-800 overflow-hidden flex items-center justify-center shadow-inner">
+            {/* Minimal Corner Brackets Only */}
+            <div className="relative w-3/4 h-3/5 flex items-center justify-center">
+              <div className="absolute top-0 left-0 w-6 h-6 border-t-[3px] border-l-[3px] border-[#FFDE00] rounded-tl-lg" />
+              <div className="absolute top-0 right-0 w-6 h-6 border-t-[3px] border-r-[3px] border-[#FFDE00] rounded-tr-lg" />
+              <div className="absolute bottom-0 left-0 w-6 h-6 border-b-[3px] border-l-[3px] border-[#FFDE00] rounded-bl-lg" />
+              <div className="absolute bottom-0 right-0 w-6 h-6 border-b-[3px] border-r-[3px] border-[#FFDE00] rounded-br-lg" />
+              <div className="absolute left-3 right-3 top-1/2 -translate-y-1/2 h-[2px] bg-[#FFDE00]/80 shadow-[0_0_10px_#FFDE00] animate-pulse" />
             </div>
           </div>
         </div>

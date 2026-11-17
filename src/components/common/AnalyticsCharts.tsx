@@ -157,9 +157,9 @@ export const BarGraph: React.FC<BarGraphProps> = ({
                 />
                 <text
                   x={chartPadding.left - 8}
-                  y={yPos + 3.5}
+                  y={yPos + 4}
                   textAnchor="end"
-                  className="text-[9px] fill-slate-400 font-mono-tabular font-medium"
+                  className="text-[11px] fill-slate-500 font-mono-tabular font-semibold"
                 >
                   {tick.formatted}
                 </text>
@@ -237,8 +237,8 @@ export const BarGraph: React.FC<BarGraphProps> = ({
                     x={xPos + barWidth / 2}
                     y={Math.max(chartPadding.top - 8, yPos - 6)}
                     textAnchor="middle"
-                    className={`text-[9px] font-montserrat font-bold font-mono-tabular ${
-                      isNegative ? 'fill-rose-700 font-black' : isHovered ? 'fill-[#0A006E] font-black' : 'fill-slate-600'
+                    className={`text-[11px] font-bold font-mono-tabular ${
+                      isNegative ? 'fill-rose-700 font-extrabold' : isHovered ? 'fill-[#0A006E] font-extrabold' : 'fill-slate-700'
                     }`}
                   >
                     {item.formattedValue || compactVal}
@@ -250,7 +250,7 @@ export const BarGraph: React.FC<BarGraphProps> = ({
                   x={xPos + barWidth / 2}
                   y={chartPadding.top + usableHeight + 16}
                   textAnchor="middle"
-                  className={`text-[9.5px] font-montserrat font-bold ${
+                  className={`text-[11px] font-montserrat font-bold ${
                     isHovered ? 'fill-[#0A006E]' : 'fill-slate-600'
                   }`}
                 >
@@ -260,9 +260,9 @@ export const BarGraph: React.FC<BarGraphProps> = ({
                 {/* Secondary subtitle under X-axis */}
                 <text
                   x={xPos + barWidth / 2}
-                  y={chartPadding.top + usableHeight + 29}
+                  y={chartPadding.top + usableHeight + 30}
                   textAnchor="middle"
-                  className={`text-[8.5px] font-mono-tabular ${isNegative ? 'fill-rose-600 font-bold' : 'fill-slate-400'}`}
+                  className={`text-[10.5px] font-mono-tabular font-semibold ${isNegative ? 'fill-rose-600 font-bold' : 'fill-slate-500'}`}
                 >
                   {item.secondaryLabel || (pctOfTotal !== null ? `${pctOfTotal}%` : isNegative ? 'Loss' : '')}
                 </text>
@@ -532,15 +532,15 @@ export const PieChart: React.FC<PieChartProps> = ({
                 transition={{ duration: 0.16 }}
                 className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-4"
               >
-                <span className="text-[10px] font-montserrat font-bold text-slate-500 uppercase leading-tight line-clamp-1">
+                <span className="text-[11px] font-montserrat font-bold text-slate-500 uppercase leading-tight line-clamp-1">
                   {activeSlice ? activeSlice.label : centerMetricLabel}
                 </span>
-                <span className="text-sm sm:text-base font-montserrat font-black text-[#0A006E] font-mono-tabular leading-tight mt-0.5">
+                <span className="text-base sm:text-lg font-extrabold text-[#0A006E] font-mono-tabular leading-tight mt-0.5">
                   {activeSlice
                     ? valueFormatter(activeSlice.value)
                     : valueFormatter(total)}
                 </span>
-                <span className="text-[10px] font-mono-tabular font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded-full mt-0.5">
+                <span className="text-xs font-mono-tabular font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full mt-0.5">
                   {activeSlice
                     ? `${activeSlice.pct.toFixed(1)}%`
                     : '100%'}
@@ -580,7 +580,7 @@ export const PieChart: React.FC<PieChartProps> = ({
                     </div>
                     {slice.sublabel && (
                       <div
-                        className={`text-[10px] truncate ${
+                        className={`text-[11px] truncate ${
                           isHovered ? 'text-slate-200' : 'text-slate-500'
                         }`}
                       >
@@ -592,14 +592,14 @@ export const PieChart: React.FC<PieChartProps> = ({
 
                 <div className="text-right shrink-0 ml-2">
                   <div
-                    className={`font-mono-tabular font-black ${
+                    className={`text-xs sm:text-sm font-mono-tabular font-extrabold ${
                       isHovered ? 'text-[#FFDE00]' : 'text-[#0A006E]'
                     }`}
                   >
                     {valueFormatter(slice.value)}
                   </div>
                   <div
-                    className={`text-[10px] font-mono-tabular font-bold ${
+                    className={`text-xs font-mono-tabular font-semibold ${
                       isHovered ? 'text-emerald-300' : 'text-slate-500'
                     }`}
                   >
@@ -618,7 +618,7 @@ export const PieChart: React.FC<PieChartProps> = ({
           <span className="w-2 h-2 rounded-full bg-emerald-500" />
           <span>Calculated live from active ERP ledger and bonded inventory stock.</span>
         </div>
-        <span className="text-[11px] font-mono-tabular font-black text-[#0A006E]">
+        <span className="text-xs sm:text-sm font-mono-tabular font-extrabold text-[#0A006E]">
           {valueFormatter(total)} Total
         </span>
       </div>

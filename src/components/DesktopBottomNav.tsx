@@ -683,7 +683,7 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
           </svg>
         </div>
 
-        <div className="relative z-20 flex items-center justify-around h-14 max-w-md mx-auto">
+        <div className="relative z-20 flex items-center justify-around h-16 max-w-md mx-auto">
           {/* 1. Overview */}
           <button
             type="button"
@@ -691,19 +691,19 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
               onSelectModule('overview');
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
-            className={`flex flex-col items-center justify-center gap-0.5 px-2 py-1 transition cursor-pointer active:scale-95 ${
+            className={`min-w-[58px] min-h-[50px] flex flex-col items-center justify-center gap-0.5 px-2.5 py-1 rounded-2xl transition cursor-pointer active:scale-95 ${
               activeModule === 'overview' ? 'text-[#FFDE00]' : 'text-slate-300 hover:text-white'
             }`}
           >
             <div
-              className={`p-1 rounded-xl transition ${
+              className={`p-1.5 rounded-xl transition ${
                 activeModule === 'overview' ? 'bg-white/20 text-[#FFDE00]' : ''
               }`}
             >
-              <LayoutDashboard className="w-6 h-6 stroke-[2.4]" />
+              <LayoutDashboard className="w-6.5 h-6.5 stroke-[2.4]" />
             </div>
             <span
-              className={`text-[10px] font-montserrat font-black ${
+              className={`text-[11px] font-montserrat font-extrabold ${
                 activeModule === 'overview' ? 'text-[#FFDE00]' : 'text-slate-200'
               }`}
             >
@@ -723,23 +723,23 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
               onSelectModule(posMod);
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
-            className={`flex flex-col items-center justify-center gap-0.5 px-2 py-1 transition cursor-pointer active:scale-95 ${
+            className={`min-w-[58px] min-h-[50px] flex flex-col items-center justify-center gap-0.5 px-2.5 py-1 rounded-2xl transition cursor-pointer active:scale-95 ${
               activeModule === 'retail_pos' || activeModule === 'sales_pos'
                 ? 'text-[#FFDE00]'
                 : 'text-slate-300 hover:text-white'
             }`}
           >
             <div
-              className={`p-1 rounded-xl transition ${
+              className={`p-1.5 rounded-xl transition ${
                 activeModule === 'retail_pos' || activeModule === 'sales_pos'
                   ? 'bg-white/20 text-[#FFDE00]'
                   : ''
               }`}
             >
-              <Store className="w-6 h-6 stroke-[2.4]" />
+              <Store className="w-6.5 h-6.5 stroke-[2.4]" />
             </div>
             <span
-              className={`text-[10px] font-montserrat font-black ${
+              className={`text-[11px] font-montserrat font-extrabold ${
                 activeModule === 'retail_pos' || activeModule === 'sales_pos'
                   ? 'text-[#FFDE00]'
                   : 'text-slate-200'
@@ -756,16 +756,16 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
               onClick={() => setIsMobileModulesSheetOpen((prev) => !prev)}
               title="Open ERP Module Directory"
               aria-label="Open ERP Module Directory"
-              className="relative -top-5 w-15 h-15 rounded-full bg-[#FFDE00] text-[#0A006E] border-4 border-white shadow-2xl flex items-center justify-center transition-transform active:scale-95 cursor-pointer ring-4 ring-[#FFDE00]/50 group"
+              className="relative -top-5 w-16 h-16 rounded-full bg-[#FFDE00] text-[#0A006E] border-4 border-white shadow-2xl flex items-center justify-center transition-transform active:scale-95 cursor-pointer ring-4 ring-[#FFDE00]/50 group"
             >
               {/* Continuous glowing ping animation ring */}
               <span className="absolute inset-0 rounded-full bg-[#FFDE00] animate-ping opacity-40 pointer-events-none" />
               <div className="relative z-10 group-hover:rotate-12 transition-transform duration-300">
-                <Wine className="w-7.5 h-7.5 stroke-[2.7] text-[#0A006E] animate-pulse" />
+                <Wine className="w-8 h-8 stroke-[2.7] text-[#0A006E] animate-pulse" />
               </div>
             </button>
-            <span className="relative -top-4 text-[10px] font-montserrat font-black text-[#FFDE00]">
-              Modules
+            <span className="relative -top-4 text-[11px] font-montserrat font-extrabold text-[#FFDE00]">
+              Apps
             </span>
           </div>
 
@@ -776,24 +776,24 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
               onSelectModule('internal_inbox');
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
-            className={`relative flex flex-col items-center justify-center gap-0.5 px-2 py-1 transition cursor-pointer active:scale-95 ${
+            className={`relative min-w-[58px] min-h-[50px] flex flex-col items-center justify-center gap-0.5 px-2.5 py-1 rounded-2xl transition cursor-pointer active:scale-95 ${
               activeModule === 'internal_inbox' ? 'text-[#FFDE00]' : 'text-slate-300 hover:text-white'
             }`}
           >
             <div
-              className={`relative p-1 rounded-xl transition ${
+              className={`relative p-1.5 rounded-xl transition ${
                 activeModule === 'internal_inbox' ? 'bg-white/20 text-[#FFDE00]' : ''
               }`}
             >
-              <Inbox className="w-6 h-6 stroke-[2.4]" />
+              <Inbox className="w-6.5 h-6.5 stroke-[2.4]" />
               {unreadInboxCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-mono-tabular font-black flex items-center justify-center border-2 border-[#0A006E]">
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-4.5 px-1 rounded-full bg-red-500 text-white text-[10px] font-mono-tabular font-black flex items-center justify-center border-2 border-[#0A006E]">
                   {unreadInboxCount > 99 ? '99+' : unreadInboxCount}
                 </span>
               )}
             </div>
             <span
-              className={`text-[10px] font-montserrat font-black ${
+              className={`text-[11px] font-montserrat font-extrabold ${
                 activeModule === 'internal_inbox' ? 'text-[#FFDE00]' : 'text-slate-200'
               }`}
             >
@@ -811,12 +811,12 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
                 onSelectModule('inventory');
               }
             }}
-            className="flex flex-col items-center justify-center gap-0.5 px-2 py-1 text-slate-300 hover:text-white transition cursor-pointer active:scale-95"
+            className="min-w-[58px] min-h-[50px] flex flex-col items-center justify-center gap-0.5 px-2.5 py-1 rounded-2xl text-slate-300 hover:text-white transition cursor-pointer active:scale-95"
           >
-            <div className="p-1 rounded-xl">
-              <Smartphone className="w-6 h-6 stroke-[2.4] text-white" />
+            <div className="p-1.5 rounded-xl">
+              <Smartphone className="w-6.5 h-6.5 stroke-[2.4] text-white" />
             </div>
-            <span className="text-[10px] font-montserrat font-black text-slate-200">
+            <span className="text-[11px] font-montserrat font-extrabold text-slate-200">
               Scan
             </span>
           </button>
@@ -1062,7 +1062,7 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
               </button>
             </div>
 
-            <div className="p-4 pb-8 overflow-y-auto grid grid-cols-2 gap-2.5">
+            <div className="p-4 pb-8 overflow-y-auto grid grid-cols-2 gap-3">
               {visibleNavItems.map((item) => {
                 const isActive = activeModule === item.id;
                 return (
@@ -1074,18 +1074,18 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
                       onSelectModule(item.id);
                       window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
-                    className={`p-3 min-h-[56px] rounded-2xl border flex items-center gap-2.5 text-left transition cursor-pointer active:scale-[0.98] ${
+                    className={`p-4 min-h-[76px] rounded-2xl border flex items-center gap-3 text-left transition cursor-pointer active:scale-[0.97] ${
                       isActive
                         ? 'bg-[#0A006E] text-white border-[#0A006E] ring-2 ring-[#FFDE00]'
                         : 'bg-slate-50 hover:bg-slate-100 text-slate-800 border-slate-200'
                     }`}
                   >
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-xs ${
                       isActive ? 'bg-[#FFDE00] text-[#0A006E]' : 'bg-[#0A006E]/10 text-[#0A006E]'
                     }`}>
-                      {React.createElement(item.icon, { className: 'w-5 h-5 stroke-[2.4]' })}
+                      {React.createElement(item.icon, { className: 'w-6 h-6 stroke-[2.4]' })}
                     </div>
-                    <span className="text-xs font-montserrat font-black leading-tight line-clamp-2">
+                    <span className="text-sm font-montserrat font-extrabold leading-snug line-clamp-2">
                       {item.shortLabel}
                     </span>
                   </button>
@@ -1095,12 +1095,12 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
               <button
                 type="button"
                 onClick={handleReplaySplash}
-                className="p-3 min-h-[56px] rounded-2xl border border-amber-300 bg-amber-50 text-amber-900 flex items-center gap-2.5 text-left transition cursor-pointer active:scale-[0.98]"
+                className="p-4 min-h-[76px] rounded-2xl border border-amber-300 bg-amber-50 text-amber-900 flex items-center gap-3 text-left transition cursor-pointer active:scale-[0.97]"
               >
-                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-                  <Sparkles className="w-5 h-5" />
+                <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 shadow-xs">
+                  <Sparkles className="w-6 h-6" />
                 </div>
-                <span className="text-xs font-montserrat font-bold leading-tight">Splash Screen</span>
+                <span className="text-sm font-montserrat font-bold leading-snug">Splash Screen</span>
               </button>
             </div>
           </div>

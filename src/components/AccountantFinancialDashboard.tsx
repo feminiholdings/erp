@@ -1457,14 +1457,14 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
       />
 
       {/* Slim Period & Branch Filter Row */}
-      <div className="bg-white border border-slate-200 rounded-xl px-3 py-2 flex flex-wrap items-center justify-between gap-2">
-        <div className="bg-slate-100 p-0.5 rounded-lg border border-slate-200 flex items-center text-xs overflow-x-auto">
+      <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-xl px-3 py-2.5 sm:py-2 flex flex-wrap items-center justify-between gap-2.5">
+        <div className="bg-slate-100 p-1 sm:p-0.5 rounded-xl sm:rounded-lg border border-slate-200 flex items-center gap-1 sm:gap-0 text-xs overflow-x-auto max-w-full">
           {(['ALL', 'YEAR', 'MONTH', 'WEEK', 'TODAY'] as DateFilter[]).map((period) => (
             <button
               key={period}
               type="button"
               onClick={() => setDateFilter(period)}
-              className={`px-2.5 py-1 rounded-md font-montserrat font-bold text-[11px] transition cursor-pointer whitespace-nowrap ${
+              className={`min-h-[38px] sm:min-h-0 px-3 sm:px-2.5 py-1.5 sm:py-1 rounded-lg sm:rounded-md font-montserrat font-bold text-xs sm:text-[11px] transition cursor-pointer whitespace-nowrap ${
                 dateFilter === period
                   ? 'bg-[#0A006E] text-[#FFDE00]'
                   : 'text-slate-600 hover:text-slate-900'
@@ -1484,12 +1484,12 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
         </div>
 
         <div className="flex items-center gap-2">
-          <Filter className="w-3.5 h-3.5 text-slate-400" />
+          <Filter className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-slate-400" />
           <select
             aria-label="Filter by Branch"
             value={selectedBranchFilter}
             onChange={(e) => setSelectedBranchFilter(e.target.value)}
-            className="px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-montserrat font-semibold text-[#0A006E] cursor-pointer"
+            className="min-h-[40px] sm:min-h-0 px-3 sm:px-2.5 py-2 sm:py-1 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-lg text-xs font-montserrat font-semibold text-[#0A006E] cursor-pointer"
           >
             <option value="ALL">All Branches</option>
             {branches.map((b) => (
@@ -1512,15 +1512,15 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
           {isKpiVisible('net_revenue') && (
             <div
               onClick={() => setActiveTab('sales')}
-              className="beta-kpi-card rounded-xl p-3.5 cursor-pointer"
+              className="beta-kpi-card rounded-xl p-4 cursor-pointer"
             >
-              <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
+              <div className="text-xs font-montserrat font-semibold text-slate-500 truncate">
                 Net Revenue
               </div>
-              <div className="text-base sm:text-lg font-montserrat font-black text-[#0A006E] font-mono-tabular mt-0.5 truncate">
+              <div className="text-xl sm:text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1 truncate">
                 {formatKes(salesMetrics.netCommercialSales)}
               </div>
-              <div className="text-[11px] text-slate-500 mt-0.5 truncate">
+              <div className="text-xs text-slate-600 font-mono-tabular mt-1 truncate">
                 {salesMetrics.completedOrdersCount} orders
               </div>
             </div>
@@ -1529,33 +1529,33 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
           {isKpiVisible('expenses') && (
             <div
               onClick={() => setActiveTab('expenses')}
-              className="beta-kpi-card rounded-xl p-3.5 cursor-pointer"
+              className="beta-kpi-card rounded-xl p-4 cursor-pointer"
             >
-              <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
+              <div className="text-xs font-montserrat font-semibold text-slate-500 truncate">
                 Total Expenses
               </div>
-              <div className="text-base sm:text-lg font-montserrat font-black text-rose-700 font-mono-tabular mt-0.5 truncate">
+              <div className="text-xl sm:text-2xl font-extrabold text-rose-700 font-mono-tabular mt-1 truncate">
                 {formatKes(financialSummary.totalExpenses)}
               </div>
-              <div className="text-[11px] text-slate-500 mt-0.5 truncate">
+              <div className="text-xs text-slate-600 font-mono-tabular mt-1 truncate">
                 {filteredExpenses.length} expense vouchers
               </div>
             </div>
           )}
 
           {isKpiVisible('net_profit') && (
-            <div className="beta-kpi-card rounded-xl p-3.5">
-              <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
+            <div className="beta-kpi-card rounded-xl p-4">
+              <div className="text-xs font-montserrat font-semibold text-slate-500 truncate">
                 {financialSummary.netProfit < 0 ? 'Net Deficit' : 'Net Profit'}
               </div>
               <div
-                className={`text-base sm:text-lg font-montserrat font-black font-mono-tabular mt-0.5 truncate ${
+                className={`text-xl sm:text-2xl font-extrabold font-mono-tabular mt-1 truncate ${
                   financialSummary.netProfit < 0 ? 'text-rose-700' : 'text-emerald-700'
                 }`}
               >
                 {formatKes(financialSummary.netProfit)}
               </div>
-              <div className="text-[11px] text-slate-500 mt-0.5 truncate">
+              <div className="text-xs text-slate-600 font-mono-tabular mt-1 truncate">
                 {financialSummary.netProfitMargin.toFixed(1)}% net margin
               </div>
             </div>
@@ -1564,15 +1564,15 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
           {isKpiVisible('pending_ar') && (
             <div
               onClick={() => setActiveTab('cheques')}
-              className="beta-kpi-card rounded-xl p-3.5 cursor-pointer"
+              className="beta-kpi-card rounded-xl p-4 cursor-pointer"
             >
-              <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
+              <div className="text-xs font-montserrat font-semibold text-slate-500 truncate">
                 Pending Cheques &amp; A/R
               </div>
-              <div className="text-base sm:text-lg font-montserrat font-black text-amber-800 font-mono-tabular mt-0.5 truncate">
+              <div className="text-xl sm:text-2xl font-extrabold text-amber-800 font-mono-tabular mt-1 truncate">
                 {formatKes(chequeStats.processingTotal + salesMetrics.accountsReceivable)}
               </div>
-              <div className="text-[11px] text-slate-500 mt-0.5 truncate">
+              <div className="text-xs text-slate-600 font-mono-tabular mt-1 truncate">
                 {chequeStats.processingDocs.length} processing cheque(s)
               </div>
             </div>
@@ -1581,15 +1581,15 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
           {isKpiVisible('stock_asset') && (
             <div
               onClick={() => setActiveTab('stock')}
-              className="beta-kpi-card rounded-xl p-3.5 cursor-pointer"
+              className="beta-kpi-card rounded-xl p-4 cursor-pointer"
             >
-              <div className="text-[11px] font-montserrat font-semibold text-slate-500 truncate">
+              <div className="text-xs font-montserrat font-semibold text-slate-500 truncate">
                 Stock Valuation
               </div>
-              <div className="text-base sm:text-lg font-montserrat font-black text-emerald-700 font-mono-tabular mt-0.5 truncate">
+              <div className="text-xl sm:text-2xl font-extrabold text-emerald-700 font-mono-tabular mt-1 truncate">
                 {formatKes(stockMetrics.totalStockCost)}
               </div>
-              <div className="text-[11px] text-slate-500 mt-0.5 truncate">
+              <div className="text-xs text-slate-600 font-mono-tabular mt-1 truncate">
                 {stockMetrics.totalBottlesInBond.toLocaleString()} btls in bond
               </div>
             </div>
@@ -1598,11 +1598,11 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
       )}
 
       {/* CLEAN FINANCE NAVIGATION TABS */}
-      <div className="flex items-center gap-1.5 border-b border-slate-200 overflow-x-auto pb-1.5">
+      <div className="flex items-center gap-2 sm:gap-1.5 border-b border-slate-200 overflow-x-auto pb-2 sm:pb-1.5">
         <button
           type="button"
           onClick={() => setActiveTab('summary')}
-          className={`beta-action-tile relative px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+          className={`beta-action-tile relative min-h-[44px] sm:min-h-0 px-4 py-2.5 sm:px-3 sm:py-1.5 rounded-xl sm:rounded-lg font-montserrat font-bold text-xs flex items-center gap-2 sm:gap-1.5 cursor-pointer whitespace-nowrap ${
             activeTab === 'summary'
               ? 'text-[#FFDE00]'
               : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -1612,11 +1612,11 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
             <motion.span
               layoutId="accountant-tab-pill"
               transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-              className="absolute inset-0 bg-[#0A006E] rounded-lg"
+              className="absolute inset-0 bg-[#0A006E] rounded-xl sm:rounded-lg"
             />
           )}
-          <span className="relative z-10 flex items-center gap-1.5">
-            <BarChart3 className="w-3.5 h-3.5" />
+          <span className="relative z-10 flex items-center gap-2 sm:gap-1.5">
+            <BarChart3 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
             Overview
           </span>
         </button>
@@ -1624,7 +1624,7 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
         <button
           type="button"
           onClick={() => setActiveTab('cheques')}
-          className={`beta-action-tile relative px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+          className={`beta-action-tile relative min-h-[44px] sm:min-h-0 px-4 py-2.5 sm:px-3 sm:py-1.5 rounded-xl sm:rounded-lg font-montserrat font-bold text-xs flex items-center gap-2 sm:gap-1.5 cursor-pointer whitespace-nowrap ${
             activeTab === 'cheques'
               ? 'text-[#FFDE00]'
               : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -1634,11 +1634,11 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
             <motion.span
               layoutId="accountant-tab-pill"
               transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-              className="absolute inset-0 bg-[#0A006E] rounded-lg"
+              className="absolute inset-0 bg-[#0A006E] rounded-xl sm:rounded-lg"
             />
           )}
-          <span className="relative z-10 flex items-center gap-1.5">
-            <FileCheck2 className="w-3.5 h-3.5" />
+          <span className="relative z-10 flex items-center gap-2 sm:gap-1.5">
+            <FileCheck2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
             Cheques &amp; POs ({chequeStats.allChequeDocs.length})
             {chequeStats.processingDocs.length > 0 && (
               <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-[#0A006E]">
@@ -1651,7 +1651,7 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
         <button
           type="button"
           onClick={() => setActiveTab('expenses')}
-          className={`beta-action-tile relative px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+          className={`beta-action-tile relative min-h-[44px] sm:min-h-0 px-4 py-2.5 sm:px-3 sm:py-1.5 rounded-xl sm:rounded-lg font-montserrat font-bold text-xs flex items-center gap-2 sm:gap-1.5 cursor-pointer whitespace-nowrap ${
             activeTab === 'expenses'
               ? 'text-[#FFDE00]'
               : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -1661,11 +1661,11 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
             <motion.span
               layoutId="accountant-tab-pill"
               transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-              className="absolute inset-0 bg-[#0A006E] rounded-lg"
+              className="absolute inset-0 bg-[#0A006E] rounded-xl sm:rounded-lg"
             />
           )}
-          <span className="relative z-10 flex items-center gap-1.5">
-            <Wallet className="w-3.5 h-3.5" />
+          <span className="relative z-10 flex items-center gap-2 sm:gap-1.5">
+            <Wallet className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
             Expenses ({filteredExpenses.length})
           </span>
         </button>
@@ -1673,7 +1673,7 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
         <button
           type="button"
           onClick={() => setActiveTab('sales')}
-          className={`beta-action-tile relative px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+          className={`beta-action-tile relative min-h-[44px] sm:min-h-0 px-4 py-2.5 sm:px-3 sm:py-1.5 rounded-xl sm:rounded-lg font-montserrat font-bold text-xs flex items-center gap-2 sm:gap-1.5 cursor-pointer whitespace-nowrap ${
             activeTab === 'sales'
               ? 'text-[#FFDE00]'
               : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -1683,11 +1683,11 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
             <motion.span
               layoutId="accountant-tab-pill"
               transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-              className="absolute inset-0 bg-[#0A006E] rounded-lg"
+              className="absolute inset-0 bg-[#0A006E] rounded-xl sm:rounded-lg"
             />
           )}
-          <span className="relative z-10 flex items-center gap-1.5">
-            <DollarSign className="w-3.5 h-3.5" />
+          <span className="relative z-10 flex items-center gap-2 sm:gap-1.5">
+            <DollarSign className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
             Sales &amp; Tenders
           </span>
         </button>
@@ -1695,7 +1695,7 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
         <button
           type="button"
           onClick={() => setActiveTab('stock')}
-          className={`beta-action-tile relative px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+          className={`beta-action-tile relative min-h-[44px] sm:min-h-0 px-4 py-2.5 sm:px-3 sm:py-1.5 rounded-xl sm:rounded-lg font-montserrat font-bold text-xs flex items-center gap-2 sm:gap-1.5 cursor-pointer whitespace-nowrap ${
             activeTab === 'stock'
               ? 'text-[#FFDE00]'
               : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -1705,11 +1705,11 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
             <motion.span
               layoutId="accountant-tab-pill"
               transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-              className="absolute inset-0 bg-[#0A006E] rounded-lg"
+              className="absolute inset-0 bg-[#0A006E] rounded-xl sm:rounded-lg"
             />
           )}
-          <span className="relative z-10 flex items-center gap-1.5">
-            <Package className="w-3.5 h-3.5" />
+          <span className="relative z-10 flex items-center gap-2 sm:gap-1.5">
+            <Package className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
             Stock Valuation
           </span>
         </button>
@@ -1717,7 +1717,7 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
         <button
           type="button"
           onClick={() => setActiveTab('deadstock_damages')}
-          className={`beta-action-tile relative px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+          className={`beta-action-tile relative min-h-[44px] sm:min-h-0 px-4 py-2.5 sm:px-3 sm:py-1.5 rounded-xl sm:rounded-lg font-montserrat font-bold text-xs flex items-center gap-2 sm:gap-1.5 cursor-pointer whitespace-nowrap ${
             activeTab === 'deadstock_damages'
               ? 'text-[#FFDE00]'
               : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -1727,11 +1727,11 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
             <motion.span
               layoutId="accountant-tab-pill"
               transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-              className="absolute inset-0 bg-[#0A006E] rounded-lg"
+              className="absolute inset-0 bg-[#0A006E] rounded-xl sm:rounded-lg"
             />
           )}
-          <span className="relative z-10 flex items-center gap-1.5">
-            <PackageX className="w-3.5 h-3.5" />
+          <span className="relative z-10 flex items-center gap-2 sm:gap-1.5">
+            <PackageX className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
             Write-Offs
           </span>
         </button>
@@ -1739,7 +1739,7 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
         <button
           type="button"
           onClick={() => setActiveTab('tax_credit')}
-          className={`beta-action-tile relative px-3 py-1.5 rounded-lg font-montserrat font-bold text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+          className={`beta-action-tile relative min-h-[44px] sm:min-h-0 px-4 py-2.5 sm:px-3 sm:py-1.5 rounded-xl sm:rounded-lg font-montserrat font-bold text-xs flex items-center gap-2 sm:gap-1.5 cursor-pointer whitespace-nowrap ${
             activeTab === 'tax_credit'
               ? 'text-[#FFDE00]'
               : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -1749,11 +1749,11 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
             <motion.span
               layoutId="accountant-tab-pill"
               transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-              className="absolute inset-0 bg-[#0A006E] rounded-lg"
+              className="absolute inset-0 bg-[#0A006E] rounded-xl sm:rounded-lg"
             />
           )}
-          <span className="relative z-10 flex items-center gap-1.5">
-            <ShieldAlert className="w-3.5 h-3.5" />
+          <span className="relative z-10 flex items-center gap-2 sm:gap-1.5">
+            <ShieldAlert className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
             KRA Tax &amp; A/R
           </span>
         </button>
@@ -1810,16 +1810,18 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
               <div className="text-[10px] font-montserrat font-bold text-slate-400 uppercase tracking-wider px-0.5">
                 Finance Workspaces (Tap to Open)
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-2.5">
                 <button
                   type="button"
                   onClick={() => setActiveTab('cheques')}
-                  className="p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer transition"
+                  className="beta-action-tile p-4 sm:p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-xl text-left flex flex-col justify-between gap-2.5 cursor-pointer transition"
                 >
-                  <FileCheck2 className="w-4 h-4 text-amber-600" />
+                  <div className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                    <FileCheck2 className="w-6 h-6 sm:w-4.5 sm:h-4.5" />
+                  </div>
                   <div>
-                    <div className="text-xs font-montserrat font-bold text-slate-900">Cheques &amp; Client POs</div>
-                    <div className="text-[11px] text-slate-500 font-mono-tabular">
+                    <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900">Cheques &amp; Client POs</div>
+                    <div className="text-xs text-slate-600 font-mono-tabular font-semibold">
                       {chequeStats.processingDocs.length} processing · {chequeStats.allChequeDocs.length} total
                     </div>
                   </div>
@@ -1828,12 +1830,14 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
                 <button
                   type="button"
                   onClick={() => setActiveTab('expenses')}
-                  className="p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer transition"
+                  className="beta-action-tile p-4 sm:p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-xl text-left flex flex-col justify-between gap-2.5 cursor-pointer transition"
                 >
-                  <Wallet className="w-4 h-4 text-rose-600" />
+                  <div className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                    <Wallet className="w-6 h-6 sm:w-4.5 sm:h-4.5" />
+                  </div>
                   <div>
-                    <div className="text-xs font-montserrat font-bold text-slate-900">Operating Expenses</div>
-                    <div className="text-[11px] text-slate-500 font-mono-tabular">
+                    <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900">Operating Expenses</div>
+                    <div className="text-xs text-slate-600 font-mono-tabular font-semibold">
                       {filteredExpenses.length} vouchers · {formatKes(expenseMetrics.totalRecorded)}
                     </div>
                   </div>
@@ -1842,12 +1846,14 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
                 <button
                   type="button"
                   onClick={() => setActiveTab('sales')}
-                  className="p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer transition"
+                  className="beta-action-tile p-4 sm:p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-xl text-left flex flex-col justify-between gap-2.5 cursor-pointer transition"
                 >
-                  <DollarSign className="w-4 h-4 text-[#0A006E]" />
+                  <div className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-[#0A006E]/10 text-[#0A006E] flex items-center justify-center">
+                    <DollarSign className="w-6 h-6 sm:w-4.5 sm:h-4.5" />
+                  </div>
                   <div>
-                    <div className="text-xs font-montserrat font-bold text-slate-900">Sales &amp; Tenders</div>
-                    <div className="text-[11px] text-slate-500 font-mono-tabular">
+                    <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900">Sales &amp; Tenders</div>
+                    <div className="text-xs text-slate-600 font-mono-tabular font-semibold">
                       {salesMetrics.completedOrdersCount} orders · {formatKes(salesMetrics.grossSales)}
                     </div>
                   </div>
@@ -1856,12 +1862,14 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
                 <button
                   type="button"
                   onClick={() => setActiveTab('stock')}
-                  className="p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer transition"
+                  className="beta-action-tile p-4 sm:p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-xl text-left flex flex-col justify-between gap-2.5 cursor-pointer transition"
                 >
-                  <Package className="w-4 h-4 text-emerald-600" />
+                  <div className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                    <Package className="w-6 h-6 sm:w-4.5 sm:h-4.5" />
+                  </div>
                   <div>
-                    <div className="text-xs font-montserrat font-bold text-slate-900">Stock Valuation</div>
-                    <div className="text-[11px] text-slate-500 font-mono-tabular">
+                    <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900">Stock Valuation</div>
+                    <div className="text-xs text-slate-600 font-mono-tabular font-semibold">
                       {stockMetrics.totalBottlesInBond.toLocaleString()} btls · {formatKes(stockMetrics.totalStockCost)}
                     </div>
                   </div>
@@ -1870,12 +1878,14 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
                 <button
                   type="button"
                   onClick={() => setActiveTab('deadstock_damages')}
-                  className="p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer transition"
+                  className="beta-action-tile p-4 sm:p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-xl text-left flex flex-col justify-between gap-2.5 cursor-pointer transition"
                 >
-                  <PackageX className="w-4 h-4 text-amber-700" />
+                  <div className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
+                    <PackageX className="w-6 h-6 sm:w-4.5 sm:h-4.5" />
+                  </div>
                   <div>
-                    <div className="text-xs font-montserrat font-bold text-slate-900">Write-Offs &amp; Idle</div>
-                    <div className="text-[11px] text-slate-500 font-mono-tabular">
+                    <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900">Write-Offs &amp; Idle</div>
+                    <div className="text-xs text-slate-600 font-mono-tabular font-semibold">
                       {stockMetrics.deadStockItems.length} idle SKUs · {formatKes(stockMetrics.totalWriteOffs)}
                     </div>
                   </div>
@@ -1884,12 +1894,14 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
                 <button
                   type="button"
                   onClick={() => setActiveTab('tax_credit')}
-                  className="p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-xl text-left flex flex-col justify-between gap-2 cursor-pointer transition"
+                  className="beta-action-tile p-4 sm:p-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#0A006E] rounded-2xl sm:rounded-xl text-left flex flex-col justify-between gap-2.5 cursor-pointer transition"
                 >
-                  <ShieldAlert className="w-4 h-4 text-indigo-600" />
+                  <div className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <ShieldAlert className="w-6 h-6 sm:w-4.5 sm:h-4.5" />
+                  </div>
                   <div>
-                    <div className="text-xs font-montserrat font-bold text-slate-900">KRA Tax &amp; A/R</div>
-                    <div className="text-[11px] text-slate-500 font-mono-tabular">
+                    <div className="text-sm sm:text-xs font-montserrat font-bold text-slate-900">KRA Tax &amp; A/R</div>
+                    <div className="text-xs text-slate-600 font-mono-tabular font-semibold">
                       VAT {formatKes(taxMetrics.estimatedVatPayable)}
                     </div>
                   </div>
@@ -2054,10 +2066,10 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
                 </span>
                 <Clock className="w-4 h-4 text-amber-700" />
               </div>
-              <div className="text-xl font-montserrat font-black text-amber-950 font-mono-tabular mt-1">
+              <div className="text-2xl font-extrabold text-amber-950 font-mono-tabular mt-1">
                 {formatKes(chequeStats.processingTotal)}
               </div>
-              <div className="text-[11px] text-amber-800 mt-0.5">
+              <div className="text-xs text-amber-800 mt-0.5">
                 {chequeStats.processingDocs.length} cheque{chequeStats.processingDocs.length === 1 ? '' : 's'} awaiting maturity
               </div>
             </button>
@@ -2072,15 +2084,15 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-montserrat font-black text-emerald-900 uppercase">
+                <span className="text-xs font-montserrat font-black text-emerald-900 uppercase">
                   Paid (Cleared Cheques)
                 </span>
                 <CheckCircle2 className="w-4 h-4 text-emerald-700" />
               </div>
-              <div className="text-xl font-montserrat font-black text-emerald-950 font-mono-tabular mt-1">
+              <div className="text-2xl font-extrabold text-emerald-950 font-mono-tabular mt-1">
                 {formatKes(chequeStats.paidTotal)}
               </div>
-              <div className="text-[11px] text-emerald-800 mt-0.5">
+              <div className="text-xs text-emerald-800 mt-0.5">
                 {chequeStats.paidDocs.length} cleared &amp; settled
               </div>
             </button>
@@ -2095,15 +2107,15 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-montserrat font-black text-rose-900 uppercase">
+                <span className="text-xs font-montserrat font-black text-rose-900 uppercase">
                   Rejected (Returned Cheques)
                 </span>
                 <XCircle className="w-4 h-4 text-rose-700" />
               </div>
-              <div className="text-xl font-montserrat font-black text-rose-950 font-mono-tabular mt-1">
+              <div className="text-2xl font-extrabold text-rose-950 font-mono-tabular mt-1">
                 {formatKes(chequeStats.rejectedTotal)}
               </div>
-              <div className="text-[11px] text-rose-800 mt-0.5">
+              <div className="text-xs text-rose-800 mt-0.5">
                 {chequeStats.rejectedDocs.length} bounced / excluded from revenue
               </div>
             </button>
@@ -3113,10 +3125,10 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
               </div>
               <div className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-1">
                 <div className="text-xs text-slate-500">Landed Asset Capital (Customs &amp; Shipping Paid):</div>
-                <div className="text-xl font-montserrat font-black text-[#0A006E] font-mono-tabular">
+                <div className="text-2xl font-extrabold text-[#0A006E] font-mono-tabular">
                   {formatKes(stockMetrics.ipsCost)}
                 </div>
-                <div className="text-[11px] text-slate-500">
+                <div className="text-xs text-slate-600 font-mono-tabular">
                   Share of Total Inventory: {stockMetrics.totalStockCost > 0 ? ((stockMetrics.ipsCost / stockMetrics.totalStockCost) * 100).toFixed(1) : 0}%
                 </div>
               </div>
@@ -3134,17 +3146,17 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
                 </div>
                 <div className="text-right">
                   <div className="text-xs text-slate-500 font-bold">Total LPS Bottles:</div>
-                  <div className="text-sm font-bold text-slate-900 font-mono-tabular">
+                  <div className="text-base font-bold text-slate-900 font-mono-tabular">
                     {stockMetrics.lpsBottles.toLocaleString()} Btls
                   </div>
                 </div>
               </div>
               <div className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-1">
                 <div className="text-xs text-slate-500">Warehouse Purchase Capital:</div>
-                <div className="text-xl font-montserrat font-black text-amber-800 font-mono-tabular">
+                <div className="text-2xl font-extrabold text-amber-800 font-mono-tabular">
                   {formatKes(stockMetrics.lpsCost)}
                 </div>
-                <div className="text-[11px] text-slate-500">
+                <div className="text-xs text-slate-600 font-mono-tabular">
                   Share of Total Inventory: {stockMetrics.totalStockCost > 0 ? ((stockMetrics.lpsCost / stockMetrics.totalStockCost) * 100).toFixed(1) : 0}%
                 </div>
               </div>
@@ -3349,10 +3361,10 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
                     <div className="text-[11px] text-slate-500">Calculated on net commercial turnover (Gross - Credit Notes)</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-base font-black font-montserrat text-[#0A006E] font-mono-tabular">
+                    <div className="text-lg sm:text-xl font-extrabold text-[#0A006E] font-mono-tabular">
                       {formatKes(taxMetrics.estimatedVatPayable)}
                     </div>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
+                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
                       Payable 20th Monthly
                     </span>
                   </div>
@@ -3361,13 +3373,13 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
                 <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex items-center justify-between">
                   <div>
                     <div className="font-bold text-slate-800">KRA Digital Excise Stamps / Spirits Duty:</div>
-                    <div className="text-[11px] text-slate-500">Excise stamps duty verified on IPS spirits &amp; liqueurs</div>
+                    <div className="text-xs text-slate-500">Excise stamps duty verified on IPS spirits &amp; liqueurs</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-base font-black font-montserrat text-slate-900 font-mono-tabular">
+                    <div className="text-lg sm:text-xl font-extrabold text-slate-900 font-mono-tabular">
                       {formatKes(taxMetrics.estimatedExciseLiability)}
                     </div>
-                    <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded">
+                    <span className="text-[11px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded">
                       Bonded / Cleared
                     </span>
                   </div>
@@ -3376,13 +3388,13 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
                 <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex items-center justify-between">
                   <div>
                     <div className="font-bold text-slate-800">Staff Statutory Payroll Deductions:</div>
-                    <div className="text-[11px] text-slate-500">PAYE, NSSF, and NHIF/SHIF withholdings from payroll</div>
+                    <div className="text-xs text-slate-500">PAYE, NSSF, and NHIF/SHIF withholdings from payroll</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-base font-black font-montserrat text-slate-900 font-mono-tabular">
+                    <div className="text-lg sm:text-xl font-extrabold text-slate-900 font-mono-tabular">
                       {formatKes(taxMetrics.totalPayrollDisbursed * 0.22)}
                     </div>
-                    <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">
+                    <span className="text-[11px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">
                       Remittance Ready
                     </span>
                   </div>
@@ -3404,30 +3416,30 @@ export const AccountantFinancialDashboard: React.FC<AccountantFinancialDashboard
                 <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex items-center justify-between">
                   <div>
                     <div className="font-bold text-slate-800">Total Outstanding Receivables:</div>
-                    <div className="text-[11px] text-slate-500">Unsettled credit invoices awaiting bank clearance</div>
+                    <div className="text-xs text-slate-500">Unsettled credit invoices awaiting bank clearance</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-base font-black font-montserrat text-[#0A006E] font-mono-tabular">
+                    <div className="text-lg sm:text-xl font-extrabold text-[#0A006E] font-mono-tabular">
                       {formatKes(salesMetrics.accountsReceivable)}
                     </div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-white p-3 rounded-xl border border-slate-200">
-                    <div className="text-[11px] font-bold text-emerald-800">Current (0 - 30 Days):</div>
-                    <div className="text-sm font-black text-slate-900 font-mono-tabular mt-1">
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200">
+                    <div className="text-xs font-bold text-emerald-800">Current (0 - 30 Days):</div>
+                    <div className="text-base sm:text-lg font-extrabold text-slate-900 font-mono-tabular mt-1">
                       {formatKes(Math.max(0, salesMetrics.accountsReceivable - salesMetrics.overdueReceivable))}
                     </div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">Within standard terms</div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">Within standard terms</div>
                   </div>
 
-                  <div className="bg-white p-3 rounded-xl border border-slate-200">
-                    <div className="text-[11px] font-bold text-rose-700">Overdue (30+ Days Risk):</div>
-                    <div className="text-sm font-black text-rose-700 font-mono-tabular mt-1">
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200">
+                    <div className="text-xs font-bold text-rose-700">Overdue (30+ Days Risk):</div>
+                    <div className="text-base sm:text-lg font-extrabold text-rose-700 font-mono-tabular mt-1">
                       {formatKes(salesMetrics.overdueReceivable)}
                     </div>
-                    <div className="text-[10px] text-rose-500 mt-0.5">Follow-up required</div>
+                    <div className="text-[11px] text-rose-600 mt-0.5">Follow-up required</div>
                   </div>
                 </div>
               </div>
