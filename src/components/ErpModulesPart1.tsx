@@ -1860,6 +1860,61 @@ export const OverviewModule: React.FC<{
           }
         />
 
+        {/* Friendly Non-Tech Welcome & Quick Action Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+          className="beta-kpi-card rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-2 border-[#0A006E]/15 shadow-sm bg-gradient-to-r from-white via-slate-50/50 to-emerald-50/30"
+        >
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#0A006E] to-[#2416B8] text-[#FFDE00] flex items-center justify-center shrink-0 shadow-md font-montserrat font-black text-sm">
+              {currentUser.name.slice(0, 2).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-sm sm:text-base font-montserrat font-black text-slate-900 truncate tracking-tight">
+                  Welcome back, {currentUser.name}
+                </h2>
+                <span className="beta-badge">
+                  <Sparkles className="w-2.5 h-2.5" />
+                  <span>{currentUser.role} Hub</span>
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 font-medium truncate mt-0.5">
+                {currentUser.branchName || 'Central Headquarters'} · Tap any quick button below to manage operations instantly.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('retail_pos')}
+              className="beta-action-tile px-3.5 py-2 bg-[#0A006E] text-[#FFDE00] rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <ShoppingCart className="w-4 h-4 shrink-0" />
+              <span>Quick POS</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => selectAdminFocusSection('delivery_queue')}
+              className="beta-action-tile px-3.5 py-2 bg-cyan-700 hover:bg-cyan-800 text-white rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Truck className="w-4 h-4 shrink-0" />
+              <span>Deliveries</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateModule?.('inventory')}
+              className="beta-action-tile px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Package className="w-4 h-4 shrink-0" />
+              <span>Inventory</span>
+            </button>
+          </div>
+        </motion.div>
+
         {/* Compact KPI Strip */}
         {(isWidgetVisible('kpi_strip') || currentUser.role === 'Branch Manager') && (
           <motion.div
