@@ -45,6 +45,7 @@ import {
   Key,
   Inbox,
   Calendar,
+  Barcode,
 } from 'lucide-react';
 import { ERPModuleId, StaffMember, Branch, Product, TransactionDoc } from '../types';
 import { formatKes, exportToCSV } from '../erpUtils';
@@ -80,6 +81,7 @@ const MODULE_NAV_DEFINITIONS: Record<
   retail_pos: { label: 'Retail Counter POS', shortLabel: 'Retail', icon: Store },
   sales_pos: { label: 'B2B Wholesale POS', shortLabel: 'Wholesale', icon: Briefcase },
   inventory: { label: 'Inventory (IPS/LPS)', shortLabel: 'Inventory', icon: Package },
+  onboard_items: { label: 'Onboard Items & Activation', shortLabel: 'Onboard', icon: Barcode },
   branches_transfers: { label: 'Branches & Transfers', shortLabel: 'Branches', icon: Building2 },
   geo_pricing: { label: 'Geo-Location Pricing', shortLabel: 'Pricing', icon: MapPin },
   partners: { label: 'Partners & Logistics', shortLabel: 'Partners', icon: Users },
@@ -281,7 +283,7 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
           ===================================================================== */}
       <nav
         aria-label="Desktop ERP Operational Dock"
-        className="hidden md:flex relative sticky bottom-0 z-30 bg-white px-4 sm:px-6 h-20 min-h-[5rem] items-center justify-between shadow-[0_-8px_24px_rgba(10,0,110,0.08)] select-none"
+        className="hidden md:flex relative sticky bottom-0 z-30 bg-[#E8ECED] px-4 sm:px-6 h-20 min-h-[5rem] items-center justify-between shadow-[0_-8px_24px_rgba(10,0,110,0.08)] select-none"
       >
         {/* Single Wave Design at the top edge */}
         <div className="absolute left-0 right-0 -top-8 sm:-top-9 w-full leading-none pointer-events-none z-30">
@@ -290,7 +292,7 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
             preserveAspectRatio="none"
             className="w-full h-8 sm:h-9 block drop-shadow-[0_-5px_10px_rgba(10,0,110,0.08)]"
           >
-            <path d="M0,71 L1200,71 L1200,54 C760,2 340,68 0,22 Z" fill="#ffffff" />
+            <path d="M0,71 L1200,71 L1200,54 C760,2 340,68 0,22 Z" fill="#E8ECED" />
             <path
               d="M0,22 C340,68 760,2 1200,54"
               fill="none"
