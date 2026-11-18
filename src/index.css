@@ -40,12 +40,12 @@
 
 :root {
   --font-heading: 'Montserrat', sans-serif;
-  --font-body: 'Raleway', sans-serif;
+  --font-body: 'DM Sans', 'Plus Jakarta Sans', sans-serif;
   font-variant-numeric: tabular-nums lining-nums;
 }
 
 body {
-  font-family: 'Raleway', sans-serif;
+  font-family: 'DM Sans', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background-color: #FFFFFF;
   color: #0f172a;
   font-variant-numeric: tabular-nums lining-nums;
@@ -69,23 +69,22 @@ body {
 }
 
 .font-raleway {
-  font-family: 'Raleway', sans-serif;
+  font-family: 'DM Sans', 'Plus Jakarta Sans', sans-serif;
 }
 
 .font-jakarta {
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .font-jakarta-bold {
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-  font-weight: 700 !important;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-weight: 700;
 }
 
 /* ==========================================================================
-   ENTERPRISE TYPOGRAPHY: PLUS JAKARTA SANS BOLD PRICING & DIGITS
+   ENTERPRISE TYPOGRAPHY: CRISP, LEGIBLE TABULAR FIGURES & PRICING
    ========================================================================== */
 
-/* Ensure all numbers, currency figures, and tabular digits render in Plus Jakarta Sans Bold */
 input[type="number"],
 input[inputmode="numeric"],
 input[inputmode="decimal"],
@@ -97,79 +96,52 @@ div.tabular-nums {
   font-variant-numeric: tabular-nums lining-nums;
 }
 
-/* Specific styling for all digits, pricing figures, KES currency amounts & counters */
+/* Crisp Plus Jakarta Sans tabular figures with clean spacing and zero tiny diagonal-fractions */
 .font-mono,
-.font-mono *,
 .font-mono-tabular,
-.font-mono-tabular *,
 .tabular-nums,
-.tabular-nums *,
 .font-jakarta,
 .font-jakarta-bold,
 [class*="font-mono"],
-[class*="price"],
-[class*="price"] *,
-[class*="kes"],
-[class*="kes"] *,
-[class*="amount"],
-[class*="amount"] *,
-[class*="currency"],
-[class*="currency"] *,
 .price-tag,
 .currency-kes {
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-  font-weight: 700 !important;
-  font-variant-numeric: tabular-nums lining-nums diagonal-fractions !important;
-  letter-spacing: -0.01em;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: 0.005em;
 }
 
-/* Heaviest figures in KPI dashboards, executive summaries, and prominent hero amounts */
+/* Clear weight hierarchy for numeric displays */
 .font-mono.font-black,
 .font-mono-tabular.font-black,
-.font-black .font-mono,
-.font-black .font-mono-tabular,
 .font-black.font-mono,
 .font-black.font-mono-tabular,
-[class*="price"].font-black,
-[class*="amount"].font-black,
-.font-mono.font-black *,
-.font-mono-tabular.font-black * {
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-  font-weight: 800 !important;
-}
-
 .font-mono.font-extrabold,
-.font-mono-tabular.font-extrabold,
-[class*="price"].font-extrabold,
-[class*="amount"].font-extrabold {
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-  font-weight: 800 !important;
+.font-mono-tabular.font-extrabold {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.005em;
 }
 
 .font-mono.font-bold,
-.font-mono-tabular.font-bold,
-[class*="price"].font-bold,
-[class*="amount"].font-bold {
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-  font-weight: 700 !important;
+.font-mono-tabular.font-bold {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-weight: 700;
 }
 
-/* Ensure bold font weight for all figures across table rows, stats, and badges */
+/* Ensure table numeric columns remain crisp and readable (minimum 13px) */
 td.font-mono,
-td.font-mono-tabular,
-th.font-mono,
-th.font-mono-tabular,
-span.font-mono,
-span.font-mono-tabular,
-div.font-mono,
-div.font-mono-tabular,
-p.font-mono,
-p.font-mono-tabular,
-span[class*="font-mono"],
-div[class*="font-mono"] {
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-  font-weight: 700 !important;
-  font-variant-numeric: tabular-nums lining-nums !important;
+td.font-mono-tabular {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* Prevent KPI headline numbers from looking undersized inside dashboard KPI cards */
+.beta-kpi-card .font-mono-tabular.font-black,
+.beta-kpi-card .font-mono.font-black {
+  line-height: 1.25;
+  letter-spacing: -0.01em;
 }
 
 /* Custom scrollbars for high density ERP data */
@@ -561,6 +533,49 @@ div.bg-white.rounded-xl:not(.fixed *):hover,
   button:not(:disabled) {
     transition: none !important;
   }
+}
+
+/* Mobile App-Like Touch Targets & Tactile Feedback (< 768px) */
+@media (max-width: 767px) {
+  .beta-action-tile {
+    min-height: 46px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .beta-action-tile:active {
+    transform: scale(0.97);
+  }
+
+  .beta-header-bar button {
+    min-height: 42px;
+    font-size: 0.8125rem;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Clean full-bleed camera viewfinder styling (suppress library shaded box clutter) */
+#phone-barcode-video-canvas,
+#phone-companion-camera-canvas,
+#inventory-camera-viewfinder {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+
+#phone-barcode-video-canvas video,
+#phone-companion-camera-canvas video,
+#inventory-camera-viewfinder video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block;
+}
+
+#phone-barcode-video-canvas #qr-shaded-region,
+#phone-companion-camera-canvas #qr-shaded-region,
+#inventory-camera-viewfinder #qr-shaded-region {
+  display: none !important;
 }
 
 /* Print optimization for receipts, invoices, packing lists, delivery notes, quotes, and credit notes */

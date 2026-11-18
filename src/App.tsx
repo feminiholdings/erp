@@ -5307,6 +5307,16 @@ export default function App() {
                     </span>
                   </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileDrawerOpen(false);
+                    setShowUserProfileModal(true);
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl bg-white border border-slate-300 hover:border-[#0A006E] text-[#0A006E] text-xs font-montserrat font-bold cursor-pointer shrink-0 transition"
+                >
+                  Profile
+                </button>
               </div>
 
               {/* User Account Details */}
