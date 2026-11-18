@@ -807,6 +807,14 @@ export const PosViews: React.FC<PosViewsProps> = ({
     triggerScanHaptic();
     setActivatedProductIds((prev) => (prev.includes(product.id) ? prev : [product.id, ...prev]));
     const defaultUnitMode: 'Bottle' | 'Case' = mode === 'wholesale' ? 'Case' : 'Bottle';
+    const geoPricing = calculateGeoPrice(
+      product,
+      activeRegion,
+      mode === 'wholesale' ? 'wholesale' : 'retail'
+    );
+    const resolvedUnitPrice =
+      defaultUnitMode === 'Case' ? geoPricing.casePrice : geoPricing.unitBottlePrice;
+
     setCart((prev) => {
       const existing = prev.find(
         (item) => item.product?.id === product.id && item.unitMode === defaultUnitMode && item.kind === 'bonded_product'
@@ -814,7 +822,7 @@ export const PosViews: React.FC<PosViewsProps> = ({
       if (existing) {
         return prev.map((item) =>
           item.product?.id === product.id && item.unitMode === defaultUnitMode && item.kind === 'bonded_product'
-            ? { ...item, quantityUnits: item.quantityUnits + 1 }
+            ? { ...item, quantityUnits: item.quantityUnits + 1, unitPrice: resolvedUnitPrice }
             : item
         );
       }
@@ -826,7 +834,7 @@ export const PosViews: React.FC<PosViewsProps> = ({
           product,
           unitMode: defaultUnitMode,
           quantityUnits: 1,
-          unitPrice: 0,
+          unitPrice: resolvedUnitPrice,
           name: product.name,
           category: product.category,
         },
@@ -920,7 +928,18 @@ export const PosViews: React.FC<PosViewsProps> = ({
       prev.map((item, idx) => {
         if (idx !== index) return item;
         if (item.kind === 'bonded_product') {
-          return { ...item, unitMode: item.unitMode === 'Bottle' ? 'Case' : 'Bottle' };
+          const nextMode: 'Bottle' | 'Case' = item.unitMode === 'Bottle' ? 'Case' : 'Bottle';
+          const nextUnitPrice = item.product
+            ? (() => {
+                const geoPricing = calculateGeoPrice(
+                  item.product,
+                  activeRegion,
+                  mode === 'wholesale' ? 'wholesale' : 'retail'
+                );
+                return nextMode === 'Case' ? geoPricing.casePrice : geoPricing.unitBottlePrice;
+              })()
+            : item.unitPrice;
+          return { ...item, unitMode: nextMode, unitPrice: nextUnitPrice };
         }
         return item;
       })
