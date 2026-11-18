@@ -470,7 +470,9 @@ const PortalProductCard: React.FC<PortalProductCardProps> = React.memo(
     prev.hasPriceAdjustment === next.hasPriceAdjustment &&
     prev.activeBranchName === next.activeBranchName &&
     prev.prod.name === next.prod.name &&
-    prev.prod.image === next.prod.image
+    prev.prod.image === next.prod.image &&
+    prev.onQuickAdd === next.onQuickAdd &&
+    prev.onPreview === next.onPreview
 );
 
 const CATEGORY_META: Record<string, { desc: string; icon: any }> = {
@@ -766,22 +768,37 @@ export const CustomerPortalView: React.FC<CustomerPortalViewProps> = ({
   // Add to Cart with regional price calculation
   const handleAddToCart = useCallback(
     (product: Product, quantity = 1, customUnitPrice?: number) => {
+      const safeQty = Math.max(1, Math.floor(Number(quantity) || 1));
       const pricing = calculateRegionalProductPrice(product, activeRegion, activeBranch);
-      const unitPrice = customUnitPrice !== undefined ? customUnitPrice : pricing.unitPrice;
+      const unitPrice =
+        customUnitPrice !== undefined && Number.isFinite(customUnitPrice) && customUnitPrice > 0
+          ? customUnitPrice
+          : pricing.unitPrice;
 
       setCart((prev) => {
         const existingIdx = prev.findIndex((item) => item.product.id === product.id);
         if (existingIdx >= 0) {
           const updated = [...prev];
-          updated[existingIdx].quantity += quantity;
-          updated[existingIdx].unitPrice = unitPrice;
+          updated[existingIdx] = {
+            ...updated[existingIdx],
+            quantity: updated[existingIdx].quantity + safeQty,
+            unitPrice,
+          };
           return updated;
         }
-        return [...prev, { product, quantity, unitPrice }];
+        return [...prev, { product, quantity: safeQty, unitPrice }];
       });
       playPosBeep('success');
     },
     [activeRegion, activeBranch]
+  );
+
+  // Single-item quick add from product card (always adds quantity 1 at the item's unit price)
+  const handleQuickAdd = useCallback(
+    (product: Product, unitPrice?: number) => {
+      handleAddToCart(product, 1, unitPrice);
+    },
+    [handleAddToCart]
   );
 
   // Modify Cart Qty
@@ -1317,7 +1334,7 @@ export const CustomerPortalView: React.FC<CustomerPortalViewProps> = ({
                     adjustmentNote={pricing.adjustmentNote}
                     activeBranchName={activeBranch.name}
                     onPreview={openProductPreview}
-                    onQuickAdd={handleAddToCart}
+                    onQuickAdd={handleQuickAdd}
                   />
                 );
               })}
@@ -1400,8 +1417,15 @@ export const CustomerPortalView: React.FC<CustomerPortalViewProps> = ({
                     </div>
                     <div className="min-w-0 flex-1">
                       <h5 className="text-xs font-bold text-slate-900 truncate">{item.product.name}</h5>
-                      <div className="text-[11px] font-black text-[#0A006E] font-mono-tabular">
-                        {formatKes(item.unitPrice)}
+                      <div className="flex items-baseline gap-1.5 flex-wrap">
+                        <span className="text-[11px] font-black text-[#0A006E] font-mono-tabular">
+                          {formatKes(item.unitPrice * item.quantity)}
+                        </span>
+                        {item.quantity > 1 && (
+                          <span className="text-[10px] font-semibold text-slate-500 font-mono-tabular">
+                            ({item.quantity} × {formatKes(item.unitPrice)})
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
@@ -1667,9 +1691,11 @@ export const CustomerPortalView: React.FC<CustomerPortalViewProps> = ({
                   </div>
                   <div className="text-sm font-black text-[#0A006E] font-mono-tabular">
                     {formatKes(
-                      ((activeVariant || previewProduct).retailPriceKes ||
-                        (activeVariant || previewProduct).baseRetailPrice ||
-                        3200) * previewQuantity
+                      calculateRegionalProductPrice(
+                        activeVariant || previewProduct,
+                        activeRegion,
+                        activeBranch
+                      ).unitPrice * previewQuantity
                     )}
                   </div>
                 </div>
@@ -1752,9 +1778,11 @@ export const CustomerPortalView: React.FC<CustomerPortalViewProps> = ({
                 <div className="flex items-baseline gap-2 justify-start">
                   <span className="text-xl font-black text-[#0A006E] font-mono-tabular">
                     {formatKes(
-                      (activeVariant || previewProduct).retailPriceKes ||
-                      (activeVariant || previewProduct).baseRetailPrice ||
-                      3200
+                      calculateRegionalProductPrice(
+                        activeVariant || previewProduct,
+                        activeRegion,
+                        activeBranch
+                      ).unitPrice
                     )}
                   </span>
                   <span className="text-xs text-slate-400 font-medium">per bottle</span>
@@ -1791,7 +1819,7 @@ export const CustomerPortalView: React.FC<CustomerPortalViewProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
                 {availableVariants.map((variant) => {
                   const isSelected = (activeVariant?.id || previewProduct.id) === variant.id;
-                  const vPrice = variant.retailPriceKes || variant.baseRetailPrice || 3200;
+                  const vPrice = calculateRegionalProductPrice(variant, activeRegion, activeBranch).unitPrice;
                   const inCartVariant = cart.find((c) => c.product.id === variant.id);
                   const volMl = variant.volumeMl || 750;
                   const nickname = getVolumeNickname(volMl);
@@ -1941,9 +1969,11 @@ export const CustomerPortalView: React.FC<CustomerPortalViewProps> = ({
                 >
                   <Plus className="w-4 h-4 stroke-[2.5]" />
                   Add {(activeVariant || previewProduct).volumeMl || 750}ml ({formatKes(
-                    ((activeVariant || previewProduct).retailPriceKes ||
-                      (activeVariant || previewProduct).baseRetailPrice ||
-                      3200) * previewQuantity
+                    calculateRegionalProductPrice(
+                      activeVariant || previewProduct,
+                      activeRegion,
+                      activeBranch
+                    ).unitPrice * previewQuantity
                   )})
                 </button>
               </div>
@@ -2288,8 +2318,15 @@ export const CustomerPortalView: React.FC<CustomerPortalViewProps> = ({
                       </div>
                       <div className="min-w-0 flex-1">
                         <h5 className="text-xs font-bold text-slate-900 truncate">{item.product.name}</h5>
-                        <div className="text-xs font-black text-[#0A006E] font-mono-tabular">
-                          {formatKes(item.unitPrice)}
+                        <div className="flex items-baseline gap-1.5 flex-wrap">
+                          <span className="text-xs font-black text-[#0A006E] font-mono-tabular">
+                            {formatKes(item.unitPrice * item.quantity)}
+                          </span>
+                          {item.quantity > 1 && (
+                            <span className="text-[10px] font-semibold text-slate-500 font-mono-tabular">
+                              ({item.quantity} × {formatKes(item.unitPrice)})
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
@@ -2762,7 +2799,10 @@ export const CustomerPortalView: React.FC<CustomerPortalViewProps> = ({
                     </h4>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-sm font-black font-mono-tabular text-[#FFDE00]">
-                        {formatKes(scannedProductMatch.retailPriceKes || scannedProductMatch.baseRetailPrice || 3200)}
+                        {formatKes(
+                          calculateRegionalProductPrice(scannedProductMatch, activeRegion, activeBranch)
+                            .unitPrice
+                        )}
                       </span>
                       <span className="text-[10px] text-slate-400">· {scannedProductMatch.volumeMl || 750}ml</span>
                     </div>
@@ -2780,7 +2820,10 @@ export const CustomerPortalView: React.FC<CustomerPortalViewProps> = ({
                     className="flex-1 py-3 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-xl font-montserrat font-black text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md active:scale-98"
                   >
                     <Plus className="w-4 h-4 stroke-[2.5]" />
-                    Add to Ticket ({formatKes(scannedProductMatch.retailPriceKes || scannedProductMatch.baseRetailPrice || 3200)})
+                    Add to Ticket ({formatKes(
+                      calculateRegionalProductPrice(scannedProductMatch, activeRegion, activeBranch)
+                        .unitPrice
+                    )})
                   </button>
                   <button
                     type="button"
