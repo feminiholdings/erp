@@ -408,51 +408,119 @@ export const PosViews: React.FC<PosViewsProps> = ({
     }).catch(() => {});
   }, [cart, activatedProductIds, currentUser, activeBranch, activeRegion, lastScannedBarcode]);
 
+  const lastProcessedScanRef = useRef<{ code: string; ts: number }>({ code: '', ts: 0 });
+
+  // Match scanned EAN/barcode strictly against products whose EAN is uploaded/activated on the platform
+  const findActivatedProductByCode = useCallback(
+    (
+      rawCode: string,
+      allowSkuFallback = false
+    ): {
+      matched: Product | null;
+      isCaseScan: boolean;
+      unactivatedMatch?: Product | null;
+    } => {
+      const code = rawCode.trim();
+      if (!code) return { matched: null, isCaseScan: false };
+      const digitsOnly = code.replace(/\D/g, '');
+
+      const activeProducts = products.filter((p) => {
+        if (p.status === ('Deleted' as any) || p.status === ('Suspended' as any)) return false;
+        const hasUploadedEan = Boolean(
+          (p.barcode && p.barcode.trim()) || (p.caseBarcode && p.caseBarcode.trim())
+        );
+        const isActivated = Boolean(
+          p.isOnboarded ||
+            p.isScanned ||
+            p.hasRealBarcode ||
+            activatedProductIds.includes(p.id) ||
+            hasUploadedEan
+        );
+        return isActivated && (hasUploadedEan || (allowSkuFallback && Boolean(p.sku)));
+      });
+
+      // 1. Exact EAN / Case EAN match
+      for (const p of activeProducts) {
+        if (p.caseBarcode && p.caseBarcode.trim() === code) {
+          return { matched: p, isCaseScan: true };
+        }
+        if (p.barcode && p.barcode.trim() === code) {
+          return { matched: p, isCaseScan: false };
+        }
+      }
+
+      // 2. Normalized EAN-8 / UPC-A (12) / EAN-13 (13) / GTIN-14 digit matching
+      if (digitsOnly.length >= 7) {
+        const paddedTarget = digitsOnly.padStart(14, '0');
+        for (const p of activeProducts) {
+          const pCase = p.caseBarcode ? p.caseBarcode.replace(/\D/g, '') : '';
+          if (
+            pCase &&
+            pCase.length >= 7 &&
+            (pCase === digitsOnly || pCase.padStart(14, '0') === paddedTarget)
+          ) {
+            return { matched: p, isCaseScan: true };
+          }
+          const pBottle = p.barcode ? p.barcode.replace(/\D/g, '') : '';
+          if (
+            pBottle &&
+            pBottle.length >= 7 &&
+            (pBottle === digitsOnly || pBottle.padStart(14, '0') === paddedTarget)
+          ) {
+            return { matched: p, isCaseScan: false };
+          }
+        }
+      }
+
+      // 3. Optional SKU fallback on manual Enter / Add / Camera scan
+      if (allowSkuFallback) {
+        const skuMatched = activeProducts.find(
+          (p) => p.sku && p.sku.toLowerCase() === code.toLowerCase()
+        );
+        if (skuMatched) {
+          return { matched: skuMatched, isCaseScan: false };
+        }
+      }
+
+      // Check if an unactivated/suspended product exists with this EAN for clearer error feedback
+      const blockedMatch = products.find(
+        (p) =>
+          (p.barcode && p.barcode.trim() === code) ||
+          (p.caseBarcode && p.caseBarcode.trim() === code)
+      );
+      return { matched: null, isCaseScan: false, unactivatedMatch: blockedMatch || null };
+    },
+    [products, activatedProductIds]
+  );
+
   const handleScanBarcode = useCallback(
     (rawBarcode: string): { success: boolean; product?: Product; message?: string } => {
       const code = rawBarcode.trim();
       if (!code) return { success: false, message: 'Empty barcode' };
-      const digitsOnly = code.replace(/\D/g, '');
 
-      // 1. Exact match on barcode, caseBarcode or SKU
-      let matched = products.find(
-        (p) =>
-          (p.barcode && p.barcode.trim() === code) ||
-          (p.caseBarcode && p.caseBarcode.trim() === code) ||
-          (p.sku && p.sku.toLowerCase() === code.toLowerCase())
-      );
-
-      let isCaseScan = false;
-      if (matched && matched.caseBarcode && matched.caseBarcode.trim() === code) {
-        isCaseScan = true;
+      // Guard against duplicate immediate scan triggers (e.g. Enter + auto-detect within 180ms)
+      const now = Date.now();
+      if (
+        lastProcessedScanRef.current.code === code &&
+        now - lastProcessedScanRef.current.ts < 180
+      ) {
+        return { success: true, message: 'Already added' };
       }
+      lastProcessedScanRef.current = { code, ts: now };
 
-      // 2. Normalized digit matching (EAN-13, UPC-A 12 vs 13 digits with leading zero, ITF-14)
-      if (!matched && digitsOnly) {
-        matched = products.find((p) => {
-          const pCase = p.caseBarcode ? p.caseBarcode.replace(/\D/g, '') : '';
-          const pBottle = p.barcode ? p.barcode.replace(/\D/g, '') : '';
-
-          if (pCase && (pCase === digitsOnly || pCase.endsWith(digitsOnly) || digitsOnly.endsWith(pCase))) {
-            isCaseScan = true;
-            return true;
-          }
-          if (pBottle) {
-            if (pBottle === digitsOnly) return true;
-            if (pBottle.padStart(13, '0') === digitsOnly.padStart(13, '0')) return true;
-          }
-          return false;
-        });
-      }
+      const { matched, isCaseScan, unactivatedMatch } = findActivatedProductByCode(code, true);
 
       if (!matched) {
         playPosBeep('error');
+        const errMsg = unactivatedMatch
+          ? `"${unactivatedMatch.name}" is not activated for retail checkout yet`
+          : `EAN "${code}" not uploaded/activated in onboarding`;
         setScanNotification({
           type: 'error',
-          text: `Barcode "${code}" not found in bonded product catalog`,
+          text: errMsg,
           timestamp: Date.now(),
         });
-        return { success: false, message: `Barcode "${code}" not found` };
+        return { success: false, message: errMsg };
       }
 
       const targetUnit: 'Bottle' | 'Case' = isCaseScan
@@ -461,62 +529,6 @@ export const PosViews: React.FC<PosViewsProps> = ({
         ? 'Case'
         : 'Bottle';
 
-      playPosBeep(isCaseScan ? 'case' : 'success');
-      triggerScanHaptic();
-      setLastScannedBarcode(code);
-
-      // Mark product as scanned & activated in ERP catalog
-      if (!matched!.isScanned) {
-        matched!.isScanned = true;
-        setDoc(doc(db, 'products', matched!.id), {
-          isScanned: true,
-          scannedAt: new Date().toISOString(),
-          scannerId: currentUser.id,
-        }, { merge: true }).catch((err) => console.error('Product scan activation write failed:', err));
-      }
-
-      // Activate product into POS checkout session shelf
-      setActivatedProductIds((prev) => Array.from(new Set([matched!.id, ...prev])));
-      if (!activatedProductIds.includes(matched!.id)) {
-        const activationId = `${activeBranch.id}_${matched!.id}`;
-        setDoc(doc(db, 'branch_product_activations', activationId), {
-          id: activationId,
-          branchId: activeBranch.id,
-          productId: matched!.id,
-          activatedAt: new Date().toISOString(),
-          activatedBy: currentUser.id,
-        }).catch((err) => console.error('Activation write failed:', err));
-      }
-
-      let updatedQty = 1;
-      setCart((prev) => {
-        const existingIdx = prev.findIndex(
-          (item) => item.product?.id === matched!.id && item.unitMode === targetUnit && item.kind === 'bonded_product'
-        );
-        if (existingIdx >= 0) {
-          updatedQty = prev[existingIdx].quantityUnits + 1;
-          const updated = [...prev];
-          updated[existingIdx] = {
-            ...updated[existingIdx],
-            quantityUnits: updatedQty,
-          };
-          return updated;
-        }
-        return [
-          ...prev,
-          {
-            id: `scan-${matched!.id}-${Date.now()}`,
-            kind: 'bonded_product',
-            product: matched!,
-            unitMode: targetUnit,
-            quantityUnits: 1,
-            unitPrice: 0,
-            name: matched!.name,
-            category: matched!.category,
-          },
-        ];
-      });
-
       const geoPrice = calculateGeoPrice(
         matched,
         activeRegion,
@@ -524,9 +536,79 @@ export const PosViews: React.FC<PosViewsProps> = ({
       );
       const unitPrice = targetUnit === 'Case' ? geoPrice.casePrice : geoPrice.unitBottlePrice;
 
+      playPosBeep(isCaseScan ? 'case' : 'success');
+      triggerScanHaptic();
+      setLastScannedBarcode(code);
+
+      // Mark product as scanned & activated in ERP catalog
+      if (!matched.isScanned) {
+        matched.isScanned = true;
+        setDoc(
+          doc(db, 'products', matched.id),
+          {
+            isScanned: true,
+            scannedAt: new Date().toISOString(),
+            scannerId: currentUser.id,
+          },
+          { merge: true }
+        ).catch((err) => console.error('Product scan activation write failed:', err));
+      }
+
+      // Activate product into POS checkout session shelf
+      setActivatedProductIds((prev) => (prev.includes(matched.id) ? prev : [matched.id, ...prev]));
+      if (activeBranch && !activatedProductIds.includes(matched.id)) {
+        const activationId = `${activeBranch.id}_${matched.id}`;
+        setDoc(doc(db, 'branch_product_activations', activationId), {
+          id: activationId,
+          branchId: activeBranch.id,
+          productId: matched.id,
+          activatedAt: new Date().toISOString(),
+          activatedBy: currentUser.id,
+        }).catch((err) => console.error('Activation write failed:', err));
+      }
+
+      const existingEntry = localCartRef.current.find(
+        (item) =>
+          item.product?.id === matched.id &&
+          item.unitMode === targetUnit &&
+          item.kind === 'bonded_product'
+      );
+      const updatedQty = existingEntry ? existingEntry.quantityUnits + 1 : 1;
+
+      setCart((prev) => {
+        const existingIdx = prev.findIndex(
+          (item) =>
+            item.product?.id === matched.id &&
+            item.unitMode === targetUnit &&
+            item.kind === 'bonded_product'
+        );
+        if (existingIdx >= 0) {
+          const updated = [...prev];
+          updated[existingIdx] = {
+            ...updated[existingIdx],
+            unitPrice,
+            quantityUnits: updated[existingIdx].quantityUnits + 1,
+          };
+          return updated;
+        }
+        return [
+          ...prev,
+          {
+            id: `scan-${matched.id}-${Date.now()}`,
+            kind: 'bonded_product',
+            product: matched,
+            unitMode: targetUnit,
+            quantityUnits: 1,
+            unitPrice,
+            name: matched.name,
+            category: matched.category,
+          },
+        ];
+      });
+
       setScanNotification({
         type: isCaseScan ? 'case' : 'success',
-        text: `Scanned & Added: ${matched.name}`,
+        text: `Added to checkout: ${matched.name}`,
         productName: matched.name,
         price: unitPrice,
         qtyInCart: updatedQty,
@@ -534,15 +616,65 @@ export const PosViews: React.FC<PosViewsProps> = ({
       });
 
       setBarcodeInput('');
-      return { success: true, product: matched };
+      return {
+        success: true,
+        product: matched,
+        message: `${matched.name} (${targetUnit}) · ${formatKes(unitPrice)}`,
+      };
     },
-    [products, mode, activeRegion]
+    [
+      findActivatedProductByCode,
+      mode,
+      activeRegion,
+      activeBranch,
+      currentUser.id,
+      activatedProductIds,
+    ]
   );
+
+  // Auto-add scanned EAN from #barcode-scanner-quick-input even if scanner sends no trailing Enter key
+  useEffect(() => {
+    const trimmed = barcodeInput.trim();
+    if (trimmed.length < 8) return;
+    const timer = setTimeout(() => {
+      const { matched } = findActivatedProductByCode(trimmed, false);
+      if (matched) {
+        handleScanBarcode(trimmed);
+      }
+    }, 75);
+    return () => clearTimeout(timer);
+  }, [barcodeInput, findActivatedProductByCode, handleScanBarcode]);
+
+  // Retail POS safeguard: if an uploaded/activated EAN is scanned directly into the search bar, auto-add to checkout
+  useEffect(() => {
+    if (mode !== 'retail') return;
+    const trimmed = searchQuery.trim();
+    if (!/^\d{8,14}$/.test(trimmed)) return;
+    const timer = setTimeout(() => {
+      const { matched } = findActivatedProductByCode(trimmed, false);
+      if (matched) {
+        handleScanBarcode(trimmed);
+        setSearchQuery('');
+      }
+    }, 75);
+    return () => clearTimeout(timer);
+  }, [mode, searchQuery, findActivatedProductByCode, handleScanBarcode]);
+
+  const barcodeInputValueRef = useRef(barcodeInput);
+  barcodeInputValueRef.current = barcodeInput;
 
   // Global listener for Desktop USB & Bluetooth Handheld Barcode Scanners (HID Wedge mode)
   useEffect(() => {
     let keyBuffer = '';
     let lastKeyTime = Date.now();
+    let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const clearFlushTimer = () => {
+      if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+      }
+    };
 
     const handleKeyDown = (e: KeyboardEvent) => {
       const activeEl = document.activeElement;
@@ -555,9 +687,12 @@ export const PosViews: React.FC<PosViewsProps> = ({
       lastKeyTime = now;
 
       if (e.key === 'Enter') {
-        if (isQuickScanInput && barcodeInput.trim()) {
+        clearFlushTimer();
+        const currentQuickVal = barcodeInputValueRef.current.trim();
+        if (isQuickScanInput && currentQuickVal) {
           e.preventDefault();
-          handleScanBarcode(barcodeInput);
+          handleScanBarcode(currentQuickVal);
+          keyBuffer = '';
           return;
         }
 
@@ -579,19 +714,33 @@ export const PosViews: React.FC<PosViewsProps> = ({
           } else {
             keyBuffer = '';
           }
-        } else {
-          if (charInterval > 85 && !isQuickScanInput) {
+        } else if (!isQuickScanInput) {
+          if (charInterval > 85) {
             keyBuffer = e.key;
           } else {
             keyBuffer += e.key;
+          }
+          clearFlushTimer();
+          if (keyBuffer.length >= 8) {
+            const candidate = keyBuffer;
+            flushTimer = setTimeout(() => {
+              const { matched } = findActivatedProductByCode(candidate, false);
+              if (matched) {
+                keyBuffer = '';
+                handleScanBarcode(candidate);
+              }
+            }, 95);
           }
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleScanBarcode, barcodeInput]);
+    return () => {
+      clearFlushTimer();
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handleScanBarcode, findActivatedProductByCode]);
 
   // Auto-dismiss scan notification banner after 4.5 seconds
   useEffect(() => {
@@ -1205,6 +1354,7 @@ export const PosViews: React.FC<PosViewsProps> = ({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
+                    e.stopPropagation();
                     handleScanBarcode(barcodeInput);
                   }
                 }}
@@ -1365,10 +1515,11 @@ export const PosViews: React.FC<PosViewsProps> = ({
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             e.preventDefault();
+                            e.stopPropagation();
                             handleScanBarcode(barcodeInput);
                           }
                         }}
-                        placeholder="Scan barcode (USB / Bluetooth) & press Enter..."
+                        placeholder="Scan EAN barcode — auto-adds to checkout..."
                         className="w-full pl-9 pr-20 py-2.5 bg-slate-50 border border-slate-200 focus:border-[#0A006E] focus:bg-white rounded-xl text-xs font-mono-tabular text-slate-900 focus:outline-none min-h-[42px]"
                       />
                       <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
@@ -1439,7 +1590,7 @@ export const PosViews: React.FC<PosViewsProps> = ({
                           setSearchQuery(e.target.value);
                           setVisibleLimit(36);
                         }}
-                        placeholder="Search bottle, brand, or SKU..."
+                        placeholder="Search bottle, SKU, or scan EAN..."
                         className="w-full pl-9 pr-8 py-2 bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#0A006E] min-h-[40px]"
                       />
                       {searchQuery && (

@@ -110,40 +110,69 @@ export const PhoneScannerCompanion: React.FC<PhoneScannerCompanionProps> = ({
 
       const digitsOnly = code.replace(/\D/g, '');
 
-      // 1. Find product in catalog
-      let matched = products.find(
-        (p) =>
-          (p.barcode && p.barcode.trim() === code) ||
-          (p.caseBarcode && p.caseBarcode.trim() === code) ||
-          (p.sku && p.sku.toLowerCase() === code.toLowerCase())
-      );
+      const activatedCatalog = products.filter((p) => {
+        if (p.status === ('Deleted' as any) || p.status === ('Suspended' as any)) return false;
+        const hasUploadedEan = Boolean(
+          (p.barcode && p.barcode.trim()) || (p.caseBarcode && p.caseBarcode.trim())
+        );
+        const isActivated = Boolean(
+          p.isOnboarded || p.isScanned || p.hasRealBarcode || hasUploadedEan
+        );
+        return isActivated && (hasUploadedEan || Boolean(p.sku));
+      });
 
+      // 1. Exact EAN / Case EAN / SKU match among uploaded/activated items
+      let matched: Product | undefined;
       let isCaseScan = false;
-      if (matched && matched.caseBarcode && matched.caseBarcode.trim() === code) {
-        isCaseScan = true;
+
+      for (const p of activatedCatalog) {
+        if (p.caseBarcode && p.caseBarcode.trim() === code) {
+          matched = p;
+          isCaseScan = true;
+          break;
+        }
+        if (p.barcode && p.barcode.trim() === code) {
+          matched = p;
+          break;
+        }
       }
 
-      if (!matched && digitsOnly) {
-        matched = products.find((p) => {
+      if (!matched && digitsOnly.length >= 7) {
+        const paddedTarget = digitsOnly.padStart(14, '0');
+        for (const p of activatedCatalog) {
           const pCase = p.caseBarcode ? p.caseBarcode.replace(/\D/g, '') : '';
-          const pBottle = p.barcode ? p.barcode.replace(/\D/g, '') : '';
-          if (pCase && (pCase === digitsOnly || pCase.endsWith(digitsOnly) || digitsOnly.endsWith(pCase))) {
+          if (
+            pCase &&
+            pCase.length >= 7 &&
+            (pCase === digitsOnly || pCase.padStart(14, '0') === paddedTarget)
+          ) {
+            matched = p;
             isCaseScan = true;
-            return true;
+            break;
           }
-          if (pBottle) {
-            if (pBottle === digitsOnly) return true;
-            if (pBottle.padStart(13, '0') === digitsOnly.padStart(13, '0')) return true;
+          const pBottle = p.barcode ? p.barcode.replace(/\D/g, '') : '';
+          if (
+            pBottle &&
+            pBottle.length >= 7 &&
+            (pBottle === digitsOnly || pBottle.padStart(14, '0') === paddedTarget)
+          ) {
+            matched = p;
+            break;
           }
-          return false;
-        });
+        }
+      }
+
+      if (!matched) {
+        matched = activatedCatalog.find(
+          (p) => p.sku && p.sku.toLowerCase() === code.toLowerCase()
+        );
       }
 
       if (!matched) {
         playPosBeep('error');
         setLastScannedFeedback({
           code,
-          productName: `Barcode "${code}" not found in catalog`,
+          productName: `EAN "${code}" not uploaded/activated in onboarding`,
           price: 0,
           success: false,
           timestamp: now,

@@ -39,6 +39,7 @@ import {
   Clock,
   User,
   Sparkles,
+  Search,
 } from 'lucide-react';
 import {
   StaffMember,
@@ -3562,6 +3563,21 @@ export const HrAndRbacModule: React.FC<{
     if (initialTab === 'leave_requests' && canManageLeaveRequests) return 'leave_requests';
     return initialTab || 'roster';
   });
+  const [payrollSubTab, setPayrollSubTab] = useState<'staff_pay' | 'deductions' | 'history'>('staff_pay');
+  const [payrollSearch, setPayrollSearch] = useState('');
+  const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
+
+  const filteredPayrollStaff = useMemo(() => {
+    const q = payrollSearch.trim().toLowerCase();
+    if (!q) return staffList;
+    return staffList.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        s.role.toLowerCase().includes(q) ||
+        s.branchName.toLowerCase().includes(q) ||
+        (s.kraPin && s.kraPin.toLowerCase().includes(q))
+    );
+  }, [staffList, payrollSearch]);
 
   const {
     schema: hrSchema,
@@ -4196,6 +4212,8 @@ export const HrAndRbacModule: React.FC<{
       });
 
       setFeedback(`Payroll for ${payrollPeriod} successfully executed! ${records.length} employees can now download their thermal payslips with itemized deductions.`);
+      setPayrollSubTab('history');
+      setExpandedRunId(null);
     } finally {
       setIsRunningPayroll(false);
     }
@@ -5427,15 +5445,15 @@ export const HrAndRbacModule: React.FC<{
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-          className="space-y-5"
+          className="space-y-4"
         >
-          {/* Top KPI Summary Metrics */}
+          {/* Compact 4-Card Payroll KPI Strip */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="beta-kpi-card rounded-2xl p-4">
+            <div className="beta-kpi-card rounded-2xl p-3.5">
               <div className="text-xs font-montserrat font-semibold text-slate-500">
                 Net Payroll
               </div>
-              <div className="text-xl sm:text-2xl font-extrabold text-[#0A006E] font-mono-tabular mt-1">
+              <div className="text-lg sm:text-xl font-extrabold text-[#0A006E] font-mono-tabular tabular-nums mt-0.5">
                 KES {staffList.filter((s) => s.status === 'Active').reduce((sum, s) => {
                   const bSal = s.baseSalaryKes ?? (s.role === 'Admin' ? 180000 : s.role === 'Accountant' ? 120000 : s.role === 'Branch Manager' ? 95000 : 65000);
                   const ded = s.deductionsKes ?? Math.round(bSal * 0.18);
@@ -5443,52 +5461,46 @@ export const HrAndRbacModule: React.FC<{
                   return sum + Math.max(0, bSal - ded - pen);
                 }, 0).toLocaleString()}
               </div>
-              <div className="text-xs text-slate-500 font-mono-tabular mt-0.5">
-                {staffList.filter((s) => s.status === 'Active').length} active staff
-              </div>
             </div>
 
-            <div className="beta-kpi-card rounded-2xl p-4">
+            <div className="beta-kpi-card rounded-2xl p-3.5">
               <div className="text-xs font-montserrat font-semibold text-slate-500">
                 Gross Salaries
               </div>
-              <div className="text-xl sm:text-2xl font-extrabold text-slate-900 font-mono-tabular mt-1">
+              <div className="text-lg sm:text-xl font-extrabold text-slate-900 font-mono-tabular tabular-nums mt-0.5">
                 KES {staffList.filter((s) => s.status === 'Active').reduce((sum, s) => {
                   return sum + (s.baseSalaryKes ?? (s.role === 'Admin' ? 180000 : s.role === 'Accountant' ? 120000 : s.role === 'Branch Manager' ? 95000 : 65000));
                 }, 0).toLocaleString()}
               </div>
-              <div className="text-xs text-slate-500 mt-0.5">Base pay</div>
             </div>
 
-            <div className="beta-kpi-card rounded-2xl p-4">
+            <div className="beta-kpi-card rounded-2xl p-3.5">
               <div className="text-xs font-montserrat font-semibold text-slate-500">
                 Deductions
               </div>
-              <div className="text-xl sm:text-2xl font-extrabold text-rose-600 font-mono-tabular mt-1">
+              <div className="text-lg sm:text-xl font-extrabold text-rose-600 font-mono-tabular tabular-nums mt-0.5">
                 KES {staffList.filter((s) => s.status === 'Active').reduce((sum, s) => {
                   const bSal = s.baseSalaryKes ?? (s.role === 'Admin' ? 180000 : s.role === 'Accountant' ? 120000 : s.role === 'Branch Manager' ? 95000 : 65000);
                   return sum + (s.deductionsKes ?? Math.round(bSal * 0.18));
                 }, 0).toLocaleString()}
               </div>
-              <div className="text-xs text-slate-500 mt-0.5">PAYE · SHIF · NSSF · AHL</div>
             </div>
 
-            <div className="beta-kpi-card rounded-2xl p-4">
+            <div className="beta-kpi-card rounded-2xl p-3.5">
               <div className="text-xs font-montserrat font-semibold text-slate-500">
                 Penalties
               </div>
-              <div className="text-xl sm:text-2xl font-extrabold text-amber-600 font-mono-tabular mt-1">
+              <div className="text-lg sm:text-xl font-extrabold text-amber-600 font-mono-tabular tabular-nums mt-0.5">
                 KES {staffList.filter((s) => s.status === 'Active').reduce((sum, s) => sum + (s.penaltiesKes ?? 0), 0).toLocaleString()}
               </div>
-              <div className="text-xs text-slate-500 mt-0.5">Variances &amp; fines</div>
             </div>
           </div>
 
-          {/* Run Payroll Execution Control Panel */}
-          <div className="bg-[#FFDE00] border-2 border-[#0A006E] rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#0A006E]/20 pb-3">
-              <div className="flex items-center gap-2">
-                <h3 className="text-base sm:text-lg font-montserrat font-black text-[#0A006E]">
+          {/* Unified Compact Run Payroll Bar */}
+          <div className="bg-[#FFDE00] border-2 border-[#0A006E] rounded-2xl p-3.5 sm:p-4 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base font-montserrat font-black text-[#0A006E]">
                   Run Monthly Payroll
                 </h3>
                 <span className="beta-badge">
@@ -5496,433 +5508,137 @@ export const HrAndRbacModule: React.FC<{
                   <span>Beta</span>
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-900 shrink-0">Pay Period:</span>
-                <input
-                  type="text"
-                  value={payrollPeriod}
-                  onChange={(e) => setPayrollPeriod(e.target.value)}
-                  placeholder="e.g. October 2026"
-                  className="min-h-[44px] px-3.5 py-2 bg-white border-2 border-[#0A006E] rounded-xl font-montserrat font-black text-xs sm:text-sm text-[#0A006E] w-full sm:w-44"
-                />
-              </div>
+              <p className="text-xs font-semibold text-slate-900 mt-0.5">
+                <strong>{staffList.filter((s) => s.status === 'Active').length}</strong> active staff ready for <strong>{payrollPeriod}</strong>.
+              </p>
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <p className="text-xs sm:text-sm font-semibold text-slate-900">
-                Creates payslips for <strong>{staffList.filter((s) => s.status === 'Active').length}</strong> active staff for <strong>{payrollPeriod}</strong>.
-              </p>
-
-              <div className="grid grid-cols-1 sm:flex sm:flex-wrap items-center gap-2.5 shrink-0">
-                {onOpenKraReturns && (
-                  <button
-                    type="button"
-                    onClick={() => onOpenKraReturns('PAYE_P10_SEC_B')}
-                    className="beta-action-tile min-h-[48px] px-5 py-3 bg-white hover:bg-slate-50 border-2 border-[#0A006E] text-[#0A006E] rounded-2xl font-montserrat font-black text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap shrink-0 transition"
-                  >
-                    <FileSpreadsheet className="w-5 h-5 text-[#0A006E]" />
-                    <span>KRA P10 (.xlsx)</span>
-                  </button>
-                )}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
+              <input
+                type="text"
+                value={payrollPeriod}
+                onChange={(e) => setPayrollPeriod(e.target.value)}
+                placeholder="e.g. October 2026"
+                aria-label="Pay Period"
+                className="min-h-[44px] px-3.5 py-2 bg-white border-2 border-[#0A006E] rounded-xl font-montserrat font-black text-xs sm:text-sm text-[#0A006E] w-full sm:w-44"
+              />
+              {onOpenKraReturns && (
                 <button
                   type="button"
-                  disabled={isRunningPayroll || staffList.filter((s) => s.status === 'Active').length === 0}
-                  onClick={handleExecutePayroll}
-                  className="beta-action-tile min-h-[48px] px-6 py-3 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-2xl font-montserrat font-black text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer shadow-lg transition disabled:opacity-50 whitespace-nowrap shrink-0"
+                  onClick={() => onOpenKraReturns('PAYE_P10_SEC_B')}
+                  className="beta-action-tile min-h-[44px] px-4 py-2.5 bg-white hover:bg-slate-50 border-2 border-[#0A006E] text-[#0A006E] rounded-xl font-montserrat font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 transition"
                 >
-                  {isRunningPayroll ? (
-                    <>
-                      <RefreshCw className="w-5 h-5 animate-spin text-[#FFDE00]" />
-                      <span>Running Payroll...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Printer className="w-5 h-5 text-[#FFDE00]" />
-                      <span>Run Payroll ({payrollPeriod})</span>
-                    </>
-                  )}
+                  <FileSpreadsheet className="w-4 h-4 text-[#0A006E]" />
+                  <span>KRA P10 (.xlsx)</span>
                 </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Direct HR Deduction Item Selector & Quick Employee Assignment Panel */}
-          <div className="beta-kpi-card rounded-2xl p-4 sm:p-5 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
-              <div>
-                <h3 className="text-sm font-montserrat font-black text-[#0A006E] flex items-center gap-2">
-                  <ListChecks className="w-4 h-4 text-[#0A006E]" />
-                  <span>Quick Add Deduction</span>
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Assign loan, SACCO, advance, or custom deduction to any staff member.
-                </p>
-              </div>
+              )}
               <button
                 type="button"
-                onClick={() => setShowCatalogManager((prev) => !prev)}
-                className="beta-action-tile min-h-[44px] sm:min-h-[38px] px-4 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-300 text-[#0A006E] rounded-xl text-xs font-montserrat font-bold flex items-center justify-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap"
+                disabled={isRunningPayroll || staffList.filter((s) => s.status === 'Active').length === 0}
+                onClick={handleExecutePayroll}
+                className="beta-action-tile min-h-[44px] px-5 py-2.5 bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] rounded-xl font-montserrat font-black text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer shadow-md transition disabled:opacity-50 whitespace-nowrap shrink-0"
               >
-                <Tag className="w-4 h-4 text-[#0A006E]" />
-                <span>
-                  {showCatalogManager
-                    ? 'Hide Catalog'
-                    : `Catalog (${fullDeductionCatalog.length})`}
-                </span>
+                {isRunningPayroll ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin text-[#FFDE00]" />
+                    <span>Running...</span>
+                  </>
+                ) : (
+                  <>
+                    <Printer className="w-4 h-4 text-[#FFDE00]" />
+                    <span>Run Payroll</span>
+                  </>
+                )}
               </button>
             </div>
-
-            <form
-              onSubmit={handleQuickAssignDeductionToStaff}
-              className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 text-xs"
-            >
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3">
-                <div className="lg:col-span-3">
-                  <label className="block font-montserrat font-bold text-slate-700 mb-1">
-                    1. Employee *
-                  </label>
-                  <select
-                    value={quickAssignStaffId || staffList[0]?.id || ''}
-                    onChange={(e) => setQuickAssignStaffId(e.target.value)}
-                    className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-xl font-montserrat font-bold text-slate-900"
-                  >
-                    {staffList.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({s.role})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="lg:col-span-4">
-                  <label className="block font-montserrat font-bold text-slate-700 mb-1">
-                    2. Deduction Item *
-                  </label>
-                  <select
-                    value={quickAssignCatalogId}
-                    onChange={(e) => {
-                      const nextId = e.target.value;
-                      setQuickAssignCatalogId(nextId);
-                      const found = fullDeductionCatalog.find((c) => c.id === nextId);
-                      if (found) {
-                        setQuickAssignMode(found.defaultCalcMode);
-                        setQuickAssignValue(found.defaultValue);
-                        setQuickAssignFreq(found.defaultFrequency);
-                      }
-                    }}
-                    className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-xl font-montserrat font-bold text-[#0A006E]"
-                  >
-                    {DEDUCTION_CATEGORIES.map((category) => {
-                      const entries = fullDeductionCatalog.filter((c) => c.category === category);
-                      if (entries.length === 0) return null;
-                      return (
-                        <optgroup key={category} label={category}>
-                          {entries.map((entry) => (
-                            <option key={entry.id} value={entry.id}>
-                              {entry.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                      );
-                    })}
-                  </select>
-                </div>
-
-                <div className="lg:col-span-2">
-                  <label className="block font-montserrat font-bold text-slate-700 mb-1">
-                    Basis
-                  </label>
-                  <select
-                    value={quickAssignMode}
-                    onChange={(e) => setQuickAssignMode(e.target.value as DeductionCalcMode)}
-                    className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-xl font-semibold text-slate-800"
-                  >
-                    <option value="FIXED">Fixed (KES)</option>
-                    <option value="PERCENTAGE">% of Basic</option>
-                    {['PAYE', 'SHIF', 'NSSF', 'AHL'].includes(
-                      fullDeductionCatalog.find((c) => c.id === quickAssignCatalogId)?.code || ''
-                    ) && <option value="STATUTORY_AUTO">KRA Formula</option>}
-                  </select>
-                </div>
-
-                <div className="lg:col-span-3">
-                  <label className="block font-montserrat font-bold text-slate-700 mb-1">
-                    {quickAssignMode === 'PERCENTAGE'
-                      ? 'Percentage (%)'
-                      : quickAssignMode === 'STATUTORY_AUTO'
-                      ? 'Auto KRA'
-                      : 'Amount (KES)'}
-                  </label>
-                  {quickAssignMode === 'STATUTORY_AUTO' ? (
-                    <div className="w-full min-h-[44px] flex items-center px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl font-mono-tabular text-slate-600 font-bold">
-                      Auto KRA Formula
-                    </div>
-                  ) : (
-                    <input
-                      type="number"
-                      min={0}
-                      step={quickAssignMode === 'PERCENTAGE' ? '0.5' : '50'}
-                      value={quickAssignValue}
-                      onChange={(e) => setQuickAssignValue(Number(e.target.value))}
-                      className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-xl font-mono-tabular tabular-nums font-bold text-slate-900"
-                    />
-                  )}
-                </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
-                <div className="flex flex-col sm:flex-row flex-1 items-stretch sm:items-center gap-2.5">
-                  <select
-                    value={quickAssignFreq}
-                    onChange={(e) =>
-                      setQuickAssignFreq(e.target.value as 'Recurring Monthly' | 'One-Off')
-                    }
-                    className="min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-xl font-semibold text-slate-700"
-                  >
-                    <option value="Recurring Monthly">Recurring Monthly</option>
-                    <option value="One-Off">One-Off (This Run)</option>
-                  </select>
-                  <input
-                    type="text"
-                    value={quickAssignNote}
-                    onChange={(e) => setQuickAssignNote(e.target.value)}
-                    placeholder="Optional note (e.g. HELB #9920)"
-                    className="min-h-[44px] flex-1 px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-800"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isAssigningQuick || staffList.length === 0}
-                  className="beta-action-tile min-h-[46px] px-5 py-2.5 bg-[#0A006E] hover:bg-[#12009E] disabled:opacity-50 text-[#FFDE00] rounded-xl font-montserrat font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 cursor-pointer transition whitespace-nowrap shrink-0"
-                >
-                  <Plus className="w-4 h-4 text-[#FFDE00]" />
-                  <span>{isAssigningQuick ? 'Adding...' : 'Add Deduction'}</span>
-                </button>
-              </div>
-            </form>
-
-            {/* Expandable HR Deduction Catalog Manager */}
-            {showCatalogManager && (
-              <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
-                  <div>
-                    <h4 className="text-xs font-montserrat font-black text-[#0A006E]">
-                      Company HR Deduction Items Catalog ({fullDeductionCatalog.length} Selectable Items)
-                    </h4>
-                    <p className="text-[11px] text-slate-500">
-                      Create custom reusable deduction items (e.g. Chama Savings, Staff Meal Plan, Uniform Recovery) so HR can select them on any employee.
-                    </p>
-                  </div>
-                </div>
-
-                {onCreateCatalogDeduction && (
-                  <form
-                    onSubmit={handleCreateCustomCatalogItemSubmit}
-                    className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs"
-                  >
-                    <div className="sm:col-span-4">
-                      <label className="block text-[11px] font-montserrat font-bold text-slate-700 mb-1">
-                        New Deduction Item Name *
-                      </label>
-                      <input
-                        required
-                        type="text"
-                        value={newCatName}
-                        onChange={(e) => setNewCatName(e.target.value)}
-                        placeholder="e.g. Staff Chama Savings"
-                        className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-lg"
-                      />
-                    </div>
-                    <div className="sm:col-span-3">
-                      <label className="block text-[11px] font-montserrat font-bold text-slate-700 mb-1">
-                        Category
-                      </label>
-                      <select
-                        value={newCatCategory}
-                        onChange={(e) => setNewCatCategory(e.target.value as DeductionCategory)}
-                        className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-lg"
-                      >
-                        {DEDUCTION_CATEGORIES.map((cat) => (
-                          <option key={cat} value={cat}>
-                            {cat}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="block text-[11px] font-montserrat font-bold text-slate-700 mb-1">
-                        Default Basis
-                      </label>
-                      <select
-                        value={newCatMode}
-                        onChange={(e) => setNewCatMode(e.target.value as 'FIXED' | 'PERCENTAGE')}
-                        className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-lg"
-                      >
-                        <option value="FIXED">Fixed KES</option>
-                        <option value="PERCENTAGE">% of Basic</option>
-                      </select>
-                    </div>
-                    <div className="sm:col-span-3 flex items-end gap-2">
-                      <div className="flex-1">
-                        <label className="block text-[11px] font-montserrat font-bold text-slate-700 mb-1">
-                          Default {newCatMode === 'PERCENTAGE' ? '%' : 'KES'}
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={newCatDefaultVal}
-                          onChange={(e) => setNewCatDefaultVal(Number(e.target.value))}
-                          className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-lg font-mono-tabular tabular-nums font-bold"
-                        />
-                      </div>
-                      <button
-                        type="submit"
-                        disabled={isCreatingCatalogItem || !newCatName.trim()}
-                        className="px-3.5 py-2 bg-[#FFDE00] hover:bg-amber-400 border border-[#0A006E] text-[#0A006E] rounded-lg font-montserrat font-black text-xs cursor-pointer whitespace-nowrap"
-                      >
-                        + Add Item
-                      </button>
-                    </div>
-                  </form>
-                )}
-
-                <div className="overflow-x-auto border border-slate-200 rounded-xl max-h-64 overflow-y-auto">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-montserrat sticky top-0">
-                        <th className="py-2 px-3 font-bold">Deduction Item</th>
-                        <th className="py-2 px-3 font-bold">Category</th>
-                        <th className="py-2 px-3 font-bold">Default Basis</th>
-                        <th className="py-2 px-3 font-bold">Default Cadence</th>
-                        <th className="py-2 px-3 font-bold text-right">Type</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {fullDeductionCatalog.map((catItem) => (
-                        <tr key={catItem.id} className="hover:bg-slate-50">
-                          <td className="py-2 px-3 font-montserrat font-bold text-slate-900">
-                            {catItem.name}
-                          </td>
-                          <td className="py-2 px-3 text-slate-600">{catItem.category}</td>
-                          <td className="py-2 px-3 font-mono-tabular tabular-nums text-slate-700">
-                            {catItem.defaultCalcMode === 'STATUTORY_AUTO'
-                              ? 'KRA Statutory Formula'
-                              : catItem.defaultCalcMode === 'PERCENTAGE'
-                              ? `${catItem.defaultValue}% of Basic`
-                              : `KES ${catItem.defaultValue.toLocaleString()}`}
-                          </td>
-                          <td className="py-2 px-3 text-slate-600">{catItem.defaultFrequency}</td>
-                          <td className="py-2 px-3 text-right">
-                            {catItem.isSystemPreset ? (
-                              <span className="text-[11px] text-slate-400 font-medium">
-                                Standard
-                              </span>
-                            ) : onDeleteCatalogDeduction ? (
-                              <button
-                                type="button"
-                                onClick={() => onDeleteCatalogDeduction(catItem.id)}
-                                className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
-                                title="Delete custom catalog item"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            ) : (
-                              <span className="text-[11px] text-[#0A006E] font-semibold">Custom</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
           </div>
 
-          {/* Staff Compensation, Deductions & Net Pay Configuration */}
-          <div className="beta-kpi-card rounded-2xl p-4 sm:p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm sm:text-base font-montserrat font-black text-[#0A006E]">
-                  Staff Pay &amp; Deductions ({staffList.length})
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Tap any employee to edit salary, deductions, or penalties.
-                </p>
-              </div>
-            </div>
+          {/* Zero-Scroll Payroll View Switcher */}
+          <div className="grid grid-cols-3 gap-2 p-1.5 bg-slate-100 border border-slate-200 rounded-2xl">
+            <button
+              type="button"
+              onClick={() => setPayrollSubTab('staff_pay')}
+              className={`min-h-[44px] px-3 py-2 rounded-xl font-montserrat font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 cursor-pointer transition whitespace-nowrap ${
+                payrollSubTab === 'staff_pay'
+                  ? 'bg-[#0A006E] text-[#FFDE00] shadow-sm'
+                  : 'text-slate-700 hover:bg-white'
+              }`}
+            >
+              <Users className="w-4 h-4 shrink-0" />
+              <span>Staff Pay ({staffList.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setPayrollSubTab('deductions')}
+              className={`min-h-[44px] px-3 py-2 rounded-xl font-montserrat font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 cursor-pointer transition whitespace-nowrap ${
+                payrollSubTab === 'deductions'
+                  ? 'bg-[#0A006E] text-[#FFDE00] shadow-sm'
+                  : 'text-slate-700 hover:bg-white'
+              }`}
+            >
+              <ListChecks className="w-4 h-4 shrink-0" />
+              <span className="truncate">Deductions</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setPayrollSubTab('history')}
+              className={`min-h-[44px] px-3 py-2 rounded-xl font-montserrat font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 cursor-pointer transition whitespace-nowrap ${
+                payrollSubTab === 'history'
+                  ? 'bg-[#0A006E] text-[#FFDE00] shadow-sm'
+                  : 'text-slate-700 hover:bg-white'
+              }`}
+            >
+              <Receipt className="w-4 h-4 shrink-0" />
+              <span>Payslips ({payrollRuns.length})</span>
+            </button>
+          </div>
 
-            {/* Mobile Staff Remuneration Cards (< md) */}
-            <div className="grid grid-cols-1 gap-3 md:hidden">
-              {staffList.map((s) => {
-                const bSal = s.baseSalaryKes ?? (s.role === 'Admin' ? 180000 : s.role === 'Accountant' ? 120000 : s.role === 'Branch Manager' ? 95000 : 65000);
-                const sItems = hydrateStaffDeductionItems({
-                  baseSalary: bSal,
-                  deductionsKes: s.deductionsKes,
-                  deductionsBreakdown: s.deductionsBreakdown,
-                  deductionItems: s.deductionItems,
-                });
-                const ded =
-                  s.deductionItems && s.deductionItems.length > 0
-                    ? summarizeDeductionItems(s.deductionItems).totalDeductionsKes
-                    : s.deductionsKes ?? summarizeDeductionItems(sItems).totalDeductionsKes;
-                const pen = s.penaltiesKes ?? 0;
-                const net = Math.max(0, bSal - ded - pen);
-
-                return (
-                  <div key={`pay-mob-${s.id}`} className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-2xs">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="font-montserrat font-black text-sm text-slate-900">{s.name}</div>
-                        <div className="text-xs font-semibold text-[#0A006E]">{s.role} · {s.branchName}</div>
-                      </div>
-                      <span className="font-mono-tabular font-black text-sm text-[#0A006E] shrink-0">
-                        KES {net.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 text-xs bg-slate-50 border border-slate-100 rounded-xl p-2.5 font-mono-tabular">
-                      <div>
-                        <div className="text-[10px] text-slate-500">Gross</div>
-                        <div className="font-bold text-slate-900">{bSal.toLocaleString()}</div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] text-slate-500">Deductions</div>
-                        <div className="font-bold text-rose-600">-{ded.toLocaleString()}</div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] text-slate-500">Penalties</div>
-                        <div className="font-bold text-amber-600">{pen > 0 ? `-${pen.toLocaleString()}` : '0'}</div>
-                      </div>
+          {/* Instant Sub-Tab Workspace (No Long Vertical Scrolling) */}
+          <AnimatePresence mode="wait">
+            {payrollSubTab === 'staff_pay' && (
+              <motion.div
+                key="sub_staff_pay"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.16 }}
+                className="beta-kpi-card rounded-2xl p-4 sm:p-5 space-y-4"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm sm:text-base font-montserrat font-black text-[#0A006E]">
+                      Staff Pay &amp; Deductions ({filteredPayrollStaff.length})
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Search staff or tap Edit Pay to adjust salary, deductions, or penalties.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1 sm:w-56">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={payrollSearch}
+                        onChange={(e) => setPayrollSearch(e.target.value)}
+                        placeholder="Search staff or branch..."
+                        className="w-full min-h-[42px] pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 outline-none focus:border-[#0A006E]"
+                      />
                     </div>
                     <button
                       type="button"
-                      onClick={() => handleOpenCompensation(s)}
-                      className="beta-action-tile w-full min-h-[44px] px-4 py-2.5 bg-[#0A006E] text-[#FFDE00] rounded-xl font-montserrat font-black text-xs flex items-center justify-center gap-2 cursor-pointer"
+                      onClick={() => setPayrollSubTab('deductions')}
+                      className="beta-action-tile min-h-[42px] px-3.5 py-2 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-xl font-montserrat font-black text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
                     >
-                      <ListChecks className="w-4 h-4 text-[#FFDE00]" />
-                      <span>Edit Pay &amp; Deductions</span>
+                      <Plus className="w-4 h-4" />
+                      <span className="hidden sm:inline">Add Deduction</span>
+                      <span className="sm:hidden">Deduct</span>
                     </button>
                   </div>
-                );
-              })}
-            </div>
+                </div>
 
-            <div className="hidden md:block overflow-x-auto bg-white border border-slate-200 rounded-xl">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
-                    <th className="py-2.5 px-3 font-black">Staff Member</th>
-                    <th className="py-2.5 px-3 font-black">Role &amp; Branch</th>
-                    <th className="py-2.5 px-3 font-black text-right">Basic Salary (KES)</th>
-                    <th className="py-2.5 px-3 font-black text-right">Deductions (KES)</th>
-                    <th className="py-2.5 px-3 font-black text-right">Penalties (KES)</th>
-                    <th className="py-2.5 px-3 font-black text-right">Net Pay (KES)</th>
-                    <th className="py-2.5 px-3 font-black text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {staffList.map((s) => {
+                {/* Mobile Staff Remuneration Cards (< md) */}
+                <div className="grid grid-cols-1 gap-3 md:hidden">
+                  {filteredPayrollStaff.map((s) => {
                     const bSal = s.baseSalaryKes ?? (s.role === 'Admin' ? 180000 : s.role === 'Accountant' ? 120000 : s.role === 'Branch Manager' ? 95000 : 65000);
                     const sItems = hydrateStaffDeductionItems({
                       baseSalary: bSal,
@@ -5938,173 +5654,543 @@ export const HrAndRbacModule: React.FC<{
                     const net = Math.max(0, bSal - ded - pen);
 
                     return (
-                      <tr key={s.id} className="hover:bg-slate-50">
-                        <td className="py-2.5 px-3 font-semibold text-slate-900">
-                          <div>{s.name}</div>
-                          <div className="text-slate-500 font-normal text-[11px]">{s.email}</div>
-                          {s.kraPin && (
-                            <div className="text-[10px] text-slate-400 font-mono">PIN: {s.kraPin}</div>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <div className="font-montserrat font-bold text-[#0A006E]">{s.role}</div>
-                          <div className="text-[11px] text-slate-600">{s.branchName}</div>
-                          <span className={`inline-flex items-center px-2 py-0.2 mt-0.5 rounded-full text-[9px] font-bold ${
-                            s.status === 'Active' ? 'bg-[#34D186]/20 text-[#1E9E60]' : 'bg-slate-200 text-slate-700'
-                          }`}>
-                            {s.status}
+                      <div key={`pay-mob-${s.id}`} className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-2xs">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="font-montserrat font-black text-sm text-slate-900">{s.name}</div>
+                            <div className="text-xs font-semibold text-[#0A006E]">{s.role} · {s.branchName}</div>
+                          </div>
+                          <span className="font-mono-tabular tabular-nums font-black text-sm text-[#0A006E] shrink-0">
+                            KES {net.toLocaleString()}
                           </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono-tabular tabular-nums font-bold text-slate-900">
-                          KES {bSal.toLocaleString()}
-                        </td>
-                        <td className="py-2.5 px-3 text-right">
-                          <div className="font-mono-tabular tabular-nums font-bold text-rose-600">
-                            -KES {ded.toLocaleString()}
-                          </div>
-                          <div
-                            className="text-[10px] text-slate-500 truncate max-w-[200px] ml-auto"
-                            title={sItems.map((i) => `${i.name}: KES ${i.amountKes.toLocaleString()}`).join(', ')}
-                          >
-                            {sItems.length} item{sItems.length === 1 ? '' : 's'}
-                            {sItems.length > 0
-                              ? ` · ${sItems
-                                  .slice(0, 3)
-                                  .map((i) => i.code === 'CUSTOM' ? i.name : i.code)
-                                  .join(', ')}${sItems.length > 3 ? ` +${sItems.length - 3}` : ''}`
-                              : ''}
-                          </div>
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono-tabular tabular-nums text-amber-600">
-                          {pen > 0 ? `-KES ${pen.toLocaleString()}` : 'KES 0'}
-                          {s.penaltiesReason && (
-                            <div className="text-[9px] text-amber-800 truncate max-w-[120px] ml-auto">
-                              {s.penaltiesReason}
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono-tabular tabular-nums font-black text-[#0A006E]">
-                          KES {net.toLocaleString()}
-                        </td>
-                        <td className="py-2.5 px-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenCompensation(s)}
-                            className="beta-action-tile min-h-[38px] px-3.5 py-2 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl font-montserrat font-bold text-xs cursor-pointer shadow-xs transition ml-auto flex items-center gap-1.5 whitespace-nowrap"
-                          >
-                            <ListChecks className="w-4 h-4 text-[#FFDE00]" />
-                            <span>Edit Pay</span>
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Historical Payroll Runs & Generated Thermal Payslips */}
-          <div className="beta-kpi-card rounded-2xl p-4 sm:p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-montserrat font-black text-[#0A006E] flex items-center gap-2">
-                  <History className="w-4 h-4 text-[#0A006E]" />
-                  <span>Payroll History ({payrollRuns.length})</span>
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Completed payroll batches and thermal payslips.
-                </p>
-              </div>
-            </div>
-
-            {payrollRuns.length === 0 ? (
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-8 text-center space-y-2">
-                <Receipt className="w-8 h-8 text-slate-400 mx-auto" />
-                <div className="font-montserrat font-bold text-slate-700 text-sm">
-                  No Payroll Runs Yet
-                </div>
-                <p className="text-xs text-slate-500 max-w-md mx-auto">
-                  Tap <strong>Run Payroll ({payrollPeriod})</strong> above to generate employee payslips.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {payrollRuns.map((run) => {
-                  let runRecords: PayrollRecord[] = [];
-                  try {
-                    runRecords = JSON.parse(run.recordsJson);
-                  } catch {
-                    runRecords = [];
-                  }
-
-                  return (
-                    <div key={run.id} className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-2xs">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-10 h-10 bg-[#34D186]/20 text-[#1E9E60] rounded-xl font-bold flex items-center justify-center shrink-0">
-                            <CheckCircle2 className="w-5 h-5" />
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-xs bg-slate-50 border border-slate-100 rounded-xl p-2.5 font-mono-tabular tabular-nums">
+                          <div>
+                            <div className="text-[10px] text-slate-500">Gross</div>
+                            <div className="font-bold text-slate-900">{bSal.toLocaleString()}</div>
                           </div>
                           <div>
-                            <div className="font-montserrat font-black text-slate-900 text-sm">
-                              {run.period}
-                            </div>
-                            <div className="text-xs text-slate-500">
-                              By {run.runBy} · {new Date(run.runDate).toLocaleDateString()}
-                            </div>
+                            <div className="text-[10px] text-slate-500">Deductions</div>
+                            <div className="font-bold text-rose-600">-{ded.toLocaleString()}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-slate-500">Penalties</div>
+                            <div className="font-bold text-amber-600">{pen > 0 ? `-${pen.toLocaleString()}` : '0'}</div>
                           </div>
                         </div>
-
-                        <div className="flex items-center gap-3">
-                          <div className="text-left sm:text-right">
-                            <div className="text-xs text-slate-500">Total Net:</div>
-                            <div className="font-mono-tabular font-black text-[#0A006E] text-sm">
-                              KES {run.totalDisbursed.toLocaleString()}
-                            </div>
-                          </div>
-                          <span className="px-2.5 py-1 bg-[#34D186]/20 text-[#1E9E60] border border-[#34D186]/40 rounded-xl text-xs font-bold">
-                            PAID
-                          </span>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenCompensation(s)}
+                          className="beta-action-tile w-full min-h-[44px] px-4 py-2.5 bg-[#0A006E] text-[#FFDE00] rounded-xl font-montserrat font-black text-xs flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <ListChecks className="w-4 h-4 text-[#FFDE00]" />
+                          <span>Edit Pay &amp; Deductions</span>
+                        </button>
                       </div>
+                    );
+                  })}
+                </div>
 
-                      {/* Employee payslip list inside this run */}
-                      <div className="space-y-2 pt-1">
-                        <div className="text-xs font-bold text-slate-600">
-                          Payslips ({runRecords.length})
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-                          {runRecords.map((rec) => (
-                            <div
-                              key={rec.staffId}
-                              className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-2 text-xs"
-                            >
-                              <div className="truncate">
-                                <div className="font-montserrat font-bold text-slate-900 truncate">
-                                  {rec.staffName}
-                                </div>
-                                <div className="text-xs text-slate-500 font-mono-tabular">
-                                  {rec.staffRole} · KES {rec.netSalary.toLocaleString()}
-                                </div>
+                {/* Desktop Table with Bounded Scroll Viewport */}
+                <div className="hidden md:block overflow-x-auto max-h-[460px] overflow-y-auto bg-white border border-slate-200 rounded-xl">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead className="sticky top-0 z-10">
+                      <tr className="bg-[#0A006E] text-[#FFDE00] font-montserrat">
+                        <th className="py-2.5 px-3 font-black">Staff Member</th>
+                        <th className="py-2.5 px-3 font-black">Role &amp; Branch</th>
+                        <th className="py-2.5 px-3 font-black text-right">Basic Salary (KES)</th>
+                        <th className="py-2.5 px-3 font-black text-right">Deductions (KES)</th>
+                        <th className="py-2.5 px-3 font-black text-right">Penalties (KES)</th>
+                        <th className="py-2.5 px-3 font-black text-right">Net Pay (KES)</th>
+                        <th className="py-2.5 px-3 font-black text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {filteredPayrollStaff.map((s) => {
+                        const bSal = s.baseSalaryKes ?? (s.role === 'Admin' ? 180000 : s.role === 'Accountant' ? 120000 : s.role === 'Branch Manager' ? 95000 : 65000);
+                        const sItems = hydrateStaffDeductionItems({
+                          baseSalary: bSal,
+                          deductionsKes: s.deductionsKes,
+                          deductionsBreakdown: s.deductionsBreakdown,
+                          deductionItems: s.deductionItems,
+                        });
+                        const ded =
+                          s.deductionItems && s.deductionItems.length > 0
+                            ? summarizeDeductionItems(s.deductionItems).totalDeductionsKes
+                            : s.deductionsKes ?? summarizeDeductionItems(sItems).totalDeductionsKes;
+                        const pen = s.penaltiesKes ?? 0;
+                        const net = Math.max(0, bSal - ded - pen);
+
+                        return (
+                          <tr key={s.id} className="hover:bg-slate-50">
+                            <td className="py-2.5 px-3 font-semibold text-slate-900">
+                              <div>{s.name}</div>
+                              <div className="text-slate-500 font-normal text-[11px]">
+                                {s.email}{s.kraPin ? ` · PIN: ${s.kraPin}` : ''}
                               </div>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <div className="font-montserrat font-bold text-[#0A006E]">{s.role}</div>
+                              <div className="text-[11px] text-slate-600">{s.branchName} · {s.status}</div>
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono-tabular tabular-nums font-bold text-slate-900">
+                              KES {bSal.toLocaleString()}
+                            </td>
+                            <td className="py-2.5 px-3 text-right">
+                              <div className="font-mono-tabular tabular-nums font-bold text-rose-600">
+                                -KES {ded.toLocaleString()}
+                              </div>
+                              <div
+                                className="text-[10px] text-slate-500 truncate max-w-[180px] ml-auto"
+                                title={sItems.map((i) => `${i.name}: KES ${i.amountKes.toLocaleString()}`).join(', ')}
+                              >
+                                {sItems.length} item{sItems.length === 1 ? '' : 's'}
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono-tabular tabular-nums text-amber-600">
+                              {pen > 0 ? `-KES ${pen.toLocaleString()}` : 'KES 0'}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono-tabular tabular-nums font-black text-[#0A006E]">
+                              KES {net.toLocaleString()}
+                            </td>
+                            <td className="py-2.5 px-3 text-right">
                               <button
                                 type="button"
-                                onClick={() => onOpenPayslip?.(rec)}
-                                className="beta-action-tile min-h-[40px] px-3.5 py-2 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-xl font-montserrat font-black text-xs flex items-center gap-1.5 cursor-pointer transition shrink-0"
+                                onClick={() => handleOpenCompensation(s)}
+                                className="beta-action-tile min-h-[38px] px-3.5 py-2 bg-[#0A006E] hover:bg-[#070050] text-[#FFDE00] rounded-xl font-montserrat font-bold text-xs cursor-pointer shadow-xs transition ml-auto flex items-center gap-1.5 whitespace-nowrap"
                               >
-                                <Printer className="w-4 h-4" />
-                                <span>Payslip</span>
+                                <ListChecks className="w-4 h-4 text-[#FFDE00]" />
+                                <span>Edit Pay</span>
                               </button>
-                            </div>
-                          ))}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </motion.div>
+            )}
+
+            {payrollSubTab === 'deductions' && (
+              <motion.div
+                key="sub_deductions"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.16 }}
+                className="beta-kpi-card rounded-2xl p-4 sm:p-5 space-y-4"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                  <div>
+                    <h3 className="text-sm sm:text-base font-montserrat font-black text-[#0A006E] flex items-center gap-2">
+                      <ListChecks className="w-4 h-4 text-[#0A006E]" />
+                      <span>Quick Add Deduction</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Assign loan, SACCO, advance, or custom deduction to any staff member.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowCatalogManager((prev) => !prev)}
+                    className="beta-action-tile min-h-[44px] sm:min-h-[38px] px-4 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-300 text-[#0A006E] rounded-xl text-xs font-montserrat font-bold flex items-center justify-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap"
+                  >
+                    <Tag className="w-4 h-4 text-[#0A006E]" />
+                    <span>
+                      {showCatalogManager
+                        ? 'Hide Catalog'
+                        : `Manage Catalog (${fullDeductionCatalog.length})`}
+                    </span>
+                  </button>
+                </div>
+
+                <form
+                  onSubmit={handleQuickAssignDeductionToStaff}
+                  className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 text-xs"
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3">
+                    <div className="lg:col-span-3">
+                      <label className="block font-montserrat font-bold text-slate-700 mb-1">
+                        1. Employee *
+                      </label>
+                      <select
+                        value={quickAssignStaffId || staffList[0]?.id || ''}
+                        onChange={(e) => setQuickAssignStaffId(e.target.value)}
+                        className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-xl font-montserrat font-bold text-slate-900"
+                      >
+                        {staffList.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} ({s.role})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="lg:col-span-4">
+                      <label className="block font-montserrat font-bold text-slate-700 mb-1">
+                        2. Deduction Item *
+                      </label>
+                      <select
+                        value={quickAssignCatalogId}
+                        onChange={(e) => {
+                          const nextId = e.target.value;
+                          setQuickAssignCatalogId(nextId);
+                          const found = fullDeductionCatalog.find((c) => c.id === nextId);
+                          if (found) {
+                            setQuickAssignMode(found.defaultCalcMode);
+                            setQuickAssignValue(found.defaultValue);
+                            setQuickAssignFreq(found.defaultFrequency);
+                          }
+                        }}
+                        className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-xl font-montserrat font-bold text-[#0A006E]"
+                      >
+                        {DEDUCTION_CATEGORIES.map((category) => {
+                          const entries = fullDeductionCatalog.filter((c) => c.category === category);
+                          if (entries.length === 0) return null;
+                          return (
+                            <optgroup key={category} label={category}>
+                              {entries.map((entry) => (
+                                <option key={entry.id} value={entry.id}>
+                                  {entry.name}
+                                </option>
+                              ))}
+                            </optgroup>
+                          );
+                        })}
+                      </select>
+                    </div>
+
+                    <div className="lg:col-span-2">
+                      <label className="block font-montserrat font-bold text-slate-700 mb-1">
+                        Basis
+                      </label>
+                      <select
+                        value={quickAssignMode}
+                        onChange={(e) => setQuickAssignMode(e.target.value as DeductionCalcMode)}
+                        className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-xl font-semibold text-slate-800"
+                      >
+                        <option value="FIXED">Fixed (KES)</option>
+                        <option value="PERCENTAGE">% of Basic</option>
+                        {['PAYE', 'SHIF', 'NSSF', 'AHL'].includes(
+                          fullDeductionCatalog.find((c) => c.id === quickAssignCatalogId)?.code || ''
+                        ) && <option value="STATUTORY_AUTO">KRA Formula</option>}
+                      </select>
+                    </div>
+
+                    <div className="lg:col-span-3">
+                      <label className="block font-montserrat font-bold text-slate-700 mb-1">
+                        {quickAssignMode === 'PERCENTAGE'
+                          ? 'Percentage (%)'
+                          : quickAssignMode === 'STATUTORY_AUTO'
+                          ? 'Auto KRA'
+                          : 'Amount (KES)'}
+                      </label>
+                      {quickAssignMode === 'STATUTORY_AUTO' ? (
+                        <div className="w-full min-h-[44px] flex items-center px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl font-mono-tabular text-slate-600 font-bold">
+                          Auto KRA Formula
                         </div>
+                      ) : (
+                        <input
+                          type="number"
+                          min={0}
+                          step={quickAssignMode === 'PERCENTAGE' ? '0.5' : '50'}
+                          value={quickAssignValue}
+                          onChange={(e) => setQuickAssignValue(Number(e.target.value))}
+                          className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-xl font-mono-tabular tabular-nums font-bold text-slate-900"
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
+                    <div className="flex flex-col sm:flex-row flex-1 items-stretch sm:items-center gap-2.5">
+                      <select
+                        value={quickAssignFreq}
+                        onChange={(e) =>
+                          setQuickAssignFreq(e.target.value as 'Recurring Monthly' | 'One-Off')
+                        }
+                        className="min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-xl font-semibold text-slate-700"
+                      >
+                        <option value="Recurring Monthly">Recurring Monthly</option>
+                        <option value="One-Off">One-Off (This Run)</option>
+                      </select>
+                      <input
+                        type="text"
+                        value={quickAssignNote}
+                        onChange={(e) => setQuickAssignNote(e.target.value)}
+                        placeholder="Optional note (e.g. HELB #9920)"
+                        className="min-h-[44px] flex-1 px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-800"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isAssigningQuick || staffList.length === 0}
+                      className="beta-action-tile min-h-[46px] px-5 py-2.5 bg-[#0A006E] hover:bg-[#12009E] disabled:opacity-50 text-[#FFDE00] rounded-xl font-montserrat font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 cursor-pointer transition whitespace-nowrap shrink-0"
+                    >
+                      <Plus className="w-4 h-4 text-[#FFDE00]" />
+                      <span>{isAssigningQuick ? 'Adding...' : 'Add Deduction'}</span>
+                    </button>
+                  </div>
+                </form>
+
+                {showCatalogManager && (
+                  <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                      <div>
+                        <h4 className="text-xs font-montserrat font-black text-[#0A006E]">
+                          HR Deduction Catalog ({fullDeductionCatalog.length} Items)
+                        </h4>
+                        <p className="text-[11px] text-slate-500">
+                          Create custom reusable deduction items for staff payroll.
+                        </p>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+
+                    {onCreateCatalogDeduction && (
+                      <form
+                        onSubmit={handleCreateCustomCatalogItemSubmit}
+                        className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs"
+                      >
+                        <div className="sm:col-span-4">
+                          <label className="block text-[11px] font-montserrat font-bold text-slate-700 mb-1">
+                            New Deduction Item Name *
+                          </label>
+                          <input
+                            required
+                            type="text"
+                            value={newCatName}
+                            onChange={(e) => setNewCatName(e.target.value)}
+                            placeholder="e.g. Staff Chama Savings"
+                            className="w-full min-h-[42px] px-3 py-2 bg-white border border-slate-300 rounded-xl"
+                          />
+                        </div>
+                        <div className="sm:col-span-3">
+                          <label className="block text-[11px] font-montserrat font-bold text-slate-700 mb-1">
+                            Category
+                          </label>
+                          <select
+                            value={newCatCategory}
+                            onChange={(e) => setNewCatCategory(e.target.value as DeductionCategory)}
+                            className="w-full min-h-[42px] px-3 py-2 bg-white border border-slate-300 rounded-xl"
+                          >
+                            {DEDUCTION_CATEGORIES.map((cat) => (
+                              <option key={cat} value={cat}>
+                                {cat}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="block text-[11px] font-montserrat font-bold text-slate-700 mb-1">
+                            Default Basis
+                          </label>
+                          <select
+                            value={newCatMode}
+                            onChange={(e) => setNewCatMode(e.target.value as 'FIXED' | 'PERCENTAGE')}
+                            className="w-full min-h-[42px] px-3 py-2 bg-white border border-slate-300 rounded-xl"
+                          >
+                            <option value="FIXED">Fixed KES</option>
+                            <option value="PERCENTAGE">% of Basic</option>
+                          </select>
+                        </div>
+                        <div className="sm:col-span-3 flex items-end gap-2">
+                          <div className="flex-1">
+                            <label className="block text-[11px] font-montserrat font-bold text-slate-700 mb-1">
+                              Default {newCatMode === 'PERCENTAGE' ? '%' : 'KES'}
+                            </label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={newCatDefaultVal}
+                              onChange={(e) => setNewCatDefaultVal(Number(e.target.value))}
+                              className="w-full min-h-[42px] px-3 py-2 bg-white border border-slate-300 rounded-xl font-mono-tabular tabular-nums font-bold"
+                            />
+                          </div>
+                          <button
+                            type="submit"
+                            disabled={isCreatingCatalogItem || !newCatName.trim()}
+                            className="min-h-[42px] px-4 py-2 bg-[#FFDE00] hover:bg-amber-400 border border-[#0A006E] text-[#0A006E] rounded-xl font-montserrat font-black text-xs cursor-pointer whitespace-nowrap"
+                          >
+                            + Add Item
+                          </button>
+                        </div>
+                      </form>
+                    )}
+
+                    <div className="overflow-x-auto border border-slate-200 rounded-xl max-h-60 overflow-y-auto">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-montserrat sticky top-0">
+                            <th className="py-2 px-3 font-bold">Deduction Item</th>
+                            <th className="py-2 px-3 font-bold">Category</th>
+                            <th className="py-2 px-3 font-bold">Default Basis</th>
+                            <th className="py-2 px-3 font-bold">Schedule</th>
+                            <th className="py-2 px-3 font-bold text-right">Type</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {fullDeductionCatalog.map((catItem) => (
+                            <tr key={catItem.id} className="hover:bg-slate-50">
+                              <td className="py-2 px-3 font-montserrat font-bold text-slate-900">
+                                {catItem.name}
+                              </td>
+                              <td className="py-2 px-3 text-slate-600">{catItem.category}</td>
+                              <td className="py-2 px-3 font-mono-tabular tabular-nums text-slate-700">
+                                {catItem.defaultCalcMode === 'STATUTORY_AUTO'
+                                  ? 'KRA Statutory Formula'
+                                  : catItem.defaultCalcMode === 'PERCENTAGE'
+                                  ? `${catItem.defaultValue}% of Basic`
+                                  : `KES ${catItem.defaultValue.toLocaleString()}`}
+                              </td>
+                              <td className="py-2 px-3 text-slate-600">{catItem.defaultFrequency}</td>
+                              <td className="py-2 px-3 text-right">
+                                {catItem.isSystemPreset ? (
+                                  <span className="text-[11px] text-slate-400 font-medium">
+                                    Standard
+                                  </span>
+                                ) : onDeleteCatalogDeduction ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => onDeleteCatalogDeduction(catItem.id)}
+                                    className="w-8 h-8 inline-flex items-center justify-center text-slate-400 hover:text-rose-600 rounded-lg cursor-pointer"
+                                    title="Delete custom catalog item"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                ) : (
+                                  <span className="text-[11px] text-[#0A006E] font-semibold">Custom</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
             )}
-          </div>
+
+            {payrollSubTab === 'history' && (
+              <motion.div
+                key="sub_history"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.16 }}
+                className="beta-kpi-card rounded-2xl p-4 sm:p-5 space-y-4"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm sm:text-base font-montserrat font-black text-[#0A006E] flex items-center gap-2">
+                      <History className="w-4 h-4 text-[#0A006E]" />
+                      <span>Payroll History &amp; Payslips ({payrollRuns.length})</span>
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Expand any payroll batch to view or print thermal payslips.
+                    </p>
+                  </div>
+                </div>
+
+                {payrollRuns.length === 0 ? (
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-8 text-center space-y-2">
+                    <Receipt className="w-8 h-8 text-slate-400 mx-auto" />
+                    <div className="font-montserrat font-bold text-slate-700 text-sm">
+                      No Payroll Runs Yet
+                    </div>
+                    <p className="text-xs text-slate-500 max-w-md mx-auto">
+                      Tap <strong>Run Payroll</strong> above to generate employee payslips.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {payrollRuns.map((run, idx) => {
+                      let runRecords: PayrollRecord[] = [];
+                      try {
+                        runRecords = JSON.parse(run.recordsJson);
+                      } catch {
+                        runRecords = [];
+                      }
+                      const isExpanded =
+                        expandedRunId !== null ? expandedRunId === run.id : idx === 0;
+
+                      return (
+                        <div key={run.id} className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-2xs">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedRunId((prev) =>
+                                prev === run.id ? '__NONE__' : run.id
+                              )
+                            }
+                            className="w-full flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-left cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-10 h-10 bg-[#34D186]/20 text-[#1E9E60] rounded-xl font-bold flex items-center justify-center shrink-0">
+                                <CheckCircle2 className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <div className="font-montserrat font-black text-slate-900 text-sm">
+                                  {run.period}
+                                </div>
+                                <div className="text-xs text-slate-500">
+                                  By {run.runBy} · {new Date(run.runDate).toLocaleDateString()} · {runRecords.length} payslips
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between sm:justify-end gap-3">
+                              <div className="text-left sm:text-right">
+                                <div className="text-[11px] text-slate-500">Total Net</div>
+                                <div className="font-mono-tabular tabular-nums font-black text-[#0A006E] text-sm">
+                                  KES {run.totalDisbursed.toLocaleString()}
+                                </div>
+                              </div>
+                              <span className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-[#0A006E] rounded-xl text-xs font-montserrat font-black whitespace-nowrap">
+                                {isExpanded ? 'Hide Slips' : 'Show Slips'}
+                              </span>
+                            </div>
+                          </button>
+
+                          {isExpanded && (
+                            <div className="space-y-2 pt-3 border-t border-slate-200">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                                {runRecords.map((rec) => (
+                                  <div
+                                    key={rec.staffId}
+                                    className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-2 text-xs"
+                                  >
+                                    <div className="truncate">
+                                      <div className="font-montserrat font-bold text-slate-900 truncate">
+                                        {rec.staffName}
+                                      </div>
+                                      <div className="text-xs text-slate-500 font-mono-tabular tabular-nums">
+                                        {rec.staffRole} · KES {rec.netSalary.toLocaleString()}
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => onOpenPayslip?.(rec)}
+                                      className="beta-action-tile min-h-[40px] px-3.5 py-2 bg-[#FFDE00] hover:bg-amber-400 text-[#0A006E] rounded-xl font-montserrat font-black text-xs flex items-center gap-1.5 cursor-pointer transition shrink-0"
+                                    >
+                                      <Printer className="w-4 h-4" />
+                                      <span>Payslip</span>
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       )}
 
