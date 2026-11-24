@@ -86,6 +86,8 @@ import {
   AccountingExpense,
   LineItem,
   LeaveRequest,
+  StaffShiftSession,
+  OvertimeRequest,
 } from './types';
 import {
   getDeviceFingerprint,
@@ -138,10 +140,12 @@ import { KraReturnsExportModal } from './components/KraReturnsExportModal';
 import { KraReturnScheduleType } from './utils/kraReturnsExport';
 import {
   InternalInboxModule,
+  canUserViewInboxMessage,
   computeUnreadInboxSummary,
 } from './components/InternalInboxModule';
 import { DesktopInboxArrivalPopup } from './components/DesktopInboxArrivalPopup';
 import { LeaveManagementPortal } from './components/LeaveManagementPortal';
+import { ShiftCountdownWidget } from './components/ShiftCountdownWidget';
 import {
   hashPin,
   isPinHashed,
@@ -550,8 +554,24 @@ export default function App() {
       return [];
     }
   });
+  const [staffShifts, setStaffShifts] = useState<StaffShiftSession[]>(() => {
+    try {
+      const saved = localStorage.getItem('erp_staff_shifts_backup');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [overtimeRequests, setOvertimeRequests] = useState<OvertimeRequest[]>(() => {
+    try {
+      const saved = localStorage.getItem('erp_overtime_requests_backup');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [hrRequestedTab, setHrRequestedTab] = useState<
-    'roster' | 'payroll' | 'leave_requests' | 'master_security' | undefined
+    'roster' | 'payroll' | 'leave_requests' | 'shifts_overtime' | 'master_security' | undefined
   >(undefined);
   const [inboxReadTick, setInboxReadTick] = useState(0);
   const [requestedInboxThreadId, setRequestedInboxThreadId] = useState<string | null>(null);
@@ -627,7 +647,17 @@ export default function App() {
     return null;
   });
 
+  const prevUserIdForInboxRef = useRef<string | null>(currentUser?.id || null);
+
   useEffect(() => {
+    const nextUserId = currentUser?.id || null;
+    if (prevUserIdForInboxRef.current !== nextUserId) {
+      prevUserIdForInboxRef.current = nextUserId;
+      setRequestedInboxThreadId(null);
+      setActiveInboxThreadId(null);
+      localStorage.removeItem('erp_active_inbox_thread');
+    }
+
     if (currentUser) {
       localStorage.setItem('erp_current_user', JSON.stringify(currentUser));
     } else {
@@ -821,10 +851,15 @@ export default function App() {
     };
   }, []);
 
+  const visibleInternalChatMessages = useMemo(() => {
+    if (!currentUser) return [];
+    return internalChatMessages.filter((msg) => canUserViewInboxMessage(msg, currentUser));
+  }, [internalChatMessages, currentUser]);
+
   const inboxSummary = useMemo(() => {
     void inboxReadTick;
-    return computeUnreadInboxSummary(internalChatMessages, currentUser);
-  }, [internalChatMessages, currentUser, inboxReadTick]);
+    return computeUnreadInboxSummary(visibleInternalChatMessages, currentUser);
+  }, [visibleInternalChatMessages, currentUser, inboxReadTick]);
   const [toastStatus, setToastStatus] = useState<{
     type: 'success' | 'error';
     title: string;
@@ -1371,6 +1406,28 @@ export default function App() {
       'leave_requests'
     );
 
+    const unsubStaffShifts = subscribeWithFallback<StaffShiftSession>(
+      'staff_shifts',
+      (list) => {
+        setStaffShifts(list);
+        try {
+          localStorage.setItem('erp_staff_shifts_backup', JSON.stringify(list));
+        } catch {}
+      },
+      'staff_shifts'
+    );
+
+    const unsubOvertimeRequests = subscribeWithFallback<OvertimeRequest>(
+      'overtime_requests',
+      (list) => {
+        setOvertimeRequests(list);
+        try {
+          localStorage.setItem('erp_overtime_requests_backup', JSON.stringify(list));
+        } catch {}
+      },
+      'overtime_requests'
+    );
+
     return () => {
       unsubStaff();
       unsubBranches();
@@ -1389,6 +1446,8 @@ export default function App() {
       unsubInternalChat();
       unsubExpenses();
       unsubLeaveRequests();
+      unsubStaffShifts();
+      unsubOvertimeRequests();
     };
   }, []);
 
@@ -2076,6 +2135,9 @@ export default function App() {
 
   const handleLogout = async () => {
     if (currentUser) {
+      try {
+        localStorage.setItem(`vaairo_last_offline_at_${currentUser.id}`, new Date().toISOString());
+      } catch {}
       recordAuditLog(
         currentUser.name,
         currentUser.role,
@@ -2137,6 +2199,7 @@ export default function App() {
     const handleUnload = () => {
       try {
         const now = new Date().toISOString();
+        localStorage.setItem(`vaairo_last_offline_at_${currentUser.id}`, now);
         const ref = doc(db, 'staff', currentUser.id);
         updateDoc(ref, { isOnline: false, lastSeen: now }).catch(() => {});
       } catch {}
@@ -2198,6 +2261,14 @@ export default function App() {
       setMobileDrawerOpen(false);
     } else if (allowedModules.includes('leave_management')) {
       setActiveModule('leave_management');
+      setMobileDrawerOpen(false);
+    }
+  };
+
+  const handleOpenHrOvertimeTab = () => {
+    setHrRequestedTab('shifts_overtime');
+    if (allowedModules.includes('hr_rbac')) {
+      setActiveModule('hr_rbac');
       setMobileDrawerOpen(false);
     }
   };
@@ -3621,6 +3692,315 @@ export default function App() {
     );
   };
 
+  const handleStartShift = async (
+    scheduledHours: number,
+    shiftLabel: string,
+    notes?: string
+  ) => {
+    if (!currentUser) return;
+    const existingActive = staffShifts.find(
+      (s) =>
+        s.status === 'Active' &&
+        (s.staffId === currentUser.id ||
+          (currentUser.email && s.staffEmail?.toLowerCase() === currentUser.email.toLowerCase()))
+    );
+    if (existingActive) {
+      triggerToast('error', 'Shift Already Active', `Shift ${existingActive.shiftNo} is already running.`);
+      return;
+    }
+
+    const id = `shf-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const endDate = new Date(now.getTime() + Math.max(1, scheduledHours) * 3600000);
+    const seq = String(staffShifts.length + 1).padStart(4, '0');
+    const shiftNo = `SHF-${now.getFullYear()}-${seq}`;
+
+    const activeBranchObj = branches.find((b) => b.id === currentUser.branchId);
+    const shiftSession: StaffShiftSession = cleanFirestoreData({
+      id,
+      shiftNo,
+      staffId: currentUser.id,
+      staffName: currentUser.name,
+      staffEmail: currentUser.email || '',
+      staffRole: currentUser.role,
+      branchId: currentUser.branchId,
+      branchName: activeBranchObj?.name || currentUser.branchName,
+      shiftLabel: shiftLabel || `${scheduledHours}h Shift`,
+      scheduledHours,
+      clockInAt: nowIso,
+      scheduledEndAt: endDate.toISOString(),
+      status: 'Active',
+      notes: notes || undefined,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    });
+
+    setStaffShifts((prev) => {
+      const next = [shiftSession, ...prev.filter((s) => s.id !== id)];
+      try {
+        localStorage.setItem('erp_staff_shifts_backup', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    try {
+      await setDoc(doc(db, 'staff_shifts', id), shiftSession);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'staff_shifts');
+    }
+
+    await recordAuditLog(
+      currentUser.name,
+      currentUser.role,
+      currentUser.email || currentUser.id,
+      `Logged In Shift (${shiftNo})`,
+      'Shift Attendance',
+      `${shiftSession.shiftLabel} started · Target end ${endDate.toLocaleTimeString('en-KE', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })}`,
+      shiftSession.branchName,
+      'Info'
+    );
+
+    triggerToast(
+      'success',
+      `Shift ${shiftNo} Started`,
+      `Countdown started for your ${shiftSession.shiftLabel} (ends at ${endDate.toLocaleTimeString('en-KE', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })}).`
+    );
+  };
+
+  const handleEndShift = async (shiftId: string, notes?: string) => {
+    const existing = staffShifts.find((s) => s.id === shiftId);
+    if (!existing || existing.status === 'Completed') return;
+
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const startMs = new Date(existing.clockInAt).getTime();
+    const scheduledEndMs = new Date(existing.scheduledEndAt).getTime();
+    const workedMinutes = Number.isNaN(startMs)
+      ? 0
+      : Math.max(0, Math.round((now.getTime() - startMs) / 60000));
+    const overtimeMinutes = Number.isNaN(scheduledEndMs)
+      ? 0
+      : Math.max(0, Math.round((now.getTime() - scheduledEndMs) / 60000));
+
+    const updated: StaffShiftSession = cleanFirestoreData({
+      ...existing,
+      clockOutAt: nowIso,
+      status: 'Completed',
+      workedMinutes,
+      overtimeMinutes,
+      notes: notes || existing.notes,
+      updatedAt: nowIso,
+    });
+
+    setStaffShifts((prev) => {
+      const next = prev.map((s) => (s.id === shiftId ? updated : s));
+      try {
+        localStorage.setItem('erp_staff_shifts_backup', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    try {
+      await setDoc(doc(db, 'staff_shifts', shiftId), updated);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'staff_shifts');
+    }
+
+    if (currentUser) {
+      await recordAuditLog(
+        currentUser.name,
+        currentUser.role,
+        currentUser.email || currentUser.id,
+        `Ended Shift (${existing.shiftNo})`,
+        'Shift Attendance',
+        `Ended shift for ${existing.staffName} · Worked ${workedMinutes} mins${overtimeMinutes > 0 ? ` (${overtimeMinutes} mins past scheduled end)` : ''}`,
+        existing.branchName,
+        'Info'
+      );
+    }
+
+    triggerToast(
+      'success',
+      `Shift ${existing.shiftNo} Ended`,
+      `Recorded ${Math.floor(workedMinutes / 60)}h ${workedMinutes % 60}m worked${
+        overtimeMinutes > 0
+          ? ` (+${Math.floor(overtimeMinutes / 60)}h ${overtimeMinutes % 60}m past shift end).`
+          : '.'
+      }`
+    );
+  };
+
+  const handleSubmitOvertimeRequest = async (draft: {
+    shiftId?: string;
+    shiftNo?: string;
+    shiftDate: string;
+    requestedHours: number;
+    reason: string;
+  }): Promise<OvertimeRequest | null> => {
+    if (!currentUser) return null;
+    const id = `ot-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const nowIso = new Date().toISOString();
+    const seq = String(overtimeRequests.length + 1).padStart(4, '0');
+    const requestNo = `OT-${new Date().getFullYear()}-${seq}`;
+    const activeBranchObj = branches.find((b) => b.id === currentUser.branchId);
+
+    const newReq: OvertimeRequest = cleanFirestoreData({
+      id,
+      requestNo,
+      shiftId: draft.shiftId,
+      shiftNo: draft.shiftNo,
+      staffId: currentUser.id,
+      staffName: currentUser.name,
+      staffEmail: currentUser.email || '',
+      staffRole: currentUser.role,
+      branchId: currentUser.branchId,
+      branchName: activeBranchObj?.name || currentUser.branchName,
+      shiftDate: draft.shiftDate,
+      requestedHours: draft.requestedHours,
+      reason: draft.reason.trim(),
+      status: 'Pending HR Rate',
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    });
+
+    setOvertimeRequests((prev) => {
+      const next = [newReq, ...prev.filter((r) => r.id !== id)];
+      try {
+        localStorage.setItem('erp_overtime_requests_backup', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    try {
+      await setDoc(doc(db, 'overtime_requests', id), newReq);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'overtime_requests');
+    }
+
+    await recordAuditLog(
+      currentUser.name,
+      currentUser.role,
+      currentUser.email || currentUser.id,
+      `Submitted OT Request (${requestNo})`,
+      'HR & Overtime Governance',
+      `Requested ${draft.requestedHours}h OT on ${draft.shiftDate} · Reason: ${draft.reason}`,
+      newReq.branchName,
+      'Financial'
+    );
+
+    triggerToast(
+      'success',
+      `OT Request ${requestNo} Sent to HR`,
+      `Submitted ${draft.requestedHours}h working-late overtime request. HR will assign the OT rate.`
+    );
+
+    return newReq;
+  };
+
+  const handleReviewOvertimeRequest = async (
+    requestId: string,
+    decision: 'Approved' | 'Declined',
+    otRatePerHourKes: number,
+    approvedHours: number,
+    otMultiplier = 1.5,
+    decisionNote = ''
+  ) => {
+    if (!currentUser || (currentUser.role !== 'HR' && currentUser.role !== 'Admin')) {
+      triggerToast('error', 'HR Restricted Action', 'Only HR or System Admin can set OT rates and approve overtime.');
+      return;
+    }
+    const existing = overtimeRequests.find((r) => r.id === requestId);
+    if (!existing) return;
+
+    const nowIso = new Date().toISOString();
+    const safeHours = decision === 'Approved' ? approvedHours : 0;
+    const safeRate = decision === 'Approved' ? otRatePerHourKes : 0;
+    const totalPay = decision === 'Approved' ? Math.round(safeHours * safeRate) : 0;
+
+    const updated: OvertimeRequest = cleanFirestoreData({
+      ...existing,
+      status: decision,
+      approvedHours: decision === 'Approved' ? safeHours : undefined,
+      otRatePerHourKes: decision === 'Approved' ? safeRate : undefined,
+      otMultiplier: decision === 'Approved' ? otMultiplier : undefined,
+      calculatedOtPayKes: decision === 'Approved' ? totalPay : undefined,
+      hrReviewerName: currentUser.name,
+      hrReviewerRole: currentUser.role,
+      hrReviewedAt: nowIso,
+      hrDecisionNote: decisionNote.trim() || undefined,
+      updatedAt: nowIso,
+    });
+
+    setOvertimeRequests((prev) => {
+      const next = prev.map((r) => (r.id === requestId ? updated : r));
+      try {
+        localStorage.setItem('erp_overtime_requests_backup', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    try {
+      await setDoc(doc(db, 'overtime_requests', requestId), updated);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'overtime_requests');
+    }
+
+    await recordAuditLog(
+      currentUser.name,
+      currentUser.role,
+      currentUser.email || currentUser.id,
+      `HR ${decision} OT (${existing.requestNo})`,
+      'HR & Overtime Governance',
+      decision === 'Approved'
+        ? `Approved ${safeHours}h OT for ${existing.staffName} @ ${formatKes(safeRate)}/hr = ${formatKes(totalPay)}`
+        : `Declined OT request for ${existing.staffName}${decisionNote ? ` · ${decisionNote}` : ''}`,
+      existing.branchName,
+      'Financial'
+    );
+
+    triggerToast(
+      decision === 'Approved' ? 'success' : 'error',
+      decision === 'Approved' ? `OT Rate Set & Approved (${existing.requestNo})` : `OT Request Declined`,
+      decision === 'Approved'
+        ? `${existing.staffName}: ${safeHours}h @ ${formatKes(safeRate)}/hr = ${formatKes(totalPay)}.`
+        : `${existing.requestNo} (${existing.staffName}) marked Declined.`
+    );
+  };
+
+  const handleCancelOvertimeRequest = async (requestId: string) => {
+    const existing = overtimeRequests.find((r) => r.id === requestId);
+    if (!existing) return;
+    const nowIso = new Date().toISOString();
+    const updated: OvertimeRequest = cleanFirestoreData({
+      ...existing,
+      status: 'Cancelled',
+      updatedAt: nowIso,
+    });
+
+    setOvertimeRequests((prev) => {
+      const next = prev.map((r) => (r.id === requestId ? updated : r));
+      try {
+        localStorage.setItem('erp_overtime_requests_backup', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    try {
+      await setDoc(doc(db, 'overtime_requests', requestId), updated);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'overtime_requests');
+    }
+
+    triggerToast('success', 'OT Request Withdrawn', `${existing.requestNo} cancelled.`);
+  };
+
   const handleAuthorizeStockTransfer = async (transferId: string) => {
     if (!currentUser || (currentUser.role !== 'Admin' && currentUser.role !== 'Branch Manager')) {
       triggerToast('error', 'Authorization Restricted', 'Only Admin or Branch Manager can authorize stock transfers.');
@@ -5030,7 +5410,7 @@ export default function App() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 relative z-10">
               {currentUser && (
                 <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/10 text-xs font-montserrat font-semibold">
                   <span>Cashier: {currentUser.name}</span>
@@ -6235,6 +6615,8 @@ export default function App() {
               branches={scopedBranches}
               payrollRuns={payrollRuns}
               leaveRequests={leaveRequests}
+              staffShifts={staffShifts}
+              overtimeRequests={overtimeRequests}
               initialTab={activeModule === 'payroll' ? 'payroll' : hrRequestedTab || 'roster'}
               customDeductionCatalog={hrDeductionCatalog}
               onCreateCatalogDeduction={handleCreateCatalogDeduction}
@@ -6247,6 +6629,8 @@ export default function App() {
               onSubmitLeaveRequest={handleSubmitLeaveRequest}
               onReviewLeaveRequest={handleReviewLeaveRequest}
               onCancelLeaveRequest={handleCancelLeaveRequest}
+              onReviewOvertimeRequest={handleReviewOvertimeRequest}
+              onEndStaffShift={handleEndShift}
               onOpenPayslip={(record) => setViewingPayslipRecord(record)}
               onOpenAccessMatrix={() => setIsAccessMatrixOpen(true)}
               onOpenUserFeatureModal={(staff) => {
@@ -6328,7 +6712,7 @@ export default function App() {
               products={products}
               transactions={scopedTransactions}
               transfers={transfers}
-              messages={internalChatMessages}
+              messages={visibleInternalChatMessages}
               externalSelectedThreadId={requestedInboxThreadId}
               onExternalThreadHandled={() => setRequestedInboxThreadId(null)}
               onActiveThreadChange={setActiveInboxThreadId}
@@ -6348,17 +6732,34 @@ export default function App() {
         </main>
       </div>
 
-      {/* Desktop-Only Email-Style Bottom Arrival Popup for Internal Inbox */}
+      {/* Bottom-Left Staff Shift Login, End Shift, Live Countdown & Working-Late OT Dock */}
+      {currentUser && (
+        <ShiftCountdownWidget
+          currentUser={currentUser}
+          activeBranch={scopedBranches.find((b) => b.id === currentUser.branchId) || scopedBranches[0]}
+          staffShifts={staffShifts}
+          overtimeRequests={overtimeRequests}
+          onStartShift={handleStartShift}
+          onEndShift={handleEndShift}
+          onSubmitOvertimeRequest={handleSubmitOvertimeRequest}
+          onCancelOvertimeRequest={handleCancelOvertimeRequest}
+          onOpenHrOvertimeTab={handleOpenHrOvertimeTab}
+        />
+      )}
+
+      {/* Email-Style Bottom-Right Arrival & Offline Notification Popup for Internal Inbox */}
       {currentUser && (
         <DesktopInboxArrivalPopup
           currentUser={currentUser}
-          messages={internalChatMessages}
+          messages={visibleInternalChatMessages}
           activeModule={activeModule}
           activeInboxThreadId={activeModule === 'internal_inbox' ? activeInboxThreadId : null}
           onOpenThread={(threadId) => {
             setRequestedInboxThreadId(threadId);
             handleSelectModule('internal_inbox');
           }}
+          onUpdateMessage={handleUpdateInternalChatMessage}
+          onTriggerToast={triggerToast}
         />
       )}
 

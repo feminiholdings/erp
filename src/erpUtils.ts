@@ -2069,6 +2069,217 @@ export function exportCommercialDocumentPDF(tx: TransactionDoc): void {
   doc.save(`${tx.docType.replace(/\s+/g, '_')}_${tx.docNumber}.pdf`);
 }
 
+export type ReceiptPrintFormat = 'full' | 'thermal';
+export type ThermalRollWidth = '80mm' | '58mm';
+
+// Export any commercial document or POS receipt as a formatted Thermal Roll PDF (80mm or 58mm)
+export function exportThermalDocumentPDF(
+  tx: TransactionDoc,
+  rollWidth: ThermalRollWidth = '80mm'
+): void {
+  const widthMm = rollWidth === '58mm' ? 58 : 80;
+  const marginX = rollWidth === '58mm' ? 3.2 : 4.5;
+  const contentW = widthMm - marginX * 2;
+  const rightX = widthMm - marginX;
+  const isLogisticsOnly = tx.docType === 'Packing List' || tx.docType === 'Delivery Note';
+  const items = normalizeDocumentLineItems(tx.itemsSummary);
+  const creationRec = getDocumentCreationRecord(tx);
+  const cheque = tx.chequeDetails;
+
+  const estimatedItemsHeight = items.reduce(
+    (sum, item) => sum + 9.2 + (item.sku ? 3 : 0),
+    0
+  );
+  const dynamicHeightMm = Math.max(
+    185,
+    120 + estimatedItemsHeight + (cheque ? 28 : 0) + (tx.notes ? 12 : 0)
+  );
+
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: [widthMm, dynamicHeightMm],
+  });
+
+  let y = 7;
+
+  // 1. Header
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(rollWidth === '58mm' ? 6.5 : 7.5);
+  doc.setTextColor(10, 0, 110);
+  doc.text('VAAIRO BEVERAGES & MERCHANTS LTD', widthMm / 2, y, { align: 'center' });
+
+  y += 5;
+  doc.setFont('helvetica', 'bolditalic');
+  doc.setFontSize(rollWidth === '58mm' ? 12.5 : 15);
+  doc.setTextColor(10, 0, 110);
+  doc.text(tx.docType.toUpperCase(), widthMm / 2, y, { align: 'center' });
+
+  y += 4;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`${tx.branchName} (${tx.regionName})`, widthMm / 2, y, { align: 'center' });
+
+  y += 3.3;
+  doc.text(`Channel: ${tx.channel}`, widthMm / 2, y, { align: 'center' });
+
+  y += 3.5;
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineDashPattern([1.2, 1.2], 0);
+  doc.line(marginX, y, rightX, y);
+  doc.setLineDashPattern([], 0);
+
+  // 2. Document Metadata Card
+  y += 3;
+  const metaH = 22;
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(marginX, y, contentW, metaH, 2, 2, 'FD');
+
+  let my = y + 4.3;
+  doc.setFont('courier', 'normal');
+  doc.setFontSize(6.6);
+  doc.setTextColor(100, 116, 139);
+  doc.text('Doc No:', marginX + 2.2, my);
+  doc.setFont('courier', 'bold');
+  doc.setTextColor(10, 0, 110);
+  doc.text(tx.docNumber, rightX - 2.2, my, { align: 'right' });
+
+  my += 4.1;
+  doc.setFont('courier', 'normal');
+  doc.setTextColor(100, 116, 139);
+  doc.text('Issued:', marginX + 2.2, my);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`${creationRec.createdDay} ${creationRec.createdTime}`, rightX - 2.2, my, { align: 'right' });
+
+  my += 4.1;
+  doc.setTextColor(100, 116, 139);
+  doc.text('Served By:', marginX + 2.2, my);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text(creationRec.createdBy.slice(0, rollWidth === '58mm' ? 18 : 24), rightX - 2.2, my, { align: 'right' });
+
+  my += 4.3;
+  doc.setFont('courier', 'normal');
+  doc.setTextColor(100, 116, 139);
+  doc.text('Payment:', marginX + 2.2, my);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(4, 120, 87);
+  doc.text(`${tx.status} · ${tx.paymentMethod}`.slice(0, rollWidth === '58mm' ? 22 : 30), rightX - 2.2, my, {
+    align: 'right',
+  });
+
+  y += metaH + 3;
+
+  // 3. Customer Info
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.2);
+  doc.setTextColor(10, 0, 110);
+  doc.text(tx.buyerBranchName ? 'RECEIVING BRANCH' : 'CUSTOMER / CONSIGNEE', marginX + 1, y + 3);
+  y += 6.5;
+  doc.setFontSize(7.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text((tx.customerName || 'Walk-In Customer').slice(0, rollWidth === '58mm' ? 28 : 38), marginX + 1, y);
+  y += 3.6;
+  doc.setFont('courier', 'normal');
+  doc.setFontSize(6.2);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`PIN/Lic: ${tx.customerKraPin || tx.customerLicenseNo || 'Verified 21+'}`, marginX + 1, y);
+  y += 4;
+
+  if (cheque) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.3);
+    doc.setTextColor(10, 0, 110);
+    doc.text(`Cheque #${cheque.chequeNumber} · ${cheque.drawerBank} (${cheque.status})`, marginX + 1, y);
+    y += 4;
+  }
+
+  // 4. Itemized Table Header (#0A006E + #FFDE00)
+  doc.setFillColor(10, 0, 110);
+  doc.rect(marginX, y, contentW, 5.2, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.3);
+  doc.setTextColor(255, 222, 0);
+  doc.text('ITEM / QTY', marginX + 2, y + 3.6);
+  doc.text(isLogisticsOnly ? 'BOTTLES' : 'TOTAL (KES)', rightX - 2, y + 3.6, { align: 'right' });
+  y += 8;
+
+  const maxNameChars = rollWidth === '58mm' ? 22 : 31;
+  items.forEach((item) => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.8);
+    doc.setTextColor(15, 23, 42);
+    doc.text(item.name.slice(0, maxNameChars), marginX + 1.5, y);
+
+    doc.setFont('courier', 'bold');
+    doc.setTextColor(10, 0, 110);
+    doc.text(
+      isLogisticsOnly ? `${item.totalBottles} Btls` : formatKes(item.lineTotal),
+      rightX - 1.5,
+      y,
+      { align: 'right' }
+    );
+    y += 3.6;
+
+    doc.setFont('courier', 'normal');
+    doc.setFontSize(6);
+    doc.setTextColor(100, 116, 139);
+    const detailLine = isLogisticsOnly
+      ? `${item.sku} · ${item.quantityUnits} ${item.unitMode}`
+      : `${item.quantityUnits} ${item.unitMode} x ${formatKes(item.unitPrice)} (${item.totalBottles} Btls)`;
+    doc.text(detailLine.slice(0, maxNameChars + 8), marginX + 1.5, y);
+    y += 4.5;
+  });
+
+  // 5. Emerald Totals Card
+  if (!isLogisticsOnly) {
+    y += 1.5;
+    const boxH = 20;
+    doc.setFillColor(240, 253, 244);
+    doc.setDrawColor(52, 209, 134);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(marginX, y, contentW, boxH, 2, 2, 'FD');
+
+    doc.setFont('courier', 'normal');
+    doc.setFontSize(6.6);
+    doc.setTextColor(51, 65, 85);
+    doc.text('Subtotal:', marginX + 2.2, y + 4.5);
+    doc.text(formatKes(tx.subtotal), rightX - 2.2, y + 4.5, { align: 'right' });
+
+    doc.text('Excise & VAT (16%):', marginX + 2.2, y + 8.5);
+    doc.text(formatKes(tx.exciseAndTax), rightX - 2.2, y + 8.5, { align: 'right' });
+
+    doc.setDrawColor(110, 231, 183);
+    doc.line(marginX + 2.2, y + 10.8, rightX - 2.2, y + 10.8);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.2);
+    doc.setTextColor(10, 0, 110);
+    doc.text(tx.docType === 'Credit Note' ? 'TOTAL CREDIT' : 'GRAND TOTAL', marginX + 2.2, y + 16);
+    doc.setFontSize(rollWidth === '58mm' ? 9 : 10);
+    doc.text(formatKes(tx.totalAmount), rightX - 2.2, y + 16, { align: 'right' });
+
+    y += boxH + 5;
+  } else {
+    y += 4;
+  }
+
+  // 6. Footer & Cut Line
+  doc.setFont('courier', 'normal');
+  doc.setFontSize(6);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`*${tx.docNumber}*`, widthMm / 2, y, { align: 'center' });
+  y += 3.5;
+  doc.text('Alcohol not for sale to persons under 21 · Vaairo ERP', widthMm / 2, y, {
+    align: 'center',
+  });
+
+  doc.save(`${tx.docType.replace(/\s+/g, '_')}_${tx.docNumber}_Thermal_${rollWidth}.pdf`);
+}
+
 export const INITIAL_EXTERNAL_CUSTOMERS: ExternalCustomer[] = [
   {
     id: 'cust-ext-001',

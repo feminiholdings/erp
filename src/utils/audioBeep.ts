@@ -248,6 +248,106 @@ export function playCaseScanSound(): void {
 }
 
 /**
+ * Modern, warm dual-cadence office ringer chime for inbox messages, transfers, and offline notification alerts.
+ * Synthesized cleanly via Web Audio API with soft low-pass filtering and harmonic shimmer.
+ */
+export function playOfficeNotificationRing(): boolean {
+  if (isAudioMuted()) return false;
+  const ctx = getAudioContext();
+  if (!ctx) return false;
+
+  if (ctx.state === 'suspended') {
+    ctx.resume().catch(() => {});
+  }
+
+  try {
+    const now = ctx.currentTime;
+    const masterGain = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(3600, now);
+
+    masterGain.gain.setValueAtTime(0.85, now);
+    filter.connect(masterGain);
+    masterGain.connect(ctx.destination);
+
+    const playBellNote = (freq: number, startOffset: number, duration: number, peakGain: number) => {
+      const t0 = now + startOffset;
+      const fundamental = ctx.createOscillator();
+      const overtone = ctx.createOscillator();
+      const noteGain = ctx.createGain();
+      const overtoneGain = ctx.createGain();
+
+      fundamental.type = 'sine';
+      fundamental.frequency.setValueAtTime(freq, t0);
+
+      overtone.type = 'triangle';
+      overtone.frequency.setValueAtTime(freq * 2, t0);
+
+      noteGain.gain.setValueAtTime(0.0001, t0);
+      noteGain.gain.linearRampToValueAtTime(peakGain, t0 + 0.014);
+      noteGain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+
+      overtoneGain.gain.setValueAtTime(0.0001, t0);
+      overtoneGain.gain.linearRampToValueAtTime(peakGain * 0.22, t0 + 0.01);
+      overtoneGain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration * 0.65);
+
+      fundamental.connect(noteGain);
+      overtone.connect(overtoneGain);
+      overtoneGain.connect(noteGain);
+      noteGain.connect(filter);
+
+      fundamental.start(t0);
+      overtone.start(t0);
+      fundamental.stop(t0 + duration + 0.03);
+      overtone.stop(t0 + duration + 0.03);
+    };
+
+    // Cadence 1: crisp modern office triad (E5 -> G#5 -> B5)
+    playBellNote(659.25, 0.0, 0.26, 0.22);
+    playBellNote(830.61, 0.085, 0.28, 0.24);
+    playBellNote(987.77, 0.17, 0.36, 0.26);
+
+    // Cadence 2: modern UC / enterprise ring shimmer (E5 -> G#5 -> B5 -> E6)
+    playBellNote(659.25, 0.44, 0.24, 0.2);
+    playBellNote(830.61, 0.525, 0.26, 0.22);
+    playBellNote(987.77, 0.61, 0.34, 0.25);
+    playBellNote(1318.51, 0.695, 0.52, 0.22);
+
+    triggerScanHaptic(35);
+    return ctx.state === 'running';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Unlocks AudioContext on the next user gesture if the browser suspended audio before interaction.
+ */
+export function scheduleOfficeRingOnFirstGesture(callback: () => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+  let fired = false;
+  const handler = () => {
+    if (fired) return;
+    fired = true;
+    cleanup();
+    const ctx = getAudioContext();
+    if (ctx && ctx.state === 'suspended') {
+      ctx.resume().then(() => callback()).catch(() => {});
+    } else {
+      callback();
+    }
+  };
+  const cleanup = () => {
+    window.removeEventListener('pointerdown', handler, true);
+    window.removeEventListener('keydown', handler, true);
+  };
+  window.addEventListener('pointerdown', handler, { capture: true, passive: true });
+  window.addEventListener('keydown', handler, { capture: true, passive: true });
+  return cleanup;
+}
+
+/**
  * Universal POS & ERP audio dispatcher maintaining backward compatibility.
  */
 export function playPosBeep(type: 'success' | 'case' | 'error' | 'click' = 'success'): void {

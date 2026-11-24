@@ -142,6 +142,8 @@ export interface PayrollRecord {
   branchName: string;
   period: string;
   baseSalary: number;
+  overtimeHours?: number;
+  overtimePayKes?: number;
   deductions: number;
   penalties: number;
   netSalary: number;
@@ -682,7 +684,7 @@ export type InvoiceTransferPurpose =
   | 'Account Reconciliation'
   | 'Department Handover';
 
-export type InvoiceTransferStatus = 'Pending Acceptance' | 'Accepted' | 'Processed' | 'Returned';
+export type InvoiceTransferStatus = 'Pending Acceptance' | 'Accepted' | 'Processed' | 'Returned' | 'Cancelled';
 
 export interface ChatInvoiceTransferPayload {
   transactionId: string;
@@ -698,6 +700,9 @@ export interface ChatInvoiceTransferPayload {
   assignedToStaffId?: string;
   assignedToStaffName?: string;
   assignedToRole?: string;
+  redirectedFromStaffName?: string;
+  redirectedBy?: string;
+  redirectedAt?: string;
   handledBy?: string;
   handledByRole?: string;
   handledAt?: string;
@@ -710,7 +715,8 @@ export type StockRequestChatStatus =
   | 'Pending Review'
   | 'Transfer Initiated'
   | 'Authorized & Dispatched'
-  | 'Declined';
+  | 'Declined'
+  | 'Cancelled';
 
 export interface ChatStockTransferRequestPayload {
   productId: string;
@@ -725,6 +731,9 @@ export interface ChatStockTransferRequestPayload {
   requestedToStaffId: string;
   requestedToStaffName: string;
   requestedToRole: string;
+  redirectedFromStaffName?: string;
+  redirectedBy?: string;
+  redirectedAt?: string;
   urgency: StockRequestUrgency;
   requestStatus: StockRequestChatStatus;
   linkedTransferId?: string;
@@ -733,6 +742,14 @@ export interface ChatStockTransferRequestPayload {
   actionedByRole?: string;
   actionedAt?: string;
   actionNote?: string;
+}
+
+export interface ChatFileAttachment {
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  dataUrl: string;
+  extension?: string;
 }
 
 export interface InternalChatMessage {
@@ -751,6 +768,7 @@ export interface InternalChatMessage {
   messageType: InternalChatMessageType;
   body: string;
   priority?: 'Normal' | 'Urgent';
+  attachment?: ChatFileAttachment;
   invoiceTransfer?: ChatInvoiceTransferPayload;
   stockTransferRequest?: ChatStockTransferRequestPayload;
   createdAt: string;
@@ -1077,6 +1095,59 @@ export interface LeaveRequest {
   emergencyContactPhone?: string;
   expectedDeliveryDate?: string; // For Maternity / Paternity context
   status: LeaveRequestStatus;
+  hrReviewerName?: string;
+  hrReviewerRole?: string;
+  hrReviewedAt?: string;
+  hrDecisionNote?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export type StaffShiftStatus = 'Active' | 'Completed';
+
+export interface StaffShiftSession {
+  id: string;
+  shiftNo: string;
+  staffId: string;
+  staffName: string;
+  staffEmail: string;
+  staffRole: StaffRole;
+  branchId: string;
+  branchName: string;
+  shiftLabel: string;
+  scheduledHours: number;
+  clockInAt: string;
+  scheduledEndAt: string;
+  clockOutAt?: string;
+  status: StaffShiftStatus;
+  workedMinutes?: number;
+  overtimeMinutes?: number;
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export type OvertimeRequestStatus = 'Pending HR Rate' | 'Approved' | 'Declined' | 'Cancelled';
+
+export interface OvertimeRequest {
+  id: string;
+  requestNo: string;
+  shiftId?: string;
+  shiftNo?: string;
+  staffId: string;
+  staffName: string;
+  staffEmail: string;
+  staffRole: StaffRole;
+  branchId: string;
+  branchName: string;
+  shiftDate: string; // YYYY-MM-DD
+  requestedHours: number;
+  approvedHours?: number;
+  otRatePerHourKes?: number;
+  otMultiplier?: number;
+  calculatedOtPayKes?: number;
+  reason: string;
+  status: OvertimeRequestStatus;
   hrReviewerName?: string;
   hrReviewerRole?: string;
   hrReviewedAt?: string;
