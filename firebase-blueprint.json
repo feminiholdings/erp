@@ -415,6 +415,7 @@
         "messageType": { "type": "string", "enum": ["TEXT", "INVOICE_TRANSFER", "STOCK_TRANSFER_REQUEST"] },
         "body": { "type": "string", "maxLength": 2000 },
         "priority": { "type": "string", "enum": ["Normal", "Urgent"] },
+        "attachment": { "type": "object" },
         "invoiceTransfer": { "type": "object" },
         "stockTransferRequest": { "type": "object" },
         "createdAt": { "type": "string", "maxLength": 64 },
@@ -544,6 +545,63 @@
         "status",
         "createdAt"
       ]
+    },
+    "StaffShiftSession": {
+      "title": "StaffShiftSession",
+      "description": "Staff shift login and end shift session tracking clock-in, countdown target end time, clock-out, and overtime minutes",
+      "type": "object",
+      "properties": {
+        "shiftNo": { "type": "string", "maxLength": 48 },
+        "staffId": { "type": "string", "maxLength": 128 },
+        "staffName": { "type": "string", "maxLength": 120 },
+        "staffEmail": { "type": "string", "maxLength": 180 },
+        "staffRole": { "type": "string", "maxLength": 80 },
+        "branchId": { "type": "string", "maxLength": 128 },
+        "branchName": { "type": "string", "maxLength": 120 },
+        "shiftLabel": { "type": "string", "maxLength": 80 },
+        "scheduledHours": { "type": "number" },
+        "clockInAt": { "type": "string", "maxLength": 64 },
+        "scheduledEndAt": { "type": "string", "maxLength": 64 },
+        "clockOutAt": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["Active", "Completed"] },
+        "workedMinutes": { "type": "number" },
+        "overtimeMinutes": { "type": "number" },
+        "notes": { "type": "string", "maxLength": 400 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["shiftNo", "staffId", "staffName", "staffRole", "branchName", "shiftLabel", "scheduledHours", "clockInAt", "scheduledEndAt", "status", "createdAt"]
+    },
+    "OvertimeRequest": {
+      "title": "OvertimeRequest",
+      "description": "Working-late overtime request submitted by staff to HR with HR-configured hourly OT rate and payout calculation",
+      "type": "object",
+      "properties": {
+        "requestNo": { "type": "string", "maxLength": 48 },
+        "shiftId": { "type": "string", "maxLength": 128 },
+        "shiftNo": { "type": "string", "maxLength": 48 },
+        "staffId": { "type": "string", "maxLength": 128 },
+        "staffName": { "type": "string", "maxLength": 120 },
+        "staffEmail": { "type": "string", "maxLength": 180 },
+        "staffRole": { "type": "string", "maxLength": 80 },
+        "branchId": { "type": "string", "maxLength": 128 },
+        "branchName": { "type": "string", "maxLength": 120 },
+        "shiftDate": { "type": "string", "maxLength": 32 },
+        "requestedHours": { "type": "number" },
+        "approvedHours": { "type": "number" },
+        "otRatePerHourKes": { "type": "number" },
+        "otMultiplier": { "type": "number" },
+        "calculatedOtPayKes": { "type": "number" },
+        "reason": { "type": "string", "maxLength": 600 },
+        "status": { "type": "string", "enum": ["Pending HR Rate", "Approved", "Declined", "Cancelled"] },
+        "hrReviewerName": { "type": "string", "maxLength": 120 },
+        "hrReviewerRole": { "type": "string", "maxLength": 80 },
+        "hrReviewedAt": { "type": "string", "maxLength": 64 },
+        "hrDecisionNote": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["requestNo", "staffId", "staffName", "staffRole", "branchName", "shiftDate", "requestedHours", "reason", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -618,6 +676,14 @@
     "/leave_requests/{requestId}": {
       "schema": { "$ref": "#/entities/LeaveRequest" },
       "description": "Company leave, off-day, emergency, and maternity/paternity requests submitted by staff and reviewed by HR"
+    },
+    "/staff_shifts/{shiftId}": {
+      "schema": { "$ref": "#/entities/StaffShiftSession" },
+      "description": "Staff shift login and end shift sessions with live countdown end times"
+    },
+    "/overtime_requests/{requestId}": {
+      "schema": { "$ref": "#/entities/OvertimeRequest" },
+      "description": "Staff working-late OT requests reviewed and priced by HR"
     }
   }
 }

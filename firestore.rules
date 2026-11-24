@@ -251,6 +251,40 @@ service cloud.firestore {
              data.createdAt is string && data.createdAt.size() <= 64;
     }
 
+    function isValidStaffShift(data) {
+      return data.keys().hasAll(['shiftNo', 'staffId', 'staffName', 'staffRole', 'branchName', 'shiftLabel', 'scheduledHours', 'clockInAt', 'scheduledEndAt', 'status', 'createdAt']) &&
+             data.shiftNo is string && data.shiftNo.size() >= 1 && data.shiftNo.size() <= 48 &&
+             data.staffId is string && data.staffId.size() >= 1 && data.staffId.size() <= 128 &&
+             data.staffName is string && data.staffName.size() >= 1 && data.staffName.size() <= 120 &&
+             data.staffRole is string && data.staffRole.size() <= 80 &&
+             data.branchName is string && data.branchName.size() <= 120 &&
+             data.shiftLabel is string && data.shiftLabel.size() >= 1 && data.shiftLabel.size() <= 80 &&
+             data.scheduledHours is number && data.scheduledHours > 0 && data.scheduledHours <= 24 &&
+             data.clockInAt is string && data.clockInAt.size() <= 64 &&
+             data.scheduledEndAt is string && data.scheduledEndAt.size() <= 64 &&
+             data.status in ['Active', 'Completed'] &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 400)) &&
+             data.createdAt is string && data.createdAt.size() <= 64;
+    }
+
+    function isValidOvertimeRequest(data) {
+      return data.keys().hasAll(['requestNo', 'staffId', 'staffName', 'staffRole', 'branchName', 'shiftDate', 'requestedHours', 'reason', 'status', 'createdAt']) &&
+             data.requestNo is string && data.requestNo.size() >= 1 && data.requestNo.size() <= 48 &&
+             data.staffId is string && data.staffId.size() >= 1 && data.staffId.size() <= 128 &&
+             data.staffName is string && data.staffName.size() >= 1 && data.staffName.size() <= 120 &&
+             data.staffRole is string && data.staffRole.size() <= 80 &&
+             data.branchName is string && data.branchName.size() <= 120 &&
+             data.shiftDate is string && data.shiftDate.size() <= 32 &&
+             data.requestedHours is number && data.requestedHours > 0 && data.requestedHours <= 24 &&
+             data.reason is string && data.reason.size() >= 1 && data.reason.size() <= 600 &&
+             data.status in ['Pending HR Rate', 'Approved', 'Declined', 'Cancelled'] &&
+             (!('otRatePerHourKes' in data) || (data.otRatePerHourKes is number && data.otRatePerHourKes >= 0)) &&
+             (!('approvedHours' in data) || (data.approvedHours is number && data.approvedHours >= 0 && data.approvedHours <= 24)) &&
+             (!('calculatedOtPayKes' in data) || (data.calculatedOtPayKes is number && data.calculatedOtPayKes >= 0)) &&
+             (!('hrDecisionNote' in data) || (data.hrDecisionNote is string && data.hrDecisionNote.size() <= 500)) &&
+             data.createdAt is string && data.createdAt.size() <= 64;
+    }
+
     match /test/{docId} {
       allow get: if isValidId(docId);
     }
@@ -393,6 +427,18 @@ service cloud.firestore {
     match /leave_requests/{requestId} {
       allow get, list: if true;
       allow create, update: if isValidId(requestId) && isValidLeaveRequest(incoming());
+      allow delete: if isValidId(requestId);
+    }
+
+    match /staff_shifts/{shiftId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(shiftId) && isValidStaffShift(incoming());
+      allow delete: if isValidId(shiftId);
+    }
+
+    match /overtime_requests/{requestId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(requestId) && isValidOvertimeRequest(incoming());
       allow delete: if isValidId(requestId);
     }
   }
