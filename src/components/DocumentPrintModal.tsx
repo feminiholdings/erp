@@ -1,19 +1,83 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Printer, Download, X, FileCheck2, ShieldCheck, Award, Maximize2, Minimize2 } from 'lucide-react';
+import {
+  Printer,
+  Download,
+  X,
+  FileCheck2,
+  ShieldCheck,
+  Award,
+  Maximize2,
+  Minimize2,
+  Receipt,
+  FileText,
+} from 'lucide-react';
 import { TransactionDoc } from '../types';
 import {
   exportCommercialDocumentPDF,
+  exportThermalDocumentPDF,
   formatKes,
+  generateSimpleQrSvg,
   getDocumentCreationRecord,
   normalizeDocumentLineItems,
   NormalizedDocumentLineItem,
+  ReceiptPrintFormat,
+  ThermalRollWidth,
 } from '../erpUtils';
+
+const RECEIPT_FORMAT_STORAGE_KEY = 'vaairo_preferred_receipt_format';
+const THERMAL_WIDTH_STORAGE_KEY = 'vaairo_preferred_thermal_width';
+
+export function getPreferredReceiptFormat(): ReceiptPrintFormat {
+  if (typeof window === 'undefined') return 'full';
+  try {
+    const val = localStorage.getItem(RECEIPT_FORMAT_STORAGE_KEY);
+    return val === 'thermal' ? 'thermal' : 'full';
+  } catch {
+    return 'full';
+  }
+}
+
+export function setPreferredReceiptFormat(format: ReceiptPrintFormat): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(RECEIPT_FORMAT_STORAGE_KEY, format);
+  } catch {}
+}
+
+export function getPreferredThermalWidth(): ThermalRollWidth {
+  if (typeof window === 'undefined') return '80mm';
+  try {
+    const val = localStorage.getItem(THERMAL_WIDTH_STORAGE_KEY);
+    return val === '58mm' ? '58mm' : '80mm';
+  } catch {
+    return '80mm';
+  }
+}
+
+export function setPreferredThermalWidth(width: ThermalRollWidth): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(THERMAL_WIDTH_STORAGE_KEY, width);
+  } catch {}
+}
 
 interface DocumentPrintModalProps {
   docData: TransactionDoc | null;
   onClose: () => void;
+  defaultFormat?: ReceiptPrintFormat;
 }
+
+const ThermalPaperTearEdge: React.FC<{ position: 'top' | 'bottom' }> = ({ position }) => (
+  <div
+    aria-hidden="true"
+    className={`w-full h-2.5 bg-repeat-x opacity-90 ${position === 'top' ? 'rotate-180' : ''}`}
+    style={{
+      backgroundImage: 'radial-gradient(circle at 6px 0, transparent 5px, #ffffff 5.5px)',
+      backgroundSize: '12px 10px',
+    }}
+  />
+);
 
 const DocumentSheetCanvas: React.FC<{
   docData: TransactionDoc;
@@ -366,8 +430,240 @@ const DocumentSheetCanvas: React.FC<{
   );
 };
 
-export const DocumentPrintModal: React.FC<DocumentPrintModalProps> = ({ docData, onClose }) => {
+const ThermalDocumentSheet: React.FC<{
+  docData: TransactionDoc;
+  items: NormalizedDocumentLineItem[];
+  rollWidth: ThermalRollWidth;
+  forPrint?: boolean;
+}> = ({ docData, items, rollWidth, forPrint = false }) => {
+  const isCompactRoll = rollWidth === '58mm';
+  const isLogisticsOnly = docData.docType === 'Packing List' || docData.docType === 'Delivery Note';
+  const creationRec = getDocumentCreationRecord(docData);
+  const cheque = docData.chequeDetails;
+  const effectiveStatus = cheque?.status && docData.status !== 'Credited' ? docData.status : docData.status;
+  const isPaid = effectiveStatus === 'Paid';
+  const isProcessing = effectiveStatus === 'Processing';
+  const isRejected = effectiveStatus === 'Rejected';
+
+  const statusTextColor = isRejected
+    ? 'text-rose-700'
+    : isProcessing
+    ? 'text-amber-700'
+    : 'text-emerald-700';
+
+  const qrSvg = useMemo(
+    () =>
+      generateSimpleQrSvg(
+        `VAAIRO|${docData.docType}|${docData.docNumber}|${docData.branchName}|TOTAL:${docData.totalAmount}|${docData.status}`,
+        isCompactRoll ? 84 : 96
+      ),
+    [docData.docType, docData.docNumber, docData.branchName, docData.totalAmount, docData.status, isCompactRoll]
+  );
+
+  return (
+    <div
+      id={forPrint ? undefined : 'printable-erp-document'}
+      className={`mx-auto select-none print:shadow-none print:m-0 ${
+        isCompactRoll ? 'w-full max-w-[264px]' : 'w-full max-w-[336px]'
+      }`}
+    >
+      {!forPrint && <ThermalPaperTearEdge position="top" />}
+
+      <div
+        className={`bg-white text-slate-900 relative overflow-hidden ${
+          isCompactRoll ? 'px-3.5 py-4 space-y-3' : 'px-4 py-5 space-y-3.5'
+        } ${forPrint ? 'p-2.5' : 'shadow-xl border-x border-slate-200/90'}`}
+      >
+        {/* Letterhead */}
+        <div className="text-center border-b-2 border-dashed border-slate-300 pb-3 space-y-1">
+          <div className="text-[10px] font-montserrat font-black text-[#0A006E] tracking-widest uppercase">
+            VAAIRO BEVERAGES &amp; MERCHANTS LTD
+          </div>
+          <h1
+            className={`font-montserrat font-black italic text-[#0A006E] tracking-tight leading-none ${
+              isCompactRoll ? 'text-xl' : 'text-2xl'
+            }`}
+          >
+            {docData.docType.toUpperCase()}
+          </h1>
+          <div className="text-[10px] text-slate-600 font-medium leading-snug">
+            <span className="font-bold text-slate-900">{docData.branchName}</span> ({docData.regionName})
+          </div>
+          <div className="text-[9.5px] font-mono-tabular text-slate-500">
+            {docData.channel} · Licensed Bonded Merchant
+          </div>
+        </div>
+
+        {/* Metadata Card */}
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-mono-tabular text-[10px] space-y-1">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-slate-500">Doc No:</span>
+            <span className="font-black text-[#0A006E] truncate">{docData.docNumber}</span>
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-slate-500">Issued:</span>
+            <span className="font-semibold text-slate-800">
+              {creationRec.createdDay} · {creationRec.createdTime}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-slate-500">Served By:</span>
+            <span className="font-bold text-slate-900 truncate">{creationRec.createdBy}</span>
+          </div>
+          <div className="flex items-center justify-between gap-2 pt-1 border-t border-dashed border-slate-200">
+            <span className="text-slate-500">Payment:</span>
+            <span className={`font-bold ${statusTextColor} truncate`}>
+              {docData.status} · {docData.paymentMethod}
+            </span>
+          </div>
+        </div>
+
+        {/* Customer Info */}
+        <div className="bg-[#F8FAFC] border border-slate-200 rounded-xl p-2.5 space-y-1 text-[10px]">
+          <div className="text-[9px] text-[#0A006E] font-montserrat font-black uppercase tracking-wider">
+            {docData.buyerBranchName ? 'Receiving Branch' : 'Customer / Consignee'}
+          </div>
+          <div className="text-xs font-montserrat font-black text-slate-900 leading-tight">
+            {docData.customerName}
+          </div>
+          <div className="text-[10px] font-mono-tabular text-slate-600">
+            PIN / Lic:{' '}
+            <strong className="text-slate-900">
+              {docData.customerKraPin || docData.customerLicenseNo || 'Commercial Verified 21+'}
+            </strong>
+          </div>
+          {docData.customerPhone && (
+            <div className="text-[9.5px] font-mono-tabular text-slate-600">Tel: {docData.customerPhone}</div>
+          )}
+          {docData.linkedTransferNo && (
+            <div className="text-[9.5px] font-mono-tabular font-bold text-[#0A006E]">
+              Batch: {docData.linkedTransferNo}
+            </div>
+          )}
+        </div>
+
+        {/* Cheque Strip if applicable */}
+        {(cheque || docData.paymentMethod === 'Cheque') && (
+          <div
+            className={`p-2.5 rounded-xl border text-[9.5px] font-mono-tabular space-y-1 ${
+              isRejected
+                ? 'bg-rose-50 border-rose-300 text-rose-900'
+                : isProcessing
+                ? 'bg-amber-50 border-amber-300 text-amber-900'
+                : 'bg-emerald-50 border-emerald-300 text-emerald-900'
+            }`}
+          >
+            <div className="font-montserrat font-black uppercase text-[9px]">
+              Cheque Status: {isPaid ? 'Cleared & Paid' : isRejected ? 'Rejected' : 'Processing'}
+            </div>
+            {cheque && (
+              <div>
+                #{cheque.chequeNumber} · {cheque.drawerBank} · Maturity {cheque.maturityDate}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Itemized List */}
+        <div className="border border-slate-200 rounded-xl overflow-hidden">
+          <div className="bg-[#0A006E] text-[#FFDE00] px-2.5 py-1.5 flex items-center justify-between text-[10px] font-montserrat font-black uppercase tracking-wide">
+            <span>Item ({items.length})</span>
+            <span>{isLogisticsOnly ? 'Bottles' : 'Total (KES)'}</span>
+          </div>
+          <div className="divide-y divide-dashed divide-slate-200 text-[10.5px] bg-white">
+            {items.map((item, idx) => (
+              <div key={idx} className="px-2.5 py-2 space-y-0.5">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="font-semibold text-slate-900 leading-snug break-words min-w-0">
+                    {item.name}
+                  </span>
+                  <span className="font-mono-tabular tabular-nums font-black text-[#0A006E] shrink-0">
+                    {isLogisticsOnly ? `${item.totalBottles} Btls` : formatKes(item.lineTotal)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[9.5px] font-mono-tabular text-slate-500">
+                  <span>
+                    {item.sku} · {item.quantityUnits} {item.unitMode}
+                    {!isLogisticsOnly ? ` × ${formatKes(item.unitPrice)}` : ''}
+                  </span>
+                  <span className="text-[#1E9E60] font-bold">{item.totalBottles} Btls</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Totals Box */}
+        {!isLogisticsOnly && (
+          <div className="bg-[#F0FDF4] border-2 border-[#34D186] rounded-xl p-3 space-y-1 font-mono-tabular">
+            <div className="flex justify-between text-[10px] text-slate-700">
+              <span>Subtotal:</span>
+              <span className="tabular-nums font-semibold">{formatKes(docData.subtotal)}</span>
+            </div>
+            <div className="flex justify-between text-[10px] text-slate-700">
+              <span>Excise &amp; Regional VAT:</span>
+              <span className="tabular-nums font-semibold">{formatKes(docData.exciseAndTax)}</span>
+            </div>
+            <div className="flex justify-between items-baseline pt-2 mt-1 border-t border-emerald-300 text-[#0A006E]">
+              <span className="font-montserrat font-black text-xs uppercase tracking-tight">
+                {docData.docType === 'Credit Note' ? 'Total Credit' : 'Grand Total'}
+              </span>
+              <span
+                className={`font-montserrat font-black tabular-nums ${
+                  isCompactRoll ? 'text-base' : 'text-lg'
+                }`}
+              >
+                {formatKes(docData.totalAmount)}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Verification QR + Barcode */}
+        <div className="pt-1 border-t border-dashed border-slate-300 text-center space-y-2">
+          <div
+            className="inline-block p-1 bg-white border border-slate-200 rounded-lg"
+            dangerouslySetInnerHTML={{ __html: qrSvg }}
+          />
+          <div className="flex justify-center items-center gap-[1.5px] h-5 overflow-hidden px-4">
+            {Array.from({ length: 38 }).map((_, i) => (
+              <div
+                key={i}
+                className={`bg-slate-900 h-full ${
+                  i % 4 === 0 ? 'w-[2.5px]' : i % 2 === 0 ? 'w-[1.5px]' : 'w-[1px]'
+                }`}
+              />
+            ))}
+          </div>
+          <div className="text-[8.5px] font-mono-tabular text-slate-500">
+            *{docData.docNumber}*
+          </div>
+          <div className="text-[8.5px] text-slate-400 font-medium leading-snug">
+            Sale of alcohol to persons under 21 strictly prohibited · Vaairo ERP
+          </div>
+        </div>
+      </div>
+
+      {!forPrint && <ThermalPaperTearEdge position="bottom" />}
+    </div>
+  );
+};
+
+export const DocumentPrintModal: React.FC<DocumentPrintModalProps> = ({
+  docData,
+  onClose,
+  defaultFormat,
+}) => {
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [receiptFormat, setReceiptFormat] = useState<ReceiptPrintFormat>(() =>
+    defaultFormat || getPreferredReceiptFormat()
+  );
+  const [rollWidth, setRollWidth] = useState<ThermalRollWidth>(() => getPreferredThermalWidth());
+
+  useEffect(() => {
+    if (!docData) return;
+    setReceiptFormat(defaultFormat || getPreferredReceiptFormat());
+  }, [docData?.id, defaultFormat]);
 
   useEffect(() => {
     if (!docData || typeof document === 'undefined') return;
@@ -381,26 +677,53 @@ export const DocumentPrintModal: React.FC<DocumentPrintModalProps> = ({ docData,
 
   const items = normalizeDocumentLineItems(docData.itemsSummary);
 
+  const handleSelectFormat = (nextFormat: ReceiptPrintFormat) => {
+    setReceiptFormat(nextFormat);
+    setPreferredReceiptFormat(nextFormat);
+  };
+
+  const handleSelectRollWidth = (nextWidth: ThermalRollWidth) => {
+    setRollWidth(nextWidth);
+    setPreferredThermalWidth(nextWidth);
+  };
+
+  const handleDownloadPDF = () => {
+    if (receiptFormat === 'thermal') {
+      exportThermalDocumentPDF(docData, rollWidth);
+    } else {
+      exportCommercialDocumentPDF(docData);
+    }
+  };
+
   return (
     <>
+      {receiptFormat === 'thermal' && (
+        <style media="print">{`@page { size: ${rollWidth} auto; margin: 2mm; }`}</style>
+      )}
       <div
         className={`fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs overflow-y-auto print:hidden ${
-          isFullScreen ? 'p-0' : 'p-2 sm:p-4'
+          isFullScreen && receiptFormat === 'full' ? 'p-0' : 'p-2 sm:p-4'
         }`}
       >
         <div
           className={`bg-white border sm:border-2 border-[#0A006E] shadow-2xl flex flex-col overflow-hidden transition-all ${
-            isFullScreen
+            receiptFormat === 'thermal'
+              ? 'rounded-2xl max-w-[480px] w-full h-auto max-h-[94vh]'
+              : isFullScreen
               ? 'w-full h-full rounded-none max-w-none'
               : 'rounded-2xl max-w-5xl w-full h-auto max-h-[94vh]'
           }`}
         >
           {/* Top Action Bar (Hidden during print) */}
-          <div className="bg-[#0A006E] text-white px-5 py-3.5 flex items-center justify-between border-b-4 border-[#FFDE00] relative overflow-hidden print:hidden shrink-0">
+          <div className="bg-[#0A006E] text-white px-4 sm:px-5 py-3.5 flex items-center justify-between gap-2 border-b-4 border-[#FFDE00] relative overflow-hidden print:hidden shrink-0">
             <div className="absolute inset-0 bg-gradient-to-r from-[#0A006E] via-indigo-950 to-[#0A006E] opacity-90" />
             <div className="flex items-center gap-3 relative z-10 min-w-0">
               <div className="w-9 h-9 rounded-xl bg-[#FFDE00] text-[#0A006E] flex items-center justify-center font-black shadow shrink-0">
-                <FileCheck2 className="w-5 h-5" />
+                {receiptFormat === 'thermal' ? (
+                  <Receipt className="w-5 h-5" />
+                ) : (
+                  <FileCheck2 className="w-5 h-5" />
+                )}
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -408,25 +731,31 @@ export const DocumentPrintModal: React.FC<DocumentPrintModalProps> = ({ docData,
                     Official Document · {docData.docType}
                   </h3>
                   <span className="px-1.5 py-0.5 rounded text-[10px] font-montserrat font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    Full Preview Active
+                    {receiptFormat === 'thermal' ? `Thermal ${rollWidth}` : 'Full A4 Sheet'}
                   </span>
                 </div>
                 <p className="text-sm font-mono-tabular font-bold text-white truncate">{docData.docNumber}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 relative z-10 flex-wrap">
+            <div className="flex items-center gap-2 relative z-10 flex-wrap justify-end">
+              {receiptFormat === 'full' && (
+                <button
+                  type="button"
+                  onClick={() => setIsFullScreen((prev) => !prev)}
+                  className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap border border-white/20"
+                  title={isFullScreen ? 'Exit Full Screen' : 'Toggle Full Screen Preview'}
+                >
+                  {isFullScreen ? (
+                    <Minimize2 className="w-3.5 h-3.5 text-[#FFDE00]" />
+                  ) : (
+                    <Maximize2 className="w-3.5 h-3.5 text-[#FFDE00]" />
+                  )}
+                  <span className="hidden sm:inline">{isFullScreen ? 'Exit Full Screen' : 'Full Screen'}</span>
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => setIsFullScreen((prev) => !prev)}
-                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-montserrat font-bold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap border border-white/20"
-                title={isFullScreen ? 'Exit Full Screen' : 'Toggle Full Screen Preview'}
-              >
-                {isFullScreen ? <Minimize2 className="w-3.5 h-3.5 text-[#FFDE00]" /> : <Maximize2 className="w-3.5 h-3.5 text-[#FFDE00]" />}
-                <span className="hidden sm:inline">{isFullScreen ? 'Exit Full Screen' : 'Full Screen'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => exportCommercialDocumentPDF(docData)}
+                onClick={handleDownloadPDF}
                 className="px-3.5 py-1.5 bg-[#FFDE00] text-[#0A006E] hover:bg-amber-400 rounded-xl text-xs font-montserrat font-black flex items-center gap-1.5 transition shadow cursor-pointer whitespace-nowrap"
               >
                 <Download className="w-3.5 h-3.5" />
@@ -451,18 +780,87 @@ export const DocumentPrintModal: React.FC<DocumentPrintModalProps> = ({ docData,
             </div>
           </div>
 
-          {/* Scrollable Document Preview Canvas */}
-          <div className="flex-1 overflow-y-auto bg-white">
-            <DocumentSheetCanvas docData={docData} items={items} />
+          {/* Receipt Format Switcher Bar: Full Receipt (A4) vs Thermal Receipt (80mm / 58mm) */}
+          <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2 flex-wrap print:hidden shrink-0">
+            <div
+              role="group"
+              aria-label="Receipt format option"
+              className="inline-flex items-center p-1 bg-slate-200/80 rounded-xl gap-1"
+            >
+              <button
+                type="button"
+                onClick={() => handleSelectFormat('full')}
+                className={`min-h-[34px] px-3 py-1 rounded-lg text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer transition whitespace-nowrap ${
+                  receiptFormat === 'full'
+                    ? 'bg-[#0A006E] text-[#FFDE00] shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Full Receipt (A4)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSelectFormat('thermal')}
+                className={`min-h-[34px] px-3 py-1 rounded-lg text-xs font-montserrat font-black flex items-center gap-1.5 cursor-pointer transition whitespace-nowrap ${
+                  receiptFormat === 'thermal'
+                    ? 'bg-[#0A006E] text-[#FFDE00] shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Receipt className="w-3.5 h-3.5" />
+                <span>Thermal Receipt</span>
+              </button>
+            </div>
+
+            {receiptFormat === 'thermal' && (
+              <div
+                role="group"
+                aria-label="Thermal paper width"
+                className="inline-flex items-center p-1 bg-slate-200/80 rounded-xl gap-1"
+              >
+                {(['80mm', '58mm'] as const).map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    onClick={() => handleSelectRollWidth(size)}
+                    className={`min-h-[32px] px-2.5 py-1 rounded-lg text-xs font-montserrat font-black cursor-pointer transition whitespace-nowrap ${
+                      rollWidth === size
+                        ? 'bg-[#0A006E] text-[#FFDE00] shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {size} Roll
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Scrollable Preview Canvas */}
+          <div
+            className={`flex-1 overflow-y-auto ${
+              receiptFormat === 'thermal' ? 'bg-slate-200/80 p-4 sm:p-6' : 'bg-white'
+            }`}
+          >
+            {receiptFormat === 'thermal' ? (
+              <ThermalDocumentSheet docData={docData} items={items} rollWidth={rollWidth} />
+            ) : (
+              <DocumentSheetCanvas docData={docData} items={items} />
+            )}
           </div>
         </div>
       </div>
 
-      {/* Dedicated A4 Print Portal so window.print() matches preview pixel-for-pixel with exact colors and zero modal clipping */}
+      {/* Dedicated Print Portal so window.print() matches preview pixel-for-pixel with exact colors and zero modal clipping */}
       {typeof document !== 'undefined' &&
         createPortal(
           <div id="printable-erp-document-portal" className="hidden print:block bg-white text-slate-900">
-            <DocumentSheetCanvas docData={docData} items={items} forPrint />
+            {receiptFormat === 'thermal' ? (
+              <ThermalDocumentSheet docData={docData} items={items} rollWidth={rollWidth} forPrint />
+            ) : (
+              <DocumentSheetCanvas docData={docData} items={items} forPrint />
+            )}
           </div>,
           document.body
         )}

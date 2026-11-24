@@ -62,10 +62,13 @@ import {
   DocType,
   LineItem,
   LeaveRequest,
+  StaffShiftSession,
+  OvertimeRequest,
   ChequeStatus,
   ChequeDetails,
 } from '../types';
 import { LeaveManagementPortal } from './LeaveManagementPortal';
+import { HrShiftsAndOvertimePanel } from './HrShiftsAndOvertimePanel';
 import { GoogleIcon } from './icons/GoogleIcon';
 import {
   ROLE_PERMISSIONS,
@@ -3486,7 +3489,9 @@ export const HrAndRbacModule: React.FC<{
   branches: Branch[];
   payrollRuns?: PayrollRun[];
   leaveRequests?: LeaveRequest[];
-  initialTab?: 'roster' | 'payroll' | 'leave_requests' | 'master_security';
+  staffShifts?: StaffShiftSession[];
+  overtimeRequests?: OvertimeRequest[];
+  initialTab?: 'roster' | 'payroll' | 'leave_requests' | 'shifts_overtime' | 'master_security';
   customDeductionCatalog?: HrDeductionCatalogItem[];
   onCreateCatalogDeduction?: (
     draft: Omit<HrDeductionCatalogItem, 'id' | 'createdAt'>
@@ -3506,6 +3511,15 @@ export const HrAndRbacModule: React.FC<{
     decisionNote: string
   ) => Promise<void>;
   onCancelLeaveRequest?: (requestId: string) => Promise<void>;
+  onReviewOvertimeRequest?: (
+    requestId: string,
+    decision: 'Approved' | 'Declined',
+    otRatePerHourKes: number,
+    approvedHours: number,
+    otMultiplier?: number,
+    decisionNote?: string
+  ) => Promise<void>;
+  onEndStaffShift?: (shiftId: string, notes?: string) => Promise<void>;
   onOpenPayslip?: (record: PayrollRecord) => void;
   onOpenAccessMatrix?: () => void;
   onOpenUserFeatureModal?: (staff: StaffMember) => void;
@@ -3517,6 +3531,8 @@ export const HrAndRbacModule: React.FC<{
   branches,
   payrollRuns = [],
   leaveRequests = [],
+  staffShifts = [],
+  overtimeRequests = [],
   initialTab,
   customDeductionCatalog = [],
   onCreateCatalogDeduction,
@@ -3529,6 +3545,8 @@ export const HrAndRbacModule: React.FC<{
   onSubmitLeaveRequest,
   onReviewLeaveRequest,
   onCancelLeaveRequest,
+  onReviewOvertimeRequest,
+  onEndStaffShift,
   onOpenPayslip,
   onOpenAccessMatrix,
   onOpenUserFeatureModal,
@@ -3540,10 +3558,16 @@ export const HrAndRbacModule: React.FC<{
     (currentUser.role === 'HR' || currentUser.role === 'Admin') &&
     isUserFeaturePermitted(currentUser, 'manage_staff_salaries');
   const canManageLeaveRequests = currentUser.role === 'HR' || currentUser.role === 'Admin';
+  const canManageShiftsAndOt =
+    currentUser.role === 'HR' || currentUser.role === 'Admin' || currentUser.role === 'Branch Manager';
 
   const pendingLeaveCount = useMemo(
     () => leaveRequests.filter((r) => r.status === 'Pending HR Approval').length,
     [leaveRequests]
+  );
+  const pendingOtCount = useMemo(
+    () => overtimeRequests.filter((r) => r.status === 'Pending HR Rate').length,
+    [overtimeRequests]
   );
   const urgentPendingLeaveCount = useMemo(
     () =>
@@ -3558,9 +3582,10 @@ export const HrAndRbacModule: React.FC<{
     [leaveRequests]
   );
 
-  const [activeTab, setActiveTab] = useState<'roster' | 'payroll' | 'leave_requests' | 'master_security'>(() => {
+  const [activeTab, setActiveTab] = useState<'roster' | 'payroll' | 'leave_requests' | 'shifts_overtime' | 'master_security'>(() => {
     if (initialTab === 'payroll' && canManagePayroll) return 'payroll';
     if (initialTab === 'leave_requests' && canManageLeaveRequests) return 'leave_requests';
+    if (initialTab === 'shifts_overtime' && canManageShiftsAndOt) return 'shifts_overtime';
     return initialTab || 'roster';
   });
   const [payrollSubTab, setPayrollSubTab] = useState<'staff_pay' | 'deductions' | 'history'>('staff_pay');
@@ -3595,10 +3620,12 @@ export const HrAndRbacModule: React.FC<{
       setActiveTab('payroll');
     } else if (initialTab === 'leave_requests' && canManageLeaveRequests) {
       setActiveTab('leave_requests');
+    } else if (initialTab === 'shifts_overtime' && canManageShiftsAndOt) {
+      setActiveTab('shifts_overtime');
     } else if (initialTab === 'roster') {
       setActiveTab('roster');
     }
-  }, [initialTab, canManagePayroll, canManageLeaveRequests]);
+  }, [initialTab, canManagePayroll, canManageLeaveRequests, canManageShiftsAndOt]);
 
   const fullDeductionCatalog = useMemo<HrDeductionCatalogItem[]>(() => {
     const presetIds = new Set(STANDARD_HR_DEDUCTION_CATALOG.map((c) => c.id));
@@ -4175,7 +4202,16 @@ export const HrAndRbacModule: React.FC<{
         const summary = summarizeDeductionItems(hydratedItems);
         const ded = s.deductionItems ? summary.totalDeductionsKes : (s.deductionsKes ?? summary.totalDeductionsKes);
         const pen = s.penaltiesKes ?? 0;
-        const net = Math.max(0, bSalary - ded - pen);
+        const staffApprovedOt = overtimeRequests.filter(
+          (ot) =>
+            ot.status === 'Approved' &&
+            (ot.staffId === s.id || (s.email && ot.staffEmail?.toLowerCase() === s.email.toLowerCase()))
+        );
+        const otHours = Number(
+          staffApprovedOt.reduce((acc, ot) => acc + (ot.approvedHours ?? ot.requestedHours ?? 0), 0).toFixed(2)
+        );
+        const otPay = staffApprovedOt.reduce((acc, ot) => acc + (ot.calculatedOtPayKes ?? 0), 0);
+        const net = Math.max(0, bSalary + otPay - ded - pen);
         return {
           staffId: s.id,
           staffName: s.name,
@@ -4184,6 +4220,8 @@ export const HrAndRbacModule: React.FC<{
           branchName: s.branchName,
           period: payrollPeriod,
           baseSalary: bSalary,
+          overtimeHours: otHours > 0 ? otHours : undefined,
+          overtimePayKes: otPay > 0 ? otPay : undefined,
           deductions: ded,
           penalties: pen,
           netSalary: net,
@@ -4375,6 +4413,26 @@ export const HrAndRbacModule: React.FC<{
                 }`}
               >
                 {pendingLeaveCount}
+              </span>
+            )}
+          </button>
+        )}
+
+        {canManageShiftsAndOt && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('shifts_overtime')}
+            className={`beta-action-tile min-h-[46px] px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-montserrat font-black flex items-center gap-2 cursor-pointer transition whitespace-nowrap ${
+              activeTab === 'shifts_overtime'
+                ? 'bg-[#0A006E] text-[#FFDE00] shadow-md'
+                : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
+            }`}
+          >
+            <Clock className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>Shifts &amp; OT</span>
+            {pendingOtCount > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono-tabular font-black bg-rose-600 text-white animate-pulse">
+                {pendingOtCount}
               </span>
             )}
           </button>
@@ -6214,6 +6272,26 @@ export const HrAndRbacModule: React.FC<{
             }
             onReviewLeaveRequest={onReviewLeaveRequest}
             onCancelLeaveRequest={onCancelLeaveRequest}
+            onTriggerToast={onTriggerToast}
+          />
+        </motion.div>
+      )}
+
+      {activeTab === 'shifts_overtime' && canManageShiftsAndOt && (
+        <motion.div
+          key="hr_shifts_overtime"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <HrShiftsAndOvertimePanel
+            currentUser={currentUser}
+            staffList={staffList}
+            staffShifts={staffShifts}
+            overtimeRequests={overtimeRequests}
+            onReviewOvertimeRequest={onReviewOvertimeRequest}
+            onEndStaffShift={onEndStaffShift}
             onTriggerToast={onTriggerToast}
           />
         </motion.div>

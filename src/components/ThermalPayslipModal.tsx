@@ -267,9 +267,19 @@ const ThermalPayslipSheet: React.FC<{
         {/* 5. NET PAY SUMMARY CARD (Signature #F0FDF4 + #34D186 Document Totals Box) */}
         <div className="bg-[#F0FDF4] border-2 border-[#34D186] rounded-xl p-3 space-y-1 font-mono-tabular">
           <div className="flex justify-between text-[10px] text-slate-700">
-            <span>Gross Earnings:</span>
+            <span>Gross Basic Salary:</span>
             <span className="tabular-nums font-semibold">{formatKes(record.baseSalary)}</span>
           </div>
+          {(record.overtimePayKes ?? 0) > 0 && (
+            <div className="flex justify-between text-[10px] text-emerald-800">
+              <span>
+                Overtime ({record.overtimeHours ?? 0}h Approved):
+              </span>
+              <span className="tabular-nums font-bold">
+                +{formatKes(record.overtimePayKes ?? 0)}
+              </span>
+            </div>
+          )}
           <div className="flex justify-between text-[10px] text-slate-700">
             <span>Total Deductions:</span>
             <span className="tabular-nums font-semibold text-rose-700">

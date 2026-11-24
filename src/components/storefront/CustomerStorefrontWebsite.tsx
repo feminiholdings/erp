@@ -758,9 +758,6 @@ export const CustomerStorefrontWebsite: React.FC<Props> = ({ onSwitchToErp }) =>
   };
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const searchContainerRef = useRef<HTMLDivElement | null>(null);
-  const headerSearchInputRef = useRef<HTMLInputElement | null>(null);
-  const headerSearchContainerRef = useRef<HTMLDivElement | null>(null);
-  const [isSearchPinnedToHeader, setIsSearchPinnedToHeader] = useState(false);
   const catalogSectionRef = useRef<HTMLElement | null>(null);
   const rightCartPanelRef = useRef<HTMLDivElement | null>(null);
   const topCategoryScrollRef = useRef<HTMLDivElement | null>(null);
@@ -773,36 +770,6 @@ export const CustomerStorefrontWebsite: React.FC<Props> = ({ onSwitchToErp }) =>
     });
   };
 
-  // Pin search bar onto the sticky header bar ONLY on desktop (md+ >= 768px); never on mobile scroll
-  useEffect(() => {
-    let rafId: number | null = null;
-    const handleScrollOrResize = () => {
-      if (rafId !== null) return;
-      rafId = window.requestAnimationFrame(() => {
-        rafId = null;
-        const isDesktop = window.innerWidth >= 768;
-        if (!isDesktop) {
-          setIsSearchPinnedToHeader(false);
-          return;
-        }
-        const y = window.scrollY || document.documentElement.scrollTop || 0;
-        setIsSearchPinnedToHeader(prev => {
-          if (!prev && y > 115) return true;
-          if (prev && y < 65) return false;
-          return prev;
-        });
-      });
-    };
-    handleScrollOrResize();
-    window.addEventListener('scroll', handleScrollOrResize, { passive: true });
-    window.addEventListener('resize', handleScrollOrResize, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', handleScrollOrResize);
-      window.removeEventListener('resize', handleScrollOrResize);
-      if (rafId !== null) window.cancelAnimationFrame(rafId);
-    };
-  }, []);
-
   const handleFocusOrOpenWebsiteCart = () => {
     if (typeof window !== 'undefined' && window.innerWidth >= 1024 && rightCartPanelRef.current) {
       rightCartPanelRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -813,15 +780,13 @@ export const CustomerStorefrontWebsite: React.FC<Props> = ({ onSwitchToErp }) =>
     }
   };
 
-  // Close auto-show search dropdown when clicking outside both main and pinned header search containers
+  // Close auto-show search dropdown when clicking outside search container
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Node;
       const insideMain =
         searchContainerRef.current && searchContainerRef.current.contains(target);
-      const insideHeader =
-        headerSearchContainerRef.current && headerSearchContainerRef.current.contains(target);
-      if (!insideMain && !insideHeader) {
+      if (!insideMain) {
         setIsSearchDropdownOpen(false);
       }
     };
@@ -2002,18 +1967,13 @@ export const CustomerStorefrontWebsite: React.FC<Props> = ({ onSwitchToErp }) =>
   return (
     <div className="min-h-screen w-full overflow-x-clip flex flex-col bg-[#F5F6F4] text-slate-900 scroll-smooth">
       {/* =====================================================================
-          CLEAN FIXED-HEIGHT STICKY HEADER (Zero Layout Shift on Scroll)
-          Left: Brand Identity | Center: Pinned Search on Scroll | Right: Cart & Hamburger Only
+          CLEAN FIXED-HEIGHT STICKY HEADER
+          Left: Brand Identity | Right: Hamburger Menu Only (All other controls inside Hamburger)
           ===================================================================== */}
       <header className="sticky top-0 z-50 bg-[#0A006E] text-white h-16 sm:h-20 flex items-center shadow-lg">
-        {/* Moving Silent Scanner Sweep Container */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none z-10">
-          <div className="silent-scanner-beam" />
-        </div>
-
-        <div ref={headerSearchContainerRef} className="w-full max-w-[92rem] mx-auto px-3 sm:px-6 lg:px-8 relative z-20">
-          <div className="flex items-center justify-between gap-2 sm:gap-4 h-full">
-            {/* Left: Brand Identity (Compacts to icon on mobile when search is pinned so single row stays aligned) */}
+        <div className="w-full max-w-[92rem] mx-auto px-3 sm:px-6 lg:px-8 relative z-20">
+          <div className="flex items-center justify-between gap-4 h-full">
+            {/* Left: Brand Identity */}
             <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 shrink-0">
               <div
                 className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-[#FFDE00] flex items-center justify-center text-[#0A006E] shadow-md border-2 border-white shrink-0 group hover:scale-105 transition-transform relative overflow-hidden cursor-pointer"
@@ -2024,7 +1984,6 @@ export const CustomerStorefrontWebsite: React.FC<Props> = ({ onSwitchToErp }) =>
                 }}
                 title="VAAIRO Online Drinks Portal — Direct Company Price"
               >
-                <div className="silent-scanner-beam-fast" />
                 <Wine className="w-5 h-5 sm:w-6 sm:h-6 text-[#0A006E] stroke-[2.4] relative z-10" />
               </div>
 
@@ -2047,148 +2006,29 @@ export const CustomerStorefrontWebsite: React.FC<Props> = ({ onSwitchToErp }) =>
               </div>
             </div>
 
-            {/* Center: Single-Row Pinned Search Bar (Strictly Desktop Only on Scroll) */}
-            {isSearchPinnedToHeader && (
-              <div className="hidden md:block flex-1 max-w-xl mx-3 relative z-50">
-                <div className="relative flex items-center bg-white rounded-xl border-2 border-[#FFDE00] focus-within:ring-2 focus-within:ring-[#FFDE00]/60 shadow-md overflow-hidden h-10 sm:h-11">
-                  <Search className="w-4 h-4 text-[#0A006E] absolute left-3 pointer-events-none shrink-0" />
-                  <input
-                    ref={headerSearchInputRef}
-                    type="text"
-                    value={searchQuery}
-                    onFocus={() => {
-                      if (searchQuery.trim().length > 0) {
-                        setIsSearchDropdownOpen(true);
-                      }
-                    }}
-                    onChange={e => {
-                      const nextVal = e.target.value;
-                      setSearchQuery(nextVal);
-                      if (nextVal.trim().length > 0) {
-                        setActiveCategory('ALL');
-                        setIsSearchDropdownOpen(true);
-                      } else {
-                        setIsSearchDropdownOpen(false);
-                      }
-                    }}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        if (filteredProducts.length === 1) {
-                          setSelectedProductDetail(filteredProducts[0]);
-                          setDetailQty(1);
-                          setIsSearchDropdownOpen(false);
-                        } else {
-                          setIsSearchDropdownOpen(false);
-                          catalogSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }
-                      } else if (e.key === 'Escape') {
-                        setIsSearchDropdownOpen(false);
-                      }
-                    }}
-                    placeholder="Search drinks, brands, SKU..."
-                    className="w-full pl-9 pr-16 sm:pr-22 py-2 bg-transparent text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none text-left"
-                  />
-                  {searchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSearchQuery('');
-                        setIsSearchDropdownOpen(false);
-                        headerSearchInputRef.current?.focus();
-                      }}
-                      className="absolute right-13 sm:right-18 p-1 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
-                      title="Clear search"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (filteredProducts.length === 1) {
-                        setSelectedProductDetail(filteredProducts[0]);
-                        setDetailQty(1);
-                        setIsSearchDropdownOpen(false);
-                      } else {
-                        setIsSearchDropdownOpen(false);
-                        catalogSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                      }
-                    }}
-                    className="mr-1 px-2.5 sm:px-3 py-1.5 rounded-lg bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] font-montserrat font-black text-[10px] sm:text-[11px] transition shrink-0 cursor-pointer"
-                  >
-                    Search
-                  </button>
-                </div>
-
-                {/* Live Search Dropdown anchored beneath Pinned Header Search */}
-                <div className="fixed sm:absolute left-3 right-3 sm:left-0 sm:right-0 top-16 sm:top-full z-[90]">
-                  {renderLiveSearchDropdown()}
-                </div>
-              </div>
-            )}
-
-            {/* Right: Track My Order, Cart & Hamburger Menu */}
-            <div className="flex items-center gap-2 shrink-0">
-              {/* Track My Order Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsEditingCustomerProfile(false);
-                  setIsCustomerLoginModalOpen(true);
-                }}
-                className={`h-10 sm:h-11 px-2.5 sm:px-3.5 rounded-xl border flex items-center justify-center gap-1.5 transition shadow-md cursor-pointer relative ${
-                  isCustomerLoginModalOpen || isOrdersModalOpen || onHoldDeliveryOrders.length > 0
-                    ? 'bg-[#FFDE00] border-[#FFDE00] text-[#0A006E]'
-                    : 'bg-white hover:bg-[#FFDE00] border-white hover:border-[#FFDE00] text-[#0A006E]'
-                }`}
-                title="Track My Order"
-                aria-label="Track My Order"
-              >
-                <Truck className="w-4 h-4 sm:w-5 sm:h-5 text-[#0A006E] shrink-0" />
-                <span className="hidden sm:inline font-montserrat font-black text-xs text-[#0A006E]">
-                  Track My Order
-                </span>
-                {customerProfile && onHoldDeliveryOrders.length > 0 && (
-                  <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[#1E9E60] text-white text-[10px] font-mono font-black flex items-center justify-center">
-                    {onHoldDeliveryOrders.length}
-                  </span>
-                )}
-              </button>
-
-              {/* Shopping Cart Icon Button */}
-              <button
-                type="button"
-                onClick={handleFocusOrOpenWebsiteCart}
-                className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl border flex items-center justify-center transition shadow-md cursor-pointer relative ${
-                  isCartDrawerOpen || isRightCartHighlighted || totalCartItems > 0
-                    ? 'bg-[#FFDE00] border-[#FFDE00] text-[#0A006E]'
-                    : 'bg-white hover:bg-[#FFDE00] border-white hover:border-[#FFDE00] text-[#0A006E]'
-                }`}
-                title={`View Delivery Shopping Cart (${totalCartItems} items • ${formatKes(totalCartCompanyPriceKes)} Direct Company Price)`}
-                aria-label="Shopping Cart"
-              >
-                <ShoppingBag className="w-5 h-5 text-[#0A006E]" />
-                {totalCartItems > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#0A006E] text-[#FFDE00] border border-white text-[10px] font-mono font-black flex items-center justify-center shadow-xs">
-                    {totalCartItems}
-                  </span>
-                )}
-              </button>
-
-              {/* Hamburger Menu Icon Button */}
+            {/* Right: Hamburger Menu Button (Houses Track Order, Cart, Categories, Brands & Account) */}
+            <div className="flex items-center shrink-0">
               <button
                 type="button"
                 onClick={() => setIsCategoriesMenuOpen(prev => !prev)}
-                className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl border flex items-center justify-center transition shadow-md cursor-pointer ${
+                className={`relative w-10 h-10 sm:w-11 sm:h-11 rounded-xl border flex items-center justify-center transition shadow-md cursor-pointer ${
                   isCategoriesMenuOpen
                     ? 'bg-[#FFDE00] border-[#FFDE00] text-[#0A006E]'
                     : 'bg-white hover:bg-[#FFDE00] border-white hover:border-[#FFDE00] text-[#0A006E] active:bg-[#FFDE00]'
                 }`}
-                title="Open Website Navigation & Categories Menu"
-                aria-label="Open Navigation Menu"
+                title="Open Store Menu (Cart, Track Order, Categories & Brands)"
+                aria-label="Open Store Navigation Menu"
               >
-                <Menu className="w-5 h-5 text-[#0A006E] stroke-[2.4]" />
+                {isCategoriesMenuOpen ? (
+                  <X className="w-5 h-5 text-[#0A006E] stroke-[2.4]" />
+                ) : (
+                  <Menu className="w-5 h-5 text-[#0A006E] stroke-[2.4]" />
+                )}
+                {!isCategoriesMenuOpen && (totalCartItems + onHoldDeliveryOrders.length) > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#FFDE00] text-[#0A006E] border border-[#0A006E] text-[10px] font-mono font-black flex items-center justify-center shadow-xs">
+                    {totalCartItems + onHoldDeliveryOrders.length}
+                  </span>
+                )}
               </button>
             </div>
           </div>
@@ -2216,8 +2056,90 @@ export const CustomerStorefrontWebsite: React.FC<Props> = ({ onSwitchToErp }) =>
         </div>
       </header>
 
+      {/* =====================================================================
+          SEARCH BAR TOOLBAR DIRECTLY BELOW THE HEADER
+          ===================================================================== */}
+      <div className="bg-white/95 backdrop-blur-xs border-b border-slate-200/80 md:sticky md:top-20 z-40 pt-5 sm:pt-7 pb-3 px-3 sm:px-6 lg:px-8 shadow-2xs">
+        <div ref={searchContainerRef} className="w-full max-w-2xl mx-auto relative">
+          <div className="relative flex items-center bg-white rounded-2xl border-2 border-[#0A006E]/30 focus-within:border-[#0A006E] focus-within:ring-4 focus-within:ring-[#FFDE00]/40 shadow-sm transition overflow-hidden">
+            <Search className="w-4 h-4 sm:w-5 sm:h-5 text-[#0A006E] absolute left-3.5 sm:left-4 pointer-events-none" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onFocus={() => {
+                if (searchQuery.trim().length > 0) {
+                  setIsSearchDropdownOpen(true);
+                }
+              }}
+              onChange={e => {
+                const nextVal = e.target.value;
+                setSearchQuery(nextVal);
+                if (nextVal.trim().length > 0) {
+                  setActiveCategory('ALL');
+                  setIsSearchDropdownOpen(true);
+                } else {
+                  setIsSearchDropdownOpen(false);
+                }
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  if (filteredProducts.length === 1) {
+                    setSelectedProductDetail(filteredProducts[0]);
+                    setDetailQty(1);
+                    setIsSearchDropdownOpen(false);
+                  } else {
+                    setIsSearchDropdownOpen(false);
+                    catalogSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                } else if (e.key === 'Escape') {
+                  setIsSearchDropdownOpen(false);
+                }
+              }}
+              placeholder="Search drinks by name, brand, or SKU..."
+              className="w-full pl-10 sm:pl-12 pr-24 sm:pr-28 py-2.5 sm:py-3 bg-transparent text-xs sm:text-base font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none text-left"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setIsSearchDropdownOpen(false);
+                  searchInputRef.current?.focus();
+                }}
+                className="absolute right-20 sm:right-24 p-1.5 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
+                title="Clear search"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (filteredProducts.length === 1) {
+                  setSelectedProductDetail(filteredProducts[0]);
+                  setDetailQty(1);
+                  setIsSearchDropdownOpen(false);
+                } else {
+                  setIsSearchDropdownOpen(false);
+                  catalogSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+              }}
+              className="mr-1.5 sm:mr-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] font-montserrat font-black text-xs transition shrink-0 cursor-pointer"
+            >
+              Search
+            </button>
+          </div>
+
+          <div className="absolute left-0 right-0 top-full z-[90]">
+            {renderLiveSearchDropdown()}
+          </div>
+        </div>
+      </div>
+
       {/* Main Content Container */}
-      <main className="flex-1 max-w-[92rem] w-full min-w-0 mx-auto px-3 sm:px-6 lg:px-8 pt-6 sm:pt-8 pb-16 space-y-6">
+      <main className="flex-1 max-w-[92rem] w-full min-w-0 mx-auto px-3 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-16 space-y-6">
         <CenterScreenFeedback
           feedback={storefrontFeedback}
           onDismiss={() => setStorefrontFeedback(null)}
@@ -2240,90 +2162,12 @@ export const CustomerStorefrontWebsite: React.FC<Props> = ({ onSwitchToErp }) =>
         )}
 
         {/* ===================================================================
-            CENTERED SEARCH BAR & CATEGORY FILTERS
+            COMPANY PRICE BANNER, NEAREST BRANCH & CATEGORY FILTERS
             =================================================================== */}
-        <section className="py-3 sm:py-6 w-full min-w-0 flex flex-col items-center justify-center text-center space-y-3.5">
+        <section className="py-1 sm:py-3 w-full min-w-0 flex flex-col items-center justify-center text-center space-y-3.5">
           <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#34D186] border border-emerald-700 text-[#FFDE00] font-montserrat font-semibold text-[11px] sm:text-xs shadow-xs">
             <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#FFDE00] shrink-0" />
             <span>100% Company Price (No Affiliate Markup)</span>
-          </div>
-
-          <div ref={searchContainerRef} className="w-full max-w-2xl mx-auto relative z-40">
-            <div className="relative flex items-center bg-white rounded-2xl border-2 border-[#0A006E]/30 focus-within:border-[#0A006E] focus-within:ring-4 focus-within:ring-[#FFDE00]/40 shadow-md transition overflow-hidden">
-              <Search className="w-4 h-4 sm:w-5 sm:h-5 text-[#0A006E] absolute left-3.5 sm:left-4 pointer-events-none" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchQuery}
-                onFocus={() => {
-                  if (searchQuery.trim().length > 0) {
-                    setIsSearchDropdownOpen(true);
-                  }
-                }}
-                onChange={e => {
-                  const nextVal = e.target.value;
-                  setSearchQuery(nextVal);
-                  if (nextVal.trim().length > 0) {
-                    setActiveCategory('ALL');
-                    setIsSearchDropdownOpen(true);
-                  } else {
-                    setIsSearchDropdownOpen(false);
-                  }
-                }}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (filteredProducts.length === 1) {
-                      setSelectedProductDetail(filteredProducts[0]);
-                      setDetailQty(1);
-                      setIsSearchDropdownOpen(false);
-                    } else {
-                      setIsSearchDropdownOpen(false);
-                      catalogSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }
-                  } else if (e.key === 'Escape') {
-                    setIsSearchDropdownOpen(false);
-                  }
-                }}
-                placeholder="Search drinks by name, brand, or SKU..."
-                className="w-full pl-10 sm:pl-12 pr-24 sm:pr-28 py-3 sm:py-3.5 bg-transparent text-xs sm:text-base font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none text-left"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchQuery('');
-                    setIsSearchDropdownOpen(false);
-                    searchInputRef.current?.focus();
-                  }}
-                  className="absolute right-20 sm:right-24 p-1.5 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
-                  title="Clear search"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  if (filteredProducts.length === 1) {
-                    setSelectedProductDetail(filteredProducts[0]);
-                    setDetailQty(1);
-                    setIsSearchDropdownOpen(false);
-                  } else {
-                    setIsSearchDropdownOpen(false);
-                    catalogSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  }
-                }}
-                className="mr-1.5 sm:mr-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-[#0A006E] hover:bg-[#060046] text-[#FFDE00] font-montserrat font-black text-xs transition shrink-0 cursor-pointer"
-              >
-                Search
-              </button>
-            </div>
-
-            {/* ===============================================================
-                INSTANT AUTO-SHOW PRODUCT RESULTS PANEL AS CUSTOMER TYPES
-                =============================================================== */}
-            {!isSearchPinnedToHeader && renderLiveSearchDropdown()}
           </div>
 
           {/* ===============================================================
@@ -4376,10 +4220,74 @@ export const CustomerStorefrontWebsite: React.FC<Props> = ({ onSwitchToErp }) =>
               </button>
             </div>
 
-            {/* Scrollable Location (Mobile), Categories & Brands Content */}
+            {/* Scrollable Store Actions, Location, Categories & Brands Content */}
             <div className="p-5 overflow-y-auto space-y-6 pb-8 flex-1">
-              {/* Section 0 (Mobile): Simplified Nearest Branch Bar */}
-              <div className="md:hidden bg-slate-50 rounded-2xl border border-slate-200 p-3 text-left space-y-2">
+              {/* Section 0: Header Items Moved Here (Cart & Track My Order) */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCategoriesMenuOpen(false);
+                    handleFocusOrOpenWebsiteCart();
+                  }}
+                  className={`p-3.5 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between gap-2 ${
+                    totalCartItems > 0
+                      ? 'bg-[#FFDE00] border-[#0A006E] text-[#0A006E] shadow-xs'
+                      : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-800'
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 font-montserrat font-black text-xs text-[#0A006E]">
+                      <ShoppingBag className="w-4 h-4 shrink-0" />
+                      <span className="truncate">Shopping Cart</span>
+                    </div>
+                    <div className="text-[10px] font-mono font-bold text-[#0A006E]/80 mt-0.5 truncate">
+                      {totalCartItems > 0
+                        ? `${totalCartItems} item${totalCartItems === 1 ? '' : 's'} · ${formatKes(totalCartCompanyPriceKes)}`
+                        : 'Cart empty'}
+                    </div>
+                  </div>
+                  {totalCartItems > 0 && (
+                    <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#0A006E] text-[#FFDE00] text-[10px] font-mono font-black flex items-center justify-center shrink-0">
+                      {totalCartItems}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCategoriesMenuOpen(false);
+                    setIsEditingCustomerProfile(false);
+                    setIsCustomerLoginModalOpen(true);
+                  }}
+                  className={`p-3.5 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between gap-2 ${
+                    onHoldDeliveryOrders.length > 0
+                      ? 'bg-emerald-50 border-emerald-400 text-[#0A006E] shadow-xs'
+                      : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-800'
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 font-montserrat font-black text-xs text-[#0A006E]">
+                      <Truck className="w-4 h-4 shrink-0" />
+                      <span className="truncate">Track My Order</span>
+                    </div>
+                    <div className="text-[10px] font-mono font-bold text-slate-600 mt-0.5 truncate">
+                      {customerProfile && onHoldDeliveryOrders.length > 0
+                        ? `${onHoldDeliveryOrders.length} active order${onHoldDeliveryOrders.length === 1 ? '' : 's'}`
+                        : 'Live delivery status'}
+                    </div>
+                  </div>
+                  {customerProfile && onHoldDeliveryOrders.length > 0 && (
+                    <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#1E9E60] text-white text-[10px] font-mono font-black flex items-center justify-center shrink-0">
+                      {onHoldDeliveryOrders.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* Section 0b: Simplified Nearest Branch Bar */}
+              <div className="bg-slate-50 rounded-2xl border border-slate-200 p-3 text-left space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <div className="w-7 h-7 rounded-lg bg-[#0A006E] text-[#FFDE00] flex items-center justify-center shrink-0">
@@ -4767,12 +4675,8 @@ export const CustomerStorefrontWebsite: React.FC<Props> = ({ onSwitchToErp }) =>
               type="button"
               onClick={() => {
                 setIsCategoriesMenuOpen(false);
-                if (isSearchPinnedToHeader && headerSearchInputRef.current) {
-                  headerSearchInputRef.current.focus();
-                } else {
-                  searchInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  setTimeout(() => searchInputRef.current?.focus(), 250);
-                }
+                searchInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(() => searchInputRef.current?.focus(), 250);
               }}
               aria-label="Search Drinks"
               className="relative overflow-hidden w-14 h-14 -mt-6 rounded-full bg-linear-to-tr from-[#0A006E] via-[#12088F] to-[#1E3A8A] hover:from-[#12088F] hover:to-[#2563EB] text-white border-2 border-[#FFDE00] ring-4 ring-white shadow-[0_-6px_20px_rgba(10,0,110,0.45)] hover:shadow-[0_0_24px_rgba(255,222,0,0.65)] flex flex-col items-center justify-center gap-0.5 transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer group"

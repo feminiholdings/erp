@@ -146,12 +146,12 @@ export const Header: React.FC<HeaderProps> = ({
           }}
           className="flex items-center gap-2.5 sm:gap-3 relative z-10 whitespace-nowrap shrink-0 group cursor-pointer"
         >
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white text-[#0A006E] flex items-center justify-center shadow-sm border border-white group-hover:scale-105 transition-transform duration-200">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white text-[#0A006E] flex items-center justify-center border border-white/80 shadow-xs group-hover:scale-105 transition-transform duration-200">
             <Wine className="w-5 h-5 stroke-[2.4]" />
           </div>
           <span className="font-montserrat font-black italic text-xl sm:text-2xl tracking-tighter text-white">
             VAAIRO{' '}
-            <span className="bg-[#FFDE00] text-[#0A006E] not-italic text-[11px] font-black px-2 py-0.5 rounded-lg ml-1 align-middle">
+            <span className="bg-[#FFDE00] text-[#0A006E] not-italic text-[11px] font-black px-2 py-0.5 rounded-lg ml-1 align-middle shadow-xs">
               ERP
             </span>
           </span>
@@ -269,9 +269,9 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         )}
 
-        {/* Single Smooth Curved Wave Bottom Edge with Gold Stroke */}
+        {/* Single Smooth Curved Wave Bottom Edge */}
         <svg
-          className="absolute bottom-0 left-0 w-full h-4 sm:h-5 pointer-events-none block"
+          className="absolute bottom-0 left-0 w-full h-4 sm:h-5 pointer-events-none block z-10"
           viewBox="0 0 1440 80"
           preserveAspectRatio="none"
         >

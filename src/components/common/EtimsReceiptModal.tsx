@@ -9,7 +9,7 @@ import {
   isMultiItemOrder
 } from '../../utils/orderItemsDocumentGenerator';
 import { OrderItemsDocumentModal } from './OrderItemsDocumentModal';
-import { Printer, CheckCircle2, ShieldCheck, X, FileText, Download } from 'lucide-react';
+import { Printer, CheckCircle2, ShieldCheck, X, FileText, Download, Receipt } from 'lucide-react';
 
 interface Props {
   invoice: ETimsInvoice;
@@ -20,6 +20,8 @@ interface Props {
 export const EtimsReceiptModal: React.FC<Props> = ({ invoice, order, onClose }) => {
   const { currentUser, orders = [] } = useErp() as any;
   const [showOrderItemsDoc, setShowOrderItemsDoc] = useState(false);
+  const [receiptFormat, setReceiptFormat] = useState<'full' | 'thermal'>('thermal');
+  const [rollWidth, setRollWidth] = useState<'80mm' | '58mm'>('80mm');
   const resolvedOrder = order || (orders || []).find((o: any) => o.id === invoice.orderId || o.etimsInvoiceNumber === invoice.invoiceNumber);
   const hasMultipleItems = resolvedOrder ? isMultiItemOrder(resolvedOrder.items) : false;
   const orderItemsDoc = resolvedOrder ? buildOrderDocumentFromSaleOrder(resolvedOrder) : null;
@@ -31,29 +33,98 @@ export const EtimsReceiptModal: React.FC<Props> = ({ invoice, order, onClose }) 
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4 overflow-y-auto">
-      <div className="bg-white rounded-none sm:rounded-xl shadow-2xl max-w-md w-full min-h-dvh sm:min-h-0 overflow-y-auto sm:overflow-hidden border-0 sm:border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
-        {/* Receipt Header Banner */}
-        <div className="bg-white text-[#0A006E] border-b border-slate-200 p-4 flex items-center justify-between print:bg-white print:text-black">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-[#0A006E] font-black text-xs font-montserrat">
-              VAT
+    <>
+      <style media="print">
+        {receiptFormat === 'thermal'
+          ? `@page { size: ${rollWidth} auto; margin: 2mm; }`
+          : `@page { size: A4 portrait; margin: 12mm; }`}
+      </style>
+      <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4 overflow-y-auto print:bg-white print:p-0">
+        <div
+          className={`bg-white rounded-none sm:rounded-xl shadow-2xl w-full min-h-dvh sm:min-h-0 overflow-y-auto sm:overflow-hidden border-0 sm:border border-slate-200 animate-in fade-in zoom-in-95 duration-200 transition-all print:max-w-none print:shadow-none print:border-0 ${
+            receiptFormat === 'full' ? 'max-w-2xl' : 'max-w-md'
+          }`}
+        >
+          {/* Receipt Header Banner */}
+          <div className="bg-white text-[#0A006E] border-b border-slate-200 p-4 flex items-center justify-between print:hidden">
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-[#0A006E] font-black text-xs font-montserrat">
+                VAT
+              </div>
+              <div>
+                <h3 className="font-montserrat font-black text-sm tracking-wide">VAAIRO 16% VAT TAX INVOICE</h3>
+                <p className="text-xs text-slate-500">
+                  Official 16% VAT Receipt · {receiptFormat === 'full' ? 'Full Receipt (A4)' : `Thermal ${rollWidth}`}
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-montserrat font-black text-sm tracking-wide">VAAIRO 16% VAT TAX INVOICE</h3>
-              <p className="text-xs text-slate-500">Official 16% Value Added Tax (VAT) Compliant Receipt</p>
-            </div>
+            <button
+              onClick={onClose}
+              className="text-slate-500 hover:text-black p-1 rounded hover:bg-slate-100 print:hidden cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="text-slate-500 hover:text-black p-1 rounded hover:bg-slate-100 print:hidden"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
 
-        {/* Printable Receipt Body */}
-        <div className="p-6 font-mono text-xs space-y-4 print:p-0 print:bg-white bg-white">
+          {/* Receipt Format Option Bar */}
+          <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2 flex-wrap print:hidden">
+            <div className="inline-flex items-center p-1 bg-slate-200/80 rounded-xl gap-1">
+              <button
+                type="button"
+                onClick={() => setReceiptFormat('full')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-montserrat font-black flex items-center gap-1 cursor-pointer transition ${
+                  receiptFormat === 'full'
+                    ? 'bg-[#0A006E] text-[#FFDE00] shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Full Receipt</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setReceiptFormat('thermal')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-montserrat font-black flex items-center gap-1 cursor-pointer transition ${
+                  receiptFormat === 'thermal'
+                    ? 'bg-[#0A006E] text-[#FFDE00] shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Receipt className="w-3.5 h-3.5" />
+                <span>Thermal Receipt</span>
+              </button>
+            </div>
+
+            {receiptFormat === 'thermal' && (
+              <div className="inline-flex items-center p-1 bg-slate-200/80 rounded-xl gap-1">
+                {(['80mm', '58mm'] as const).map((sz) => (
+                  <button
+                    key={sz}
+                    type="button"
+                    onClick={() => setRollWidth(sz)}
+                    className={`px-2 py-1 rounded-lg text-[11px] font-montserrat font-black cursor-pointer transition ${
+                      rollWidth === sz
+                        ? 'bg-[#0A006E] text-[#FFDE00] shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {sz}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Printable Receipt Body */}
+          <div
+            className={`text-xs space-y-4 print:p-0 print:bg-white bg-white mx-auto ${
+              receiptFormat === 'full'
+                ? 'p-6 sm:p-8 font-sans'
+                : rollWidth === '58mm'
+                ? 'p-4 max-w-[270px] font-mono text-[11px]'
+                : 'p-5 max-w-[340px] font-mono'
+            }`}
+          >
           <div className="text-center space-y-1 border-b border-dashed border-slate-300 pb-3">
             <h2 className="font-montserrat font-black italic text-base text-slate-900 tracking-tight">
               VAAIRO BEVERAGES &amp; MERCHANTS LTD
@@ -363,7 +434,9 @@ export const EtimsReceiptModal: React.FC<Props> = ({ invoice, order, onClose }) 
               className="flex-1 px-4 py-2 bg-[#0A006E] text-white rounded-lg hover:bg-[#060046] font-montserrat font-bold text-xs flex items-center justify-center space-x-2 shadow-sm transition cursor-pointer"
             >
               <Printer className="w-4 h-4" />
-              <span>Print Tax Receipt</span>
+              <span>
+                {receiptFormat === 'full' ? 'Print Full Receipt' : `Print Thermal (${rollWidth})`}
+              </span>
             </button>
           </div>
         </div>
@@ -376,5 +449,6 @@ export const EtimsReceiptModal: React.FC<Props> = ({ invoice, order, onClose }) 
         />
       )}
     </div>
+    </>
   );
 };

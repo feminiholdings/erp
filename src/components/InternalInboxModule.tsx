@@ -29,6 +29,8 @@ import {
   Filter,
   Maximize2,
   Minimize2,
+  Paperclip,
+  Download,
 } from 'lucide-react';
 import {
   StaffMember,
@@ -42,6 +44,7 @@ import {
   InvoiceTransferPurpose,
   InvoiceTransferStatus,
   StockRequestUrgency,
+  ChatFileAttachment,
 } from '../types';
 import { formatKes } from '../erpUtils';
 import { db, cleanFirestoreData, handleFirestoreError, OperationType } from '../firebase';
@@ -144,6 +147,42 @@ export function isDirectThreadParticipant(threadId: string, staffId: string): bo
   return parts[1] === staffId || parts[2] === staffId;
 }
 
+export function canUserViewInboxMessage(
+  msg: InternalChatMessage,
+  user: StaffMember | null
+): boolean {
+  if (!user) return false;
+
+  // Direct message threads: strictly limited to the participants of that direct thread
+  if (msg.threadType === 'direct' || msg.threadId.startsWith('dm__')) {
+    if (msg.threadId.startsWith('dm__')) {
+      return isDirectThreadParticipant(msg.threadId, user.id);
+    }
+    return (
+      msg.senderId === user.id ||
+      msg.recipientStaffId === user.id ||
+      msg.invoiceTransfer?.assignedToStaffId === user.id ||
+      msg.stockTransferRequest?.requestedToStaffId === user.id
+    );
+  }
+
+  // Department threads: if addressed, assigned, or requested to specific colleague(s),
+  // ONLY the sender and the intended recipient(s) can view the message.
+  const explicitRecipientIds = [
+    msg.recipientStaffId,
+    msg.invoiceTransfer?.assignedToStaffId,
+    msg.stockTransferRequest?.requestedToStaffId,
+  ].filter((id): id is string => Boolean(id && id.trim()));
+
+  if (explicitRecipientIds.length > 0) {
+    if (msg.senderId === user.id) return true;
+    return explicitRecipientIds.includes(user.id);
+  }
+
+  // Open department-wide broadcast (@ Everyone / Any Available Officer)
+  return true;
+}
+
 export function getLastReadMapForUser(userId: string): Record<string, string> {
   if (typeof window === 'undefined' || !userId) return {};
   try {
@@ -178,9 +217,7 @@ export function computeUnreadInboxSummary(
   let actionableForMeCount = 0;
 
   for (const msg of messages) {
-    const isVisibleThread =
-      msg.threadType === 'department' || isDirectThreadParticipant(msg.threadId, currentUser.id);
-    if (!isVisibleThread) continue;
+    if (!canUserViewInboxMessage(msg, currentUser)) continue;
 
     // Count unread messages sent by other staff
     if (msg.senderId !== currentUser.id) {
@@ -253,6 +290,19 @@ const STOCK_URGENCIES: StockRequestUrgency[] = [
   'Urgent Replenishment',
   'Customer Waiting',
 ];
+
+const MAX_CHAT_DOCUMENT_BYTES = 650 * 1024; // 650 KB raw file -> ~890 KB Base64 (safely under Firestore 1 MiB doc cap)
+const VIDEO_FILE_REGEX = /\.(mp4|mov|avi|mkv|webm|flv|wmv|m4v|3gp|mpeg|mpg|ogv|ts)$/i;
+const ALLOWED_DOCUMENT_EXT_REGEX =
+  /\.(pdf|doc|docx|xls|xlsx|csv|ppt|pptx|txt|rtf|odt|ods|odp|json|xml|png|jpg|jpeg|webp)$/i;
+const DOCUMENT_ACCEPT_ATTR =
+  '.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt,.rtf,.odt,.ods,.odp,.json,.xml,.png,.jpg,.jpeg,.webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,text/csv,application/rtf,application/json,image/png,image/jpeg,image/webp';
+
+function formatAttachmentBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 const TYPING_STALE_MS = 6500;
 const TYPING_THROTTLE_MS = 2200;
@@ -330,11 +380,22 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
     return 'dept-all-hands';
   }, [currentUser.role]);
 
-  const [selectedThreadId, setSelectedThreadId] = useState<string>(
-    () => externalSelectedThreadId || defaultChannelId
-  );
-  const [mobileShowConversation, setMobileShowConversation] = useState<boolean>(
-    () => Boolean(externalSelectedThreadId)
+  const [selectedThreadId, setSelectedThreadId] = useState<string>(() => {
+    if (
+      externalSelectedThreadId &&
+      (!externalSelectedThreadId.startsWith('dm__') ||
+        isDirectThreadParticipant(externalSelectedThreadId, currentUser.id))
+    ) {
+      return externalSelectedThreadId;
+    }
+    return defaultChannelId;
+  });
+  const [mobileShowConversation, setMobileShowConversation] = useState<boolean>(() =>
+    Boolean(
+      externalSelectedThreadId &&
+        (!externalSelectedThreadId.startsWith('dm__') ||
+          isDirectThreadParticipant(externalSelectedThreadId, currentUser.id))
+    )
   );
 
   const onActiveThreadChangeRef = useRef(onActiveThreadChange);
@@ -345,11 +406,27 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
 
   useEffect(() => {
     if (externalSelectedThreadId) {
-      setSelectedThreadId(externalSelectedThreadId);
-      setMobileShowConversation(true);
+      if (
+        !externalSelectedThreadId.startsWith('dm__') ||
+        isDirectThreadParticipant(externalSelectedThreadId, currentUser.id)
+      ) {
+        setSelectedThreadId(externalSelectedThreadId);
+        setMobileShowConversation(true);
+      }
       onExternalThreadHandledRef.current?.();
     }
-  }, [externalSelectedThreadId]);
+  }, [externalSelectedThreadId, currentUser.id]);
+
+  // Never keep a direct thread open if account switches to a non-participant
+  useEffect(() => {
+    if (
+      selectedThreadId.startsWith('dm__') &&
+      !isDirectThreadParticipant(selectedThreadId, currentUser.id)
+    ) {
+      setSelectedThreadId(defaultChannelId);
+      setMobileShowConversation(false);
+    }
+  }, [currentUser.id, selectedThreadId, defaultChannelId]);
 
   useEffect(() => {
     onActiveThreadChangeRef.current?.(selectedThreadId);
@@ -364,6 +441,9 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
   const [messageText, setMessageText] = useState('');
   const [priority, setPriority] = useState<'Normal' | 'Urgent'>('Normal');
   const [taggedStaffId, setTaggedStaffId] = useState<string>('');
+  const [pendingAttachment, setPendingAttachment] = useState<ChatFileAttachment | null>(null);
+  const [previewAttachment, setPreviewAttachment] = useState<ChatFileAttachment | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isSending, setIsSending] = useState(false);
 
   // Invoice Transfer Modal State
@@ -388,11 +468,12 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
   const [stockUrgency, setStockUrgency] = useState<StockRequestUrgency>('Standard');
   const [stockNote, setStockNote] = useState('');
 
-  // Inline note state for returning invoice or declining stock request (avoids window.prompt)
+  // Inline action box state for returning invoice, declining stock request, or redirecting transfer (avoids window.prompt)
   const [inlineActionBox, setInlineActionBox] = useState<{
     messageId: string;
-    mode: 'RETURN_INVOICE' | 'DECLINE_STOCK';
+    mode: 'RETURN_INVOICE' | 'DECLINE_STOCK' | 'REDIRECT_INVOICE' | 'REDIRECT_STOCK';
     note: string;
+    targetStaffId?: string;
   } | null>(null);
 
   const [readTick, setReadTick] = useState(0);
@@ -644,15 +725,22 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
 
   const activeDirectPeer = useMemo(() => {
     if (!selectedThreadId.startsWith('dm__')) return null;
+    if (!isDirectThreadParticipant(selectedThreadId, currentUser.id)) return null;
     const parts = selectedThreadId.split('__');
     const peerId = parts[1] === currentUser.id ? parts[2] : parts[1];
     return staffList.find((s) => s.id === peerId) || null;
   }, [selectedThreadId, currentUser.id, staffList]);
 
+  // Strictly enforce per-user message visibility inside the inbox module
+  const visibleMessages = useMemo(
+    () => messages.filter((m) => canUserViewInboxMessage(m, currentUser)),
+    [messages, currentUser]
+  );
+
   // Latest message timestamp per thread+sender so typing clears the instant a message arrives
   const latestMsgMsByThreadSender = useMemo(() => {
     const map: Record<string, number> = {};
-    for (const m of messages) {
+    for (const m of visibleMessages) {
       const key = `${m.threadId}::${m.senderId}`;
       const ts = Date.parse(m.createdAt || '');
       if (!Number.isNaN(ts) && (!map[key] || ts > map[key])) {
@@ -660,7 +748,7 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
       }
     }
     return map;
-  }, [messages]);
+  }, [visibleMessages]);
 
   // Live active typers grouped by threadId
   const activeTypersByThread = useMemo(() => {
@@ -671,7 +759,8 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
       if (typingClockMs - sig.updatedAtMs >= TYPING_STALE_MS) continue;
 
       const isVisible =
-        sig.threadType === 'department' || isDirectThreadParticipant(sig.threadId, currentUser.id);
+        (sig.threadType === 'department' && !sig.threadId.startsWith('dm__')) ||
+        isDirectThreadParticipant(sig.threadId, currentUser.id);
       if (!isVisible) continue;
 
       const lastMsgMs = latestMsgMsByThreadSender[`${sig.threadId}::${sig.staffId}`] || 0;
@@ -693,10 +782,16 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
 
   // Mark active thread as read whenever viewed or new messages arrive in it
   const currentThreadMessages = useMemo(() => {
-    return messages
+    if (
+      selectedThreadId.startsWith('dm__') &&
+      !isDirectThreadParticipant(selectedThreadId, currentUser.id)
+    ) {
+      return [];
+    }
+    return visibleMessages
       .filter((m) => m.threadId === selectedThreadId)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  }, [messages, selectedThreadId]);
+  }, [visibleMessages, selectedThreadId, currentUser.id]);
 
   useEffect(() => {
     const latestTs =
@@ -727,7 +822,7 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
       }
     > = {};
 
-    const sortedAsc = [...messages].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const sortedAsc = [...visibleMessages].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     for (const msg of sortedAsc) {
       if (!stats[msg.threadId]) {
         stats[msg.threadId] = { unread: 0, actionable: 0 };
@@ -755,7 +850,40 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
     }
 
     return stats;
-  }, [messages, currentUser.id, readMap]);
+  }, [visibleMessages, currentUser.id, readMap]);
+
+  // Tab-level notifier counts across Departments, People (direct messages), and Pending actions
+  const tabNotifierCounts = useMemo(() => {
+    let deptUnread = 0;
+    let deptActionable = 0;
+    for (const ch of INTERNAL_DEPARTMENT_CHANNELS) {
+      const st = threadStats[ch.id];
+      if (st) {
+        deptUnread += st.unread;
+        deptActionable += st.actionable;
+      }
+    }
+
+    let peopleUnread = 0;
+    let peopleActionable = 0;
+    for (const col of activeColleagues) {
+      const dmId = buildDirectThreadId(currentUser.id, col.id);
+      const st = threadStats[dmId];
+      if (st) {
+        peopleUnread += st.unread;
+        peopleActionable += st.actionable;
+      }
+    }
+
+    return {
+      all: deptUnread + peopleUnread,
+      departments: deptUnread,
+      direct: peopleUnread,
+      actionable: deptActionable + peopleActionable,
+      deptActionable,
+      peopleActionable,
+    };
+  }, [threadStats, activeColleagues, currentUser.id]);
 
   // Filtered Department Channels for left pane
   const visibleChannels = useMemo(() => {
@@ -808,7 +936,8 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
         (msg.invoiceTransfer?.docNumber || '').toLowerCase().includes(q) ||
         (msg.invoiceTransfer?.customerName || '').toLowerCase().includes(q) ||
         (msg.stockTransferRequest?.sku || '').toLowerCase().includes(q) ||
-        (msg.stockTransferRequest?.productName || '').toLowerCase().includes(q)
+        (msg.stockTransferRequest?.productName || '').toLowerCase().includes(q) ||
+        (msg.attachment?.fileName || '').toLowerCase().includes(q)
       );
     });
   }, [currentThreadMessages, threadFilter, threadSearch]);
@@ -862,11 +991,81 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
     setIsStockModalOpen(true);
   };
 
-  // Send standard text message
+  // Select & validate document attachment (rejects video files)
+  const handleSelectAttachment = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    const mime = (file.type || '').toLowerCase();
+    if (mime.startsWith('video/') || VIDEO_FILE_REGEX.test(file.name)) {
+      onTriggerToast(
+        'error',
+        'Video Not Allowed',
+        'Video files cannot be attached in inbox chat. Please attach a document (PDF, Word, Excel, CSV, TXT, or scan).'
+      );
+      return;
+    }
+
+    const isAllowedMime =
+      mime === 'application/pdf' ||
+      mime === 'application/msword' ||
+      mime === 'application/rtf' ||
+      mime === 'application/json' ||
+      mime === 'text/plain' ||
+      mime === 'text/csv' ||
+      mime === 'text/xml' ||
+      mime === 'application/xml' ||
+      mime.startsWith('application/vnd.') ||
+      mime === 'image/png' ||
+      mime === 'image/jpeg' ||
+      mime === 'image/webp';
+
+    if (!isAllowedMime && !ALLOWED_DOCUMENT_EXT_REGEX.test(file.name)) {
+      onTriggerToast(
+        'error',
+        'Unsupported File Type',
+        'Please attach a document file (PDF, DOC/DOCX, XLS/XLSX, CSV, PPT/PPTX, TXT, RTF, JSON, or PNG/JPG scan).'
+      );
+      return;
+    }
+
+    if (file.size > MAX_CHAT_DOCUMENT_BYTES) {
+      onTriggerToast(
+        'error',
+        'Document Too Large',
+        `${file.name} is ${formatAttachmentBytes(file.size)}. Maximum document attachment size is 650 KB.`
+      );
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+      if (!dataUrl) {
+        onTriggerToast('error', 'Read Failed', 'Could not read the selected document file.');
+        return;
+      }
+      const extMatch = file.name.match(/\.([a-zA-Z0-9]+)$/);
+      setPendingAttachment({
+        fileName: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        sizeBytes: file.size,
+        dataUrl,
+        extension: extMatch ? extMatch[1].toUpperCase() : 'DOC',
+      });
+    };
+    reader.onerror = () => {
+      onTriggerToast('error', 'Read Failed', 'Unable to read the selected document file.');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Send standard text message (with optional document attachment)
   const handleSendText = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanText = messageText.trim();
-    if (!cleanText || isSending) return;
+    if ((!cleanText && !pendingAttachment) || isSending) return;
 
     clearLocalTypingActivity(selectedThreadId);
 
@@ -876,6 +1075,9 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
       : activeDirectPeer
         ? `Direct: ${currentUser.name} & ${activeDirectPeer.name}`
         : 'Internal Inbox';
+
+    const bodyText =
+      cleanText || `Attached document: ${pendingAttachment?.fileName || 'Document'}`;
 
     setIsSending(true);
     try {
@@ -892,10 +1094,12 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
         recipientStaffRole: recipient?.role,
         recipientDepartment: activeChannelDef?.departmentTag,
         messageType: 'TEXT',
-        body: cleanText,
+        body: bodyText,
         priority,
+        ...(pendingAttachment ? { attachment: pendingAttachment } : {}),
       });
       setMessageText('');
+      setPendingAttachment(null);
       setPriority('Normal');
     } finally {
       setIsSending(false);
@@ -1063,13 +1267,13 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
     }
   };
 
-  // Action on Invoice Transfer Card
+  // Action on Invoice Transfer Card (Receiver only)
   const handleInvoiceCardAction = async (
     msg: InternalChatMessage,
     nextStatus: InvoiceTransferStatus,
     note?: string
   ) => {
-    if (!msg.invoiceTransfer) return;
+    if (!msg.invoiceTransfer || msg.senderId === currentUser.id) return;
     const nowIso = new Date().toISOString();
     const updatedPayload = {
       ...msg.invoiceTransfer,
@@ -1107,10 +1311,10 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
     );
   };
 
-  // Action on Stock Transfer Request Card -> Creates Official ERP StockTransfer
+  // Action on Stock Transfer Request Card -> Creates Official ERP StockTransfer (Receiver only)
   const handleConvertStockRequestToTransfer = async (msg: InternalChatMessage) => {
     const req = msg.stockTransferRequest;
-    if (!req) return;
+    if (!req || msg.senderId === currentUser.id) return;
 
     const isDirectApprover =
       currentUser.role === 'Admin' || currentUser.role === 'Branch Manager';
@@ -1186,7 +1390,7 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
     msg: InternalChatMessage,
     linkedTransfer: StockTransfer
   ) => {
-    if (!msg.stockTransferRequest) return;
+    if (!msg.stockTransferRequest || msg.senderId === currentUser.id) return;
     await onAuthorizeStockTransfer(linkedTransfer.id);
     const nowIso = new Date().toISOString();
     await onUpdateMessage(msg.id, {
@@ -1201,10 +1405,10 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
     });
   };
 
-  // Decline Stock Transfer Request in Chat
+  // Decline Stock Transfer Request in Chat (Receiver only)
   const handleDeclineStockRequest = async (msg: InternalChatMessage, note: string) => {
     const req = msg.stockTransferRequest;
-    if (!req) return;
+    if (!req || msg.senderId === currentUser.id) return;
 
     if (req.linkedTransferId) {
       const linked = transfers.find((t) => t.id === req.linkedTransferId);
@@ -1231,6 +1435,233 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
       'Stock Request Declined',
       `Declined stock request for ${req.quantityBottles} btls of ${req.sku}.`
     );
+  };
+
+  // Sender Action: Cancel a pending Invoice Transfer or Stock Transfer Request
+  const handleCancelTransferInChat = async (msg: InternalChatMessage) => {
+    if (msg.senderId !== currentUser.id) return;
+    const nowIso = new Date().toISOString();
+
+    if (msg.messageType === 'INVOICE_TRANSFER' && msg.invoiceTransfer) {
+      if (msg.invoiceTransfer.transferStatus !== 'Pending Acceptance') return;
+      await onUpdateMessage(msg.id, {
+        invoiceTransfer: {
+          ...msg.invoiceTransfer,
+          transferStatus: 'Cancelled',
+          handledBy: currentUser.name,
+          handledByRole: currentUser.role,
+          handledAt: nowIso,
+          resolutionNote: 'Cancelled by sender',
+        },
+        updatedAt: nowIso,
+      });
+      setInlineActionBox(null);
+      onTriggerToast(
+        'success',
+        'Invoice Transfer Cancelled',
+        `${msg.invoiceTransfer.docNumber} transfer was cancelled.`
+      );
+      return;
+    }
+
+    if (msg.messageType === 'STOCK_TRANSFER_REQUEST' && msg.stockTransferRequest) {
+      const req = msg.stockTransferRequest;
+      if (req.requestStatus !== 'Pending Review') return;
+      if (req.linkedTransferId) {
+        const linked = transfers.find((t) => t.id === req.linkedTransferId);
+        if (linked && linked.status === 'Pending Authorization') {
+          await onRejectStockTransfer(linked.id);
+        }
+      }
+      await onUpdateMessage(msg.id, {
+        stockTransferRequest: {
+          ...req,
+          requestStatus: 'Cancelled',
+          actionedBy: currentUser.name,
+          actionedByRole: currentUser.role,
+          actionedAt: nowIso,
+          actionNote: 'Cancelled by sender',
+        },
+        updatedAt: nowIso,
+      });
+      setInlineActionBox(null);
+      onTriggerToast(
+        'success',
+        'Stock Request Cancelled',
+        `Stock transfer request for ${req.quantityBottles} btls of ${req.sku} was cancelled.`
+      );
+    }
+  };
+
+  // Sender Action: Redirect a pending Invoice Transfer or Stock Transfer Request to another staff member
+  const handleRedirectTransferInChat = async (
+    msg: InternalChatMessage,
+    targetStaffId: string,
+    note: string
+  ) => {
+    if (msg.senderId !== currentUser.id || isSending) return;
+    const targetStaff = activeColleagues.find((s) => s.id === targetStaffId);
+    if (!targetStaff) {
+      onTriggerToast('error', 'Select Staff', 'Please select another active staff member to redirect to.');
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
+    const cleanNote = note.trim();
+
+    setIsSending(true);
+    try {
+      if (msg.messageType === 'INVOICE_TRANSFER' && msg.invoiceTransfer) {
+        const inv = msg.invoiceTransfer;
+        if (inv.transferStatus !== 'Pending Acceptance') return;
+        const prevName = inv.assignedToStaffName || 'Department Queue';
+
+        if (msg.threadType === 'direct') {
+          await onUpdateMessage(msg.id, {
+            invoiceTransfer: {
+              ...inv,
+              transferStatus: 'Cancelled',
+              handledBy: currentUser.name,
+              handledByRole: currentUser.role,
+              handledAt: nowIso,
+              resolutionNote: `Redirected to ${targetStaff.name} (${targetStaff.role})`,
+            },
+            updatedAt: nowIso,
+          });
+
+          await onSendMessage({
+            threadId: buildDirectThreadId(currentUser.id, targetStaff.id),
+            threadType: 'direct',
+            channelName: `Direct: ${currentUser.name} & ${targetStaff.name}`,
+            senderId: currentUser.id,
+            senderName: currentUser.name,
+            senderRole: currentUser.role,
+            senderBranchName: currentUser.branchName,
+            recipientStaffId: targetStaff.id,
+            recipientStaffName: targetStaff.name,
+            recipientStaffRole: targetStaff.role,
+            messageType: 'INVOICE_TRANSFER',
+            body: cleanNote || msg.body,
+            priority: msg.priority || 'Normal',
+            invoiceTransfer: {
+              ...inv,
+              transferStatus: 'Pending Acceptance',
+              assignedToStaffId: targetStaff.id,
+              assignedToStaffName: targetStaff.name,
+              assignedToRole: targetStaff.role,
+              redirectedFromStaffName: prevName,
+              redirectedBy: currentUser.name,
+              redirectedAt: nowIso,
+              handledBy: undefined,
+              handledByRole: undefined,
+              handledAt: undefined,
+              resolutionNote: undefined,
+            },
+          });
+        } else {
+          await onUpdateMessage(msg.id, {
+            recipientStaffId: targetStaff.id,
+            recipientStaffName: targetStaff.name,
+            recipientStaffRole: targetStaff.role,
+            ...(cleanNote ? { body: cleanNote } : {}),
+            invoiceTransfer: {
+              ...inv,
+              assignedToStaffId: targetStaff.id,
+              assignedToStaffName: targetStaff.name,
+              assignedToRole: targetStaff.role,
+              redirectedFromStaffName: prevName,
+              redirectedBy: currentUser.name,
+              redirectedAt: nowIso,
+            },
+            updatedAt: nowIso,
+          });
+        }
+
+        setInlineActionBox(null);
+        onTriggerToast(
+          'success',
+          'Invoice Transfer Redirected',
+          `${inv.docNumber} redirected to ${targetStaff.name} (${targetStaff.role}).`
+        );
+        return;
+      }
+
+      if (msg.messageType === 'STOCK_TRANSFER_REQUEST' && msg.stockTransferRequest) {
+        const req = msg.stockTransferRequest;
+        if (req.requestStatus !== 'Pending Review') return;
+        const prevName = req.requestedToStaffName;
+
+        if (msg.threadType === 'direct') {
+          await onUpdateMessage(msg.id, {
+            stockTransferRequest: {
+              ...req,
+              requestStatus: 'Cancelled',
+              actionedBy: currentUser.name,
+              actionedByRole: currentUser.role,
+              actionedAt: nowIso,
+              actionNote: `Redirected to ${targetStaff.name} (${targetStaff.role})`,
+            },
+            updatedAt: nowIso,
+          });
+
+          await onSendMessage({
+            threadId: buildDirectThreadId(currentUser.id, targetStaff.id),
+            threadType: 'direct',
+            channelName: `Direct: ${currentUser.name} & ${targetStaff.name}`,
+            senderId: currentUser.id,
+            senderName: currentUser.name,
+            senderRole: currentUser.role,
+            senderBranchName: currentUser.branchName,
+            recipientStaffId: targetStaff.id,
+            recipientStaffName: targetStaff.name,
+            recipientStaffRole: targetStaff.role,
+            messageType: 'STOCK_TRANSFER_REQUEST',
+            body: cleanNote || msg.body,
+            priority: msg.priority || 'Normal',
+            stockTransferRequest: {
+              ...req,
+              requestStatus: 'Pending Review',
+              requestedToStaffId: targetStaff.id,
+              requestedToStaffName: targetStaff.name,
+              requestedToRole: targetStaff.role,
+              redirectedFromStaffName: prevName,
+              redirectedBy: currentUser.name,
+              redirectedAt: nowIso,
+              actionedBy: undefined,
+              actionedByRole: undefined,
+              actionedAt: undefined,
+              actionNote: undefined,
+            },
+          });
+        } else {
+          await onUpdateMessage(msg.id, {
+            recipientStaffId: targetStaff.id,
+            recipientStaffName: targetStaff.name,
+            recipientStaffRole: targetStaff.role,
+            ...(cleanNote ? { body: cleanNote } : {}),
+            stockTransferRequest: {
+              ...req,
+              requestedToStaffId: targetStaff.id,
+              requestedToStaffName: targetStaff.name,
+              requestedToRole: targetStaff.role,
+              redirectedFromStaffName: prevName,
+              redirectedBy: currentUser.name,
+              redirectedAt: nowIso,
+            },
+            updatedAt: nowIso,
+          });
+        }
+
+        setInlineActionBox(null);
+        onTriggerToast(
+          'success',
+          'Stock Request Redirected',
+          `${req.sku} request redirected to ${targetStaff.name} (${targetStaff.role}).`
+        );
+      }
+    } finally {
+      setIsSending(false);
+    }
   };
 
   // Filtered invoices for modal
@@ -1375,25 +1806,74 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
             <div className="grid grid-cols-4 gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200 min-w-0">
               {(
                 [
-                  { id: 'all', label: 'All' },
-                  { id: 'departments', label: 'Depts' },
-                  { id: 'direct', label: 'People' },
-                  { id: 'actionable', label: 'Pending' },
+                  {
+                    id: 'all',
+                    label: 'All',
+                    count: tabNotifierCounts.all,
+                    isPending: false,
+                  },
+                  {
+                    id: 'departments',
+                    label: 'Depts',
+                    count: tabNotifierCounts.departments,
+                    isPending: false,
+                  },
+                  {
+                    id: 'direct',
+                    label: 'People',
+                    count: tabNotifierCounts.direct,
+                    isPending: false,
+                  },
+                  {
+                    id: 'actionable',
+                    label: 'Pending',
+                    count: tabNotifierCounts.actionable,
+                    isPending: true,
+                  },
                 ] as const
-              ).map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setSidebarTab(tab.id)}
-                  className={`py-1.5 px-1 sm:px-2 rounded-lg text-[11px] font-montserrat font-bold transition cursor-pointer text-center truncate ${
-                    sidebarTab === tab.id
-                      ? 'bg-[#0A006E] text-[#FFDE00]'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+              ).map((tab) => {
+                const isActive = sidebarTab === tab.id;
+                const badgeCount = tab.count;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setSidebarTab(tab.id)}
+                    title={
+                      badgeCount > 0
+                        ? `${tab.label}: ${badgeCount} ${tab.isPending ? 'pending' : 'unread'}`
+                        : tab.label
+                    }
+                    aria-label={
+                      badgeCount > 0
+                        ? `${tab.label} (${badgeCount} ${tab.isPending ? 'pending' : 'unread'})`
+                        : tab.label
+                    }
+                    className={`relative py-1.5 px-1 sm:px-2 rounded-lg text-[11px] font-montserrat font-bold transition cursor-pointer text-center whitespace-nowrap flex items-center justify-center ${
+                      isActive
+                        ? 'bg-[#0A006E] text-[#FFDE00]'
+                        : badgeCount > 0
+                          ? tab.isPending
+                            ? 'text-amber-900 bg-amber-50/80 hover:bg-amber-100/80'
+                            : 'text-emerald-900 bg-emerald-50/80 hover:bg-emerald-100/80'
+                          : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span className="truncate">{tab.label}</span>
+                    {badgeCount > 0 && (
+                      <span
+                        className={`absolute -top-1.5 -right-1 z-10 min-w-[17px] h-[17px] px-1 rounded-full text-[9px] font-mono-tabular font-black flex items-center justify-center border border-white shadow-xs ${
+                          tab.isPending
+                            ? 'bg-amber-500 text-white'
+                            : 'bg-emerald-500 text-white'
+                        } ${!isActive ? 'animate-pulse-subtle' : ''}`}
+                      >
+                        {badgeCount > 99 ? '99+' : badgeCount}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -1762,15 +2242,29 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
                     ? transfers.find((t) => t.transferNo === stk.linkedTransferNo)
                     : undefined;
 
-                const canActOnStockRequest =
+                const isInvoiceReceiver =
+                  Boolean(inv) &&
+                  !isMine &&
+                  (!inv?.assignedToStaffId || inv.assignedToStaffId === currentUser.id) &&
+                  (!msg.recipientStaffId || msg.recipientStaffId === currentUser.id);
+
+                const isStockReceiver =
                   Boolean(stk) &&
-                  (currentUser.id === stk?.requestedToStaffId ||
-                    currentUser.role === 'Inventory Controller' ||
-                    currentUser.role === 'Branch Manager' ||
-                    currentUser.role === 'Admin');
+                  !isMine &&
+                  currentUser.id === stk?.requestedToStaffId;
+
+                const canActOnStockRequest = isStockReceiver;
 
                 const canManagerAuthorizeStock =
-                  currentUser.role === 'Admin' || currentUser.role === 'Branch Manager';
+                  !isMine &&
+                  (currentUser.role === 'Admin' || currentUser.role === 'Branch Manager');
+
+                const invoiceRedirectCandidates = activeColleagues.filter(
+                  (s) => s.id !== inv?.assignedToStaffId
+                );
+                const stockRedirectCandidates = activeColleagues.filter(
+                  (s) => s.id !== stk?.requestedToStaffId
+                );
 
                 return (
                   <div
@@ -1839,7 +2333,9 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
                                     ? 'bg-blue-100 text-blue-800'
                                     : inv.transferStatus === 'Returned'
                                       ? 'bg-rose-100 text-rose-800'
-                                      : 'bg-amber-100 text-amber-900'
+                                      : inv.transferStatus === 'Cancelled'
+                                        ? 'bg-slate-200 text-slate-700'
+                                        : 'bg-amber-100 text-amber-900'
                               }`}
                             >
                               {inv.transferStatus}
@@ -1883,6 +2379,13 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
                             <p className="text-xs text-slate-700 leading-relaxed">{msg.body}</p>
                           )}
 
+                          {inv.redirectedFromStaffName && (
+                            <div className="text-[11px] text-indigo-800 bg-indigo-50 px-2.5 py-1.5 rounded-lg border border-indigo-200">
+                              Redirected from <span className="font-bold">{inv.redirectedFromStaffName}</span>
+                              {inv.redirectedBy ? ` by ${inv.redirectedBy}` : ''}
+                            </div>
+                          )}
+
                           {inv.handledBy && (
                             <div className="text-[11px] text-slate-600 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200">
                               <span className="font-bold text-slate-800">{inv.transferStatus}</span> by{' '}
@@ -1891,8 +2394,9 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
                             </div>
                           )}
 
-                          {/* Inline Return Note Input */}
-                          {inlineActionBox?.messageId === msg.id &&
+                          {/* Inline Return Note Input (Receiver only) */}
+                          {isInvoiceReceiver &&
+                            inlineActionBox?.messageId === msg.id &&
                             inlineActionBox.mode === 'RETURN_INVOICE' && (
                               <div className="flex items-center gap-2 pt-1">
                                 <input
@@ -1923,54 +2427,95 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
                               </div>
                             )}
 
-                          {/* Action Bar */}
-                          <div className="flex flex-wrap items-center gap-2 pt-1">
-                            {linkedLiveTx && (
-                              <button
-                                type="button"
-                                onClick={() => onPreviewDoc(linkedLiveTx)}
-                                className="px-2.5 py-1.5 rounded-lg border border-slate-300 hover:border-[#0A006E] bg-white text-slate-800 text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
-                              >
-                                <Eye className="w-3.5 h-3.5 text-[#0A006E]" />
-                                <span>View / Print {inv.docType}</span>
-                              </button>
+                          {/* Inline Redirect Staff Picker (Sender only) */}
+                          {isMine &&
+                            inv.transferStatus === 'Pending Acceptance' &&
+                            inlineActionBox?.messageId === msg.id &&
+                            inlineActionBox.mode === 'REDIRECT_INVOICE' && (
+                              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                                <div className="text-[11px] font-montserrat font-black text-[#0A006E]">
+                                  Redirect Invoice Transfer to Another Staff
+                                </div>
+                                {invoiceRedirectCandidates.length === 0 ? (
+                                  <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
+                                    <span>No other active staff members available to redirect to.</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setInlineActionBox(null)}
+                                      className="p-1 text-slate-500 hover:text-slate-800 cursor-pointer"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <select
+                                      value={inlineActionBox.targetStaffId || ''}
+                                      onChange={(e) =>
+                                        setInlineActionBox({
+                                          ...inlineActionBox,
+                                          targetStaffId: e.target.value,
+                                        })
+                                      }
+                                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-montserrat font-semibold text-slate-900 outline-none focus:border-[#0A006E]"
+                                    >
+                                      {invoiceRedirectCandidates.map((s) => (
+                                        <option key={s.id} value={s.id}>
+                                          {s.name} — {s.role} ({s.branchName})
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="text"
+                                        value={inlineActionBox.note}
+                                        onChange={(e) =>
+                                          setInlineActionBox({
+                                            ...inlineActionBox,
+                                            note: e.target.value,
+                                          })
+                                        }
+                                        placeholder="Optional note for new recipient..."
+                                        className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs outline-none focus:border-[#0A006E]"
+                                      />
+                                      <button
+                                        type="button"
+                                        disabled={!inlineActionBox.targetStaffId || isSending}
+                                        onClick={() =>
+                                          handleRedirectTransferInChat(
+                                            msg,
+                                            inlineActionBox.targetStaffId || '',
+                                            inlineActionBox.note
+                                          )
+                                        }
+                                        className="px-3 py-1.5 rounded-lg bg-[#0A006E] hover:bg-[#150099] disabled:opacity-40 text-[#FFDE00] text-xs font-montserrat font-bold cursor-pointer"
+                                      >
+                                        Redirect
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setInlineActionBox(null)}
+                                        className="p-1.5 text-slate-500 hover:text-slate-800 cursor-pointer"
+                                      >
+                                        <X className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
                             )}
 
-                            {linkedLiveTx &&
-                              onInspectOrder &&
-                              (linkedLiveTx.docType === 'Online Order' ||
-                                Boolean(linkedLiveTx.deliveryAddress)) && (
+                          {/* Action Bar: Sender sees ONLY Cancel & Redirect; Receiver sees action buttons */}
+                          {isMine ? (
+                            inv.transferStatus === 'Pending Acceptance' && (
+                              <div className="flex flex-wrap items-center gap-2 pt-1">
                                 <button
                                   type="button"
-                                  onClick={() => onInspectOrder(linkedLiveTx)}
-                                  className="px-2.5 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-[#0A006E] text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
+                                  onClick={() => handleCancelTransferInChat(msg)}
+                                  className="px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
                                 >
-                                  <Truck className="w-3.5 h-3.5" />
-                                  <span>Order Delivery</span>
-                                </button>
-                              )}
-
-                            {inv.transferStatus === 'Pending Acceptance' && (
-                              <button
-                                type="button"
-                                onClick={() => handleInvoiceCardAction(msg, 'Accepted')}
-                                className="px-2.5 py-1.5 rounded-lg bg-[#0A006E] hover:bg-[#150099] text-[#FFDE00] text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
-                              >
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>Accept Invoice</span>
-                              </button>
-                            )}
-
-                            {(inv.transferStatus === 'Pending Acceptance' ||
-                              inv.transferStatus === 'Accepted') && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => handleInvoiceCardAction(msg, 'Processed')}
-                                  className="px-2.5 py-1.5 rounded-lg bg-[#1E9E60] hover:bg-emerald-700 text-white text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
-                                >
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                  <span>Mark Processed</span>
+                                  <XCircle className="w-3.5 h-3.5" />
+                                  <span>Cancel</span>
                                 </button>
 
                                 <button
@@ -1978,18 +2523,88 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
                                   onClick={() =>
                                     setInlineActionBox({
                                       messageId: msg.id,
-                                      mode: 'RETURN_INVOICE',
+                                      mode: 'REDIRECT_INVOICE',
                                       note: '',
+                                      targetStaffId: invoiceRedirectCandidates[0]?.id || '',
                                     })
                                   }
-                                  className="px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
+                                  className="px-2.5 py-1.5 rounded-lg bg-[#0A006E] hover:bg-[#150099] text-[#FFDE00] text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
                                 >
-                                  <XCircle className="w-3.5 h-3.5" />
-                                  <span>Return</span>
+                                  <CornerDownRight className="w-3.5 h-3.5" />
+                                  <span>Redirect to Staff</span>
                                 </button>
-                              </>
-                            )}
-                          </div>
+                              </div>
+                            )
+                          ) : (
+                            isInvoiceReceiver && (
+                              <div className="flex flex-wrap items-center gap-2 pt-1">
+                                {linkedLiveTx && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onPreviewDoc(linkedLiveTx)}
+                                    className="px-2.5 py-1.5 rounded-lg border border-slate-300 hover:border-[#0A006E] bg-white text-slate-800 text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
+                                  >
+                                    <Eye className="w-3.5 h-3.5 text-[#0A006E]" />
+                                    <span>View / Print {inv.docType}</span>
+                                  </button>
+                                )}
+
+                                {linkedLiveTx &&
+                                  onInspectOrder &&
+                                  (linkedLiveTx.docType === 'Online Order' ||
+                                    Boolean(linkedLiveTx.deliveryAddress)) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onInspectOrder(linkedLiveTx)}
+                                      className="px-2.5 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-[#0A006E] text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
+                                    >
+                                      <Truck className="w-3.5 h-3.5" />
+                                      <span>Order Delivery</span>
+                                    </button>
+                                  )}
+
+                                {inv.transferStatus === 'Pending Acceptance' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleInvoiceCardAction(msg, 'Accepted')}
+                                    className="px-2.5 py-1.5 rounded-lg bg-[#0A006E] hover:bg-[#150099] text-[#FFDE00] text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span>Accept Invoice</span>
+                                  </button>
+                                )}
+
+                                {(inv.transferStatus === 'Pending Acceptance' ||
+                                  inv.transferStatus === 'Accepted') && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleInvoiceCardAction(msg, 'Processed')}
+                                      className="px-2.5 py-1.5 rounded-lg bg-[#1E9E60] hover:bg-emerald-700 text-white text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
+                                    >
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                      <span>Mark Processed</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setInlineActionBox({
+                                          messageId: msg.id,
+                                          mode: 'RETURN_INVOICE',
+                                          note: '',
+                                        })
+                                      }
+                                      className="px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
+                                    >
+                                      <XCircle className="w-3.5 h-3.5" />
+                                      <span>Return</span>
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            )
+                          )}
                         </div>
                       )}
 
@@ -2025,14 +2640,17 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
                                     : stk.requestStatus === 'Declined' ||
                                         linkedLiveTransfer?.status === 'Rejected'
                                       ? 'bg-rose-100 text-rose-800'
-                                      : 'bg-amber-100 text-amber-900'
+                                      : stk.requestStatus === 'Cancelled'
+                                        ? 'bg-slate-200 text-slate-700'
+                                        : 'bg-amber-100 text-amber-900'
                               }`}
                             >
                               {linkedLiveTransfer?.status === 'Received'
                                 ? 'Received at Branch'
                                 : linkedLiveTransfer?.status === 'Dispatched'
                                   ? 'Authorized & Dispatched'
-                                  : linkedLiveTransfer?.status === 'Rejected'
+                                  : linkedLiveTransfer?.status === 'Rejected' &&
+                                      stk.requestStatus !== 'Cancelled'
                                     ? 'Rejected'
                                     : stk.requestStatus}
                             </span>
@@ -2078,6 +2696,13 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
                             <p className="text-xs text-slate-700 leading-relaxed">{msg.body}</p>
                           )}
 
+                          {stk.redirectedFromStaffName && (
+                            <div className="text-[11px] text-indigo-800 bg-indigo-50 px-2.5 py-1.5 rounded-lg border border-indigo-200">
+                              Redirected from <span className="font-bold">{stk.redirectedFromStaffName}</span>
+                              {stk.redirectedBy ? ` by ${stk.redirectedBy}` : ''}
+                            </div>
+                          )}
+
                           {stk.actionedBy && (
                             <div className="text-[11px] text-slate-600 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200">
                               Actioned by <span className="font-bold text-slate-800">{stk.actionedBy}</span> (
@@ -2086,8 +2711,9 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
                             </div>
                           )}
 
-                          {/* Inline Decline Reason */}
-                          {inlineActionBox?.messageId === msg.id &&
+                          {/* Inline Decline Reason (Receiver only) */}
+                          {canActOnStockRequest &&
+                            inlineActionBox?.messageId === msg.id &&
                             inlineActionBox.mode === 'DECLINE_STOCK' && (
                               <div className="flex items-center gap-2 pt-1">
                                 <input
@@ -2118,21 +2744,95 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
                               </div>
                             )}
 
-                          {/* Action Buttons */}
-                          <div className="flex flex-wrap items-center gap-2 pt-1">
-                            {stk.requestStatus === 'Pending Review' && canActOnStockRequest && (
-                              <>
+                          {/* Inline Redirect Staff Picker (Sender only) */}
+                          {isMine &&
+                            stk.requestStatus === 'Pending Review' &&
+                            inlineActionBox?.messageId === msg.id &&
+                            inlineActionBox.mode === 'REDIRECT_STOCK' && (
+                              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                                <div className="text-[11px] font-montserrat font-black text-[#0A006E]">
+                                  Redirect Stock Request to Another Staff
+                                </div>
+                                {stockRedirectCandidates.length === 0 ? (
+                                  <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
+                                    <span>No other active staff members available to redirect to.</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setInlineActionBox(null)}
+                                      className="p-1 text-slate-500 hover:text-slate-800 cursor-pointer"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <select
+                                      value={inlineActionBox.targetStaffId || ''}
+                                      onChange={(e) =>
+                                        setInlineActionBox({
+                                          ...inlineActionBox,
+                                          targetStaffId: e.target.value,
+                                        })
+                                      }
+                                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-montserrat font-semibold text-slate-900 outline-none focus:border-[#0A006E]"
+                                    >
+                                      {stockRedirectCandidates.map((s) => (
+                                        <option key={s.id} value={s.id}>
+                                          {s.name} — {s.role} ({s.branchName})
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="text"
+                                        value={inlineActionBox.note}
+                                        onChange={(e) =>
+                                          setInlineActionBox({
+                                            ...inlineActionBox,
+                                            note: e.target.value,
+                                          })
+                                        }
+                                        placeholder="Optional note for new recipient..."
+                                        className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs outline-none focus:border-[#0A006E]"
+                                      />
+                                      <button
+                                        type="button"
+                                        disabled={!inlineActionBox.targetStaffId || isSending}
+                                        onClick={() =>
+                                          handleRedirectTransferInChat(
+                                            msg,
+                                            inlineActionBox.targetStaffId || '',
+                                            inlineActionBox.note
+                                          )
+                                        }
+                                        className="px-3 py-1.5 rounded-lg bg-[#0A006E] hover:bg-[#150099] disabled:opacity-40 text-[#FFDE00] text-xs font-montserrat font-bold cursor-pointer"
+                                      >
+                                        Redirect
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setInlineActionBox(null)}
+                                        className="p-1.5 text-slate-500 hover:text-slate-800 cursor-pointer"
+                                      >
+                                        <X className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            )}
+
+                          {/* Action Buttons: Sender sees ONLY Cancel & Redirect; Receiver sees action buttons */}
+                          {isMine ? (
+                            stk.requestStatus === 'Pending Review' && (
+                              <div className="flex flex-wrap items-center gap-2 pt-1">
                                 <button
                                   type="button"
-                                  onClick={() => handleConvertStockRequestToTransfer(msg)}
-                                  className="px-3 py-1.5 rounded-lg bg-[#1E9E60] hover:bg-emerald-700 text-white text-[11px] font-montserrat font-bold flex items-center gap-1.5 cursor-pointer transition"
+                                  onClick={() => handleCancelTransferInChat(msg)}
+                                  className="px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
                                 >
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                  <span>
-                                    {canManagerAuthorizeStock
-                                      ? 'Authorize & Dispatch Stock'
-                                      : 'Initiate Transfer (Queue Manager Auth)'}
-                                  </span>
+                                  <XCircle className="w-3.5 h-3.5" />
+                                  <span>Cancel</span>
                                 </button>
 
                                 <button
@@ -2140,51 +2840,158 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
                                   onClick={() =>
                                     setInlineActionBox({
                                       messageId: msg.id,
-                                      mode: 'DECLINE_STOCK',
+                                      mode: 'REDIRECT_STOCK',
                                       note: '',
+                                      targetStaffId: stockRedirectCandidates[0]?.id || '',
                                     })
                                   }
-                                  className="px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
+                                  className="px-2.5 py-1.5 rounded-lg bg-[#0A006E] hover:bg-[#150099] text-[#FFDE00] text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
                                 >
-                                  <XCircle className="w-3.5 h-3.5" />
-                                  <span>Decline</span>
+                                  <CornerDownRight className="w-3.5 h-3.5" />
+                                  <span>Redirect to Staff</span>
                                 </button>
-                              </>
-                            )}
+                              </div>
+                            )
+                          ) : (
+                            <div className="flex flex-wrap items-center gap-2 pt-1">
+                              {stk.requestStatus === 'Pending Review' && canActOnStockRequest && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleConvertStockRequestToTransfer(msg)}
+                                    className="px-3 py-1.5 rounded-lg bg-[#1E9E60] hover:bg-emerald-700 text-white text-[11px] font-montserrat font-bold flex items-center gap-1.5 cursor-pointer transition"
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span>
+                                      {canManagerAuthorizeStock
+                                        ? 'Authorize & Dispatch Stock'
+                                        : 'Initiate Transfer (Queue Manager Auth)'}
+                                    </span>
+                                  </button>
 
-                            {/* If Inventory Controller already initiated it, allow Manager/Admin to authorize right here */}
-                            {stk.requestStatus === 'Transfer Initiated' &&
-                              linkedLiveTransfer?.status === 'Pending Authorization' &&
-                              canManagerAuthorizeStock && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleAuthorizeLinkedTransferInChat(msg, linkedLiveTransfer)
-                                  }
-                                  className="px-3 py-1.5 rounded-lg bg-[#0A006E] hover:bg-[#150099] text-[#FFDE00] text-[11px] font-montserrat font-black flex items-center gap-1.5 cursor-pointer transition"
-                                >
-                                  <ShieldCheck className="w-3.5 h-3.5" />
-                                  <span>Authorize Dispatch ({linkedLiveTransfer.transferNo})</span>
-                                </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setInlineActionBox({
+                                        messageId: msg.id,
+                                        mode: 'DECLINE_STOCK',
+                                        note: '',
+                                      })
+                                    }
+                                    className="px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition"
+                                  >
+                                    <XCircle className="w-3.5 h-3.5" />
+                                    <span>Decline</span>
+                                  </button>
+                                </>
                               )}
 
-                            {stk.requestStatus === 'Transfer Initiated' &&
-                              linkedLiveTransfer?.status === 'Pending Authorization' &&
-                              !canManagerAuthorizeStock && (
-                                <span className="inline-flex items-center gap-1 text-[11px] font-montserrat font-semibold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
-                                  <Clock className="w-3.5 h-3.5" />
-                                  Awaiting Branch Manager / Admin Authorization
-                                </span>
-                              )}
-                          </div>
+                              {/* If Inventory Controller already initiated it, allow non-sender Manager/Admin to authorize right here */}
+                              {stk.requestStatus === 'Transfer Initiated' &&
+                                linkedLiveTransfer?.status === 'Pending Authorization' &&
+                                canManagerAuthorizeStock && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleAuthorizeLinkedTransferInChat(msg, linkedLiveTransfer)
+                                    }
+                                    className="px-3 py-1.5 rounded-lg bg-[#0A006E] hover:bg-[#150099] text-[#FFDE00] text-[11px] font-montserrat font-black flex items-center gap-1.5 cursor-pointer transition"
+                                  >
+                                    <ShieldCheck className="w-3.5 h-3.5" />
+                                    <span>Authorize Dispatch ({linkedLiveTransfer.transferNo})</span>
+                                  </button>
+                                )}
+
+                              {stk.requestStatus === 'Transfer Initiated' &&
+                                linkedLiveTransfer?.status === 'Pending Authorization' &&
+                                !canManagerAuthorizeStock &&
+                                isStockReceiver && (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-montserrat font-semibold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                                    <Clock className="w-3.5 h-3.5" />
+                                    Awaiting Branch Manager / Admin Authorization
+                                  </span>
+                                )}
+                            </div>
+                          )}
                         </div>
                       )}
 
-                      {/* 3. STANDARD TEXT MESSAGE */}
+                      {/* 3. STANDARD TEXT MESSAGE & DOCUMENT ATTACHMENT */}
                       {msg.messageType === 'TEXT' && (
-                        <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap break-words">
-                          {msg.body}
-                        </p>
+                        <div className="space-y-2">
+                          {msg.body && (
+                            <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap break-words">
+                              {msg.body}
+                            </p>
+                          )}
+
+                          {msg.attachment && (
+                            <div
+                              className={`rounded-xl border p-2.5 flex items-center justify-between gap-2.5 ${
+                                isMine
+                                  ? 'bg-white/10 border-white/25 text-white'
+                                  : 'bg-slate-50 border-slate-200 text-slate-900'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div
+                                  className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 font-montserrat font-black text-[10px] ${
+                                    isMine
+                                      ? 'bg-[#FFDE00] text-[#0A006E]'
+                                      : 'bg-[#0A006E] text-[#FFDE00]'
+                                  }`}
+                                >
+                                  {msg.attachment.extension || 'DOC'}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="text-xs font-montserrat font-bold truncate">
+                                    {msg.attachment.fileName}
+                                  </div>
+                                  <div
+                                    className={`text-[10px] font-mono-tabular ${
+                                      isMine ? 'text-indigo-100' : 'text-slate-500'
+                                    }`}
+                                  >
+                                    {formatAttachmentBytes(msg.attachment.sizeBytes)}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {(msg.attachment.mimeType === 'application/pdf' ||
+                                  msg.attachment.mimeType.startsWith('image/') ||
+                                  msg.attachment.mimeType.startsWith('text/') ||
+                                  msg.attachment.mimeType === 'application/json') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setPreviewAttachment(msg.attachment!)}
+                                    className={`px-2 py-1.5 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition ${
+                                      isMine
+                                        ? 'bg-white/15 hover:bg-white/25 text-white'
+                                        : 'bg-white hover:bg-slate-100 text-[#0A006E] border border-slate-300'
+                                    }`}
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                    <span>View</span>
+                                  </button>
+                                )}
+
+                                <a
+                                  href={msg.attachment.dataUrl}
+                                  download={msg.attachment.fileName}
+                                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition ${
+                                    isMine
+                                      ? 'bg-[#FFDE00] hover:bg-[#ffe74a] text-[#0A006E]'
+                                      : 'bg-[#0A006E] hover:bg-[#150099] text-[#FFDE00]'
+                                  }`}
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                  <span>Save</span>
+                                </a>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -2261,6 +3068,24 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
                   <span>+ Stock Transfer</span>
                 </button>
 
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Attach document (PDF, Word, Excel, CSV, TXT — no videos)"
+                  className="px-2.5 py-1 rounded-full bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-[11px] font-montserrat font-bold flex items-center gap-1 cursor-pointer transition shrink-0 active:scale-95"
+                >
+                  <Paperclip className="w-3.5 h-3.5 stroke-[2.2]" />
+                  <span>+ Attach File</span>
+                </button>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={DOCUMENT_ACCEPT_ATTR}
+                  onChange={handleSelectAttachment}
+                  className="hidden"
+                />
+
                 {/* Optional @Person Tag when posting in a Department channel */}
                 {activeChannelDef && activeColleagues.length > 0 && (
                   <select
@@ -2293,8 +3118,41 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
               </button>
             </div>
 
-            {/* Pill Text Input + Circular Send Button */}
+            {/* Pending Document Attachment Chip */}
+            {pendingAttachment && (
+              <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-indigo-50 border border-indigo-200 text-xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Paperclip className="w-4 h-4 text-[#0A006E] shrink-0" />
+                  <span className="font-montserrat font-bold text-[#0A006E] truncate">
+                    {pendingAttachment.fileName}
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded bg-white border border-indigo-200 text-[10px] font-mono-tabular font-bold text-slate-700 shrink-0">
+                    {pendingAttachment.extension} · {formatAttachmentBytes(pendingAttachment.sizeBytes)}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPendingAttachment(null)}
+                  aria-label="Remove attached document"
+                  className="p-1 rounded-lg hover:bg-indigo-100 text-slate-600 hover:text-rose-600 cursor-pointer shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Pill Text Input + Attach Icon + Circular Send Button */}
             <div className="flex items-center gap-2 min-w-0 w-full">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                title="Attach document (no videos)"
+                aria-label="Attach document"
+                className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-200 text-[#0A006E] flex items-center justify-center cursor-pointer transition shrink-0 active:scale-95"
+              >
+                <Paperclip className="w-4 h-4 stroke-[2.2]" />
+              </button>
+
               <input
                 type="text"
                 value={messageText}
@@ -2319,7 +3177,7 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
               />
               <button
                 type="submit"
-                disabled={!messageText.trim() || isSending}
+                disabled={(!messageText.trim() && !pendingAttachment) || isSending}
                 className="w-10.5 h-10.5 rounded-full bg-[#0A006E] hover:bg-[#150099] disabled:opacity-40 text-[#FFDE00] font-montserrat font-black flex items-center justify-center cursor-pointer transition shrink-0 shadow-md active:scale-95"
                 title="Send message"
               >
@@ -2793,6 +3651,72 @@ export const InternalInboxModule: React.FC<InternalInboxModuleProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          MODAL 3: IN-APP DOCUMENT ATTACHMENT PREVIEW
+          ===================================================================== */}
+      {previewAttachment && (
+        <div
+          onClick={() => setPreviewAttachment(null)}
+          className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-5"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl border-2 border-[#0A006E] max-w-3xl w-full max-h-[90dvh] flex flex-col overflow-hidden shadow-2xl"
+          >
+            <div className="px-4 py-3 bg-[#0A006E] text-white flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <Paperclip className="w-4 h-4 text-[#FFDE00] shrink-0" />
+                <span className="font-montserrat font-black text-xs sm:text-sm truncate">
+                  {previewAttachment.fileName}
+                </span>
+                <span className="text-[10px] font-mono-tabular text-indigo-200 shrink-0">
+                  {formatAttachmentBytes(previewAttachment.sizeBytes)}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={previewAttachment.dataUrl}
+                  download={previewAttachment.fileName}
+                  className="px-3 py-1.5 rounded-lg bg-[#FFDE00] hover:bg-[#ffe74a] text-[#0A006E] text-xs font-montserrat font-black flex items-center gap-1 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPreviewAttachment(null)}
+                  className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-auto bg-slate-100 p-3 flex items-center justify-center min-h-[320px]">
+              {previewAttachment.mimeType.startsWith('image/') ? (
+                <img
+                  src={previewAttachment.dataUrl}
+                  alt={previewAttachment.fileName}
+                  className="max-w-full max-h-[75dvh] rounded-lg shadow-sm object-contain"
+                />
+              ) : previewAttachment.mimeType === 'application/pdf' ? (
+                <iframe
+                  src={previewAttachment.dataUrl}
+                  title={previewAttachment.fileName}
+                  className="w-full h-[72dvh] rounded-lg bg-white border border-slate-200"
+                />
+              ) : (
+                <iframe
+                  src={previewAttachment.dataUrl}
+                  title={previewAttachment.fileName}
+                  className="w-full h-[65dvh] rounded-lg bg-white border border-slate-200"
+                />
+              )}
+            </div>
           </div>
         </div>
       )}
